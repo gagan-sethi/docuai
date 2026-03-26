@@ -172,18 +172,18 @@ export default function Hero() {
             {/* CTA Buttons */}
             <div className="mt-10 flex flex-col sm:flex-row items-center gap-4 justify-center lg:justify-start">
               <Link
-                href="#demo"
+                href="/signup"
                 className="btn-shine group w-full sm:w-auto inline-flex items-center justify-center gap-2 px-8 py-4 text-base font-semibold text-white bg-gradient-to-r from-primary via-primary-dark to-primary rounded-2xl shadow-xl shadow-primary/25 hover:shadow-primary/40 hover:scale-105 transition-all duration-200"
               >
                 <Upload className="w-5 h-5" />
-                Try Live Demo
+                Start Free Trial
                 <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
               </Link>
               <Link
-                href="#how-it-works"
+                href="#demo"
                 className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-8 py-4 text-base font-semibold text-slate-700 bg-white border-2 border-slate-200 rounded-2xl hover:border-primary/30 hover:text-primary hover:bg-primary/5 transition-all duration-200"
               >
-                See How It Works
+                See Live Demo
               </Link>
             </div>
           </motion.div>

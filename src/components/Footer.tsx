@@ -7,6 +7,7 @@ import {
   ExternalLink,
   Mail,
   MapPin,
+  Heart,
 } from "lucide-react";
 import Link from "next/link";
 
@@ -14,7 +15,7 @@ const footerLinks = {
   Product: [
     { name: "Features", href: "#features" },
     { name: "How It Works", href: "#how-it-works" },
-    { name: "Pricing", href: "#pricing" },
+    { name: "Pricing", href: "/pricing" },
     { name: "Demo", href: "#demo" },
     { name: "API Docs", href: "#" },
   ],
@@ -109,8 +110,8 @@ export default function Footer() {
           <p className="text-sm text-slate-500">
             © 2026 DocuAI. All rights reserved.
           </p>
-          <p className="text-xs text-slate-600">
-            Powered by AI • Built with ❤️
+          <p className="text-xs text-slate-600 flex items-center gap-1">
+            Powered by AI • Built with <Heart className="w-3.5 h-3.5 text-red-400 fill-red-400" />
           </p>
         </div>
       </div>

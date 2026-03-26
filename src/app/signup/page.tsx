@@ -19,6 +19,8 @@ import {
   Smartphone,
   Shield,
   Sparkles,
+  PartyPopper,
+  Check,
 } from "lucide-react";
 import Link from "next/link";
 import AuthLayout from "@/components/auth/AuthLayout";
@@ -619,11 +621,20 @@ export default function SignupPage() {
                       Automatic Acknowledgments
                     </p>
                     <p className="text-xs text-blue-600 mt-0.5 leading-relaxed">
-                      When you send a document, you&apos;ll receive: <br />
-                      ✓ &quot;Document received and processing&quot; <br />
-                      ✓ &quot;Data extraction complete — view in dashboard&quot; <br />
-                      ✓ Error alerts if document can&apos;t be read
+                      When you send a document, you&apos;ll receive:
                     </p>
+                    <ul className="mt-1.5 space-y-1">
+                      {[
+                        "\"Document received and processing\"",
+                        "\"Data extraction complete — view in dashboard\"",
+                        "Error alerts if document can't be read",
+                      ].map((text) => (
+                        <li key={text} className="flex items-center gap-1.5 text-xs text-blue-600">
+                          <Check className="w-3.5 h-3.5 text-blue-500 flex-shrink-0" />
+                          {text}
+                        </li>
+                      ))}
+                    </ul>
                   </div>
                 </div>
               </div>
@@ -679,8 +690,9 @@ export default function SignupPage() {
                 <CheckCircle2 className="w-10 h-10 text-success" />
               </motion.div>
 
-              <h1 className="text-2xl font-bold text-slate-900 tracking-tight">
-                You&apos;re all set! 🎉
+              <h1 className="text-2xl font-bold text-slate-900 tracking-tight flex items-center justify-center gap-2">
+                You&apos;re all set!
+                <PartyPopper className="w-6 h-6 text-amber-500" />
               </h1>
               <p className="mt-2 text-sm text-muted max-w-sm mx-auto">
                 Welcome to DocuAI, <span className="font-semibold text-slate-700">{form.fullName || "there"}</span>!
@@ -701,7 +713,7 @@ export default function SignupPage() {
                       label: "Mobile",
                       value: form.mobile || "+971 50 123 4567",
                     },
-                    { label: "WhatsApp", value: "Linked ✓" },
+                    { label: "WhatsApp", value: "Linked" },
                     { label: "Plan", value: "Free Trial (14 days)" },
                   ].map((row) => (
                     <div
@@ -709,8 +721,11 @@ export default function SignupPage() {
                       className="flex items-center justify-between"
                     >
                       <span className="text-xs text-muted">{row.label}</span>
-                      <span className="text-sm font-medium text-slate-800">
+                      <span className="text-sm font-medium text-slate-800 flex items-center gap-1">
                         {row.value}
+                        {row.label === "WhatsApp" && (
+                          <CheckCircle2 className="w-3.5 h-3.5 text-success" />
+                        )}
                       </span>
                     </div>
                   ))}
