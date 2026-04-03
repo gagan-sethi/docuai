@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useCallback, useMemo, useRef } from "react";
+import { useEffect, useState, useCallback, useMemo, useRef, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import {
@@ -109,7 +109,7 @@ function DocumentPreview({ docId, fileType, fileName }: { docId: string; fileTyp
   );
 }
 
-export default function ReviewPage() {
+function ReviewPageContent() {
   const searchParams = useSearchParams();
   const highlightId = searchParams.get("id") || searchParams.get("doc");
   const [documents, setDocuments] = useState<ProcessedDocument[]>([]);
@@ -306,5 +306,24 @@ export default function ReviewPage() {
       </AnimatePresence>
       <ToastContainer toasts={toasts} dismiss={dismissToast} />
     </>
+  );
+}
+
+function ReviewPageFallback() {
+  return (
+    <div className="flex h-full items-center justify-center">
+      <div className="text-center">
+        <Loader2 className="mx-auto h-8 w-8 animate-spin text-blue-600" />
+        <p className="mt-3 text-sm text-gray-500">Loading review…</p>
+      </div>
+    </div>
+  );
+}
+
+export default function ReviewPage() {
+  return (
+    <Suspense fallback={<ReviewPageFallback />}>
+      <ReviewPageContent />
+    </Suspense>
   );
 }
