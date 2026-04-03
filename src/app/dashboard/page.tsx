@@ -28,6 +28,7 @@ import {
 import Link from "next/link";
 import Sidebar from "@/components/dashboard/Sidebar";
 import TopBar from "@/components/dashboard/TopBar";
+import { apiUrl } from "@/lib/api";
 
 // ─── Animated Counter ───────────────────────────────────────────
 function AnimatedNumber({ target, suffix = "" }: { target: number; suffix?: string }) {
@@ -236,7 +237,7 @@ export default function DashboardPage() {
 
   // Fetch user
   useEffect(() => {
-    fetch("/api/auth/me")
+    fetch(apiUrl("/api/auth/me"), { credentials: "include" })
       .then((r) => (r.ok ? r.json() : null))
       .then((data) => {
         if (data?.user?.fullName) {
@@ -251,9 +252,9 @@ export default function DashboardPage() {
     const fetchData = async () => {
       try {
         const [docRes, actRes, planRes] = await Promise.all([
-          fetch("/api/documents"),
-          fetch("/api/activities?limit=5"),
-          fetch("/api/plan"),
+          fetch(apiUrl("/api/documents"), { credentials: "include" }),
+          fetch(apiUrl("/api/activities?limit=5"), { credentials: "include" }),
+          fetch(apiUrl("/api/plan"), { credentials: "include" }),
         ]);
         if (docRes.ok) {
           const data = await docRes.json();

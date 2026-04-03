@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback } from "react";
 import Link from "next/link";
 import { motion, AnimatePresence } from "framer-motion";
+import { apiUrl } from "@/lib/api";
 import {
   Bell,
   Search,
@@ -57,7 +58,7 @@ export default function TopBar({ title }: { title: string }) {
 
   const fetchNotifications = useCallback(async () => {
     try {
-      const res = await fetch("/api/notifications?limit=10");
+      const res = await fetch(apiUrl("/api/notifications?limit=10"), { credentials: "include" });
       if (res.ok) {
         const data = await res.json();
         setNotifications(data.notifications || []);
@@ -69,7 +70,7 @@ export default function TopBar({ title }: { title: string }) {
   useEffect(() => {
     fetchNotifications();
     // Fetch user
-    fetch("/api/auth/me")
+    fetch(apiUrl("/api/auth/me"), { credentials: "include" })
       .then((r) => (r.ok ? r.json() : null))
       .then((data) => {
         if (data?.user) setUser(data.user);
@@ -82,9 +83,10 @@ export default function TopBar({ title }: { title: string }) {
   }, [fetchNotifications]);
 
   const handleMarkAllRead = async () => {
-    await fetch("/api/notifications", {
+    await fetch(apiUrl("/api/notifications"), {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
+      credentials: "include",
       body: JSON.stringify({}),
     });
     setUnreadCount(0);

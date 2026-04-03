@@ -26,6 +26,7 @@ import {
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import AuthLayout from "@/components/auth/AuthLayout";
+import { apiUrl } from "@/lib/api";
 
 type Step = "details" | "verify-email" | "verify-otp" | "whatsapp" | "complete";
 type AccountRole = "business" | "accounting";
@@ -211,9 +212,10 @@ export default function SignupPage() {
     setIsLoading(true);
 
     try {
-      const res = await fetch("/api/auth/signup", {
+      const res = await fetch(apiUrl("/api/auth/signup"), {
         method: "POST",
         headers: { "Content-Type": "application/json" },
+        credentials: "include",
         body: JSON.stringify({
           fullName: form.fullName,
           companyName: form.companyName,
@@ -245,9 +247,10 @@ export default function SignupPage() {
     setIsLoading(true);
 
     try {
-      const res = await fetch("/api/auth/verify-otp", {
+      const res = await fetch(apiUrl("/api/auth/verify-otp"), {
         method: "POST",
         headers: { "Content-Type": "application/json" },
+        credentials: "include",
         body: JSON.stringify({ otp: otpValue }),
       });
 
@@ -282,9 +285,10 @@ export default function SignupPage() {
     setIsLoading(true);
 
     try {
-      const res = await fetch("/api/auth/link-whatsapp", {
+      const res = await fetch(apiUrl("/api/auth/link-whatsapp"), {
         method: "POST",
         headers: { "Content-Type": "application/json" },
+        credentials: "include",
       });
 
       if (res.ok) {

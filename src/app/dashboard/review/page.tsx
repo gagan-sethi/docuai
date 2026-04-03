@@ -10,6 +10,7 @@ import {
   RotateCw, Maximize2, PanelLeftClose, PanelLeftOpen, Image as ImageIcon,
 } from "lucide-react";
 import type { ProcessedDocument, ExtractedField, LineItem } from "@/lib/types";
+import { apiUrl } from "@/lib/api";
 
 interface Toast { id: number; message: string; type: "success" | "error" | "info"; }
 let toastCounter = 0;
@@ -59,7 +60,7 @@ function DocumentPreview({ docId, fileType, fileName }: { docId: string; fileTyp
   const [rotation, setRotation] = useState(0);
   const [previewError, setPreviewError] = useState(false);
   const [loading, setLoading] = useState(true);
-  const previewUrl = `/api/documents/${docId}/preview`;
+  const previewUrl = apiUrl(`/api/documents/${docId}/preview`);
   const isImage = fileType.startsWith("image/");
   const isPdf = fileType === "application/pdf" || fileName.toLowerCase().endsWith(".pdf");
 
@@ -136,7 +137,7 @@ function ReviewPageContent() {
   const statusCounts = useMemo(() => { const c: Record<string, number> = { all: documents.length }; documents.forEach((d) => { if (d.status === "error") c.errors = (c.errors || 0) + 1; else c[d.status] = (c[d.status] || 0) + 1; }); return c; }, [documents]);
   const isEditable = currentDoc?.status === "review";
 
-  const fetchDocuments = useCallback(async () => { try { const res = await fetch("/api/documents"); if (!res.ok) throw new Error(); const data = await res.json(); setDocuments(data.documents ?? []); } catch { /* retry */ } finally { setLoading(false); } }, []);
+  const fetchDocuments = useCallback(async () => { try { const res = await fetch(apiUrl("/api/documents"), { credentials: "include" }); if (!res.ok) throw new Error(); const data = await res.json(); setDocuments(data.documents ?? []); } catch { /* retry */ } finally { setLoading(false); } }, []);
 
   useEffect(() => { fetchDocuments(); }, [fetchDocuments]);
   useEffect(() => { if (initialSelectDone.current || documents.length === 0) return; initialSelectDone.current = true; if (highlightId && documents.find((d) => d.id === highlightId)) setSelectedDocId(highlightId); else { const f = documents.find((d) => d.status === "review"); setSelectedDocId(f?.id ?? documents[0]?.id ?? null); } }, [documents, highlightId]);
@@ -152,20 +153,20 @@ function ReviewPageContent() {
     try {
       const uf: ExtractedField[] = currentDoc.fields.map((f) => ({ ...f, value: editingFields[f.id] ?? f.value, edited: (editingFields[f.id] ?? f.value) !== f.value || f.edited }));
       const ui: LineItem[] = currentDoc.lineItems.map((li) => { const e = editingLineItems[li.id]; if (!e) return li; return { ...li, code: e.code ?? li.code, description: e.description ?? li.description, qty: Number(e.qty) || li.qty, unitPrice: e.unitPrice ?? li.unitPrice, total: e.total ?? li.total }; });
-      const res = await fetch(`/api/documents/${currentDoc.id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ fields: uf, lineItems: ui }) });
+      const res = await fetch(apiUrl(`/api/documents/${currentDoc.id}`), { method: "PATCH", headers: { "Content-Type": "application/json" }, credentials: "include", body: JSON.stringify({ fields: uf, lineItems: ui }) });
       if (!res.ok) throw new Error(); setIsEditing(false); addToast("Changes saved"); await fetchDocuments();
     } catch { addToast("Failed to save", "error"); } finally { setActionLoading(false); }
   }, [currentDoc, editingFields, editingLineItems, addToast, fetchDocuments]);
 
   const approveDocument = useCallback(async () => {
     if (!currentDoc) return; setActionLoading(true);
-    try { const res = await fetch(`/api/documents/${currentDoc.id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ status: "approved" }) }); if (!res.ok) throw new Error(); addToast(`"${currentDoc.fileName}" approved`); setIsEditing(false); const rem = documents.filter((d) => d.status === "review" && d.id !== currentDoc.id); setSelectedDocId(rem[0]?.id ?? null); await fetchDocuments(); }
+    try { const res = await fetch(apiUrl(`/api/documents/${currentDoc.id}`), { method: "PATCH", headers: { "Content-Type": "application/json" }, credentials: "include", body: JSON.stringify({ status: "approved" }) }); if (!res.ok) throw new Error(); addToast(`"${currentDoc.fileName}" approved`); setIsEditing(false); const rem = documents.filter((d) => d.status === "review" && d.id !== currentDoc.id); setSelectedDocId(rem[0]?.id ?? null); await fetchDocuments(); }
     catch { addToast("Failed to approve", "error"); } finally { setActionLoading(false); }
   }, [currentDoc, documents, addToast, fetchDocuments]);
 
   const rejectDocument = useCallback(async () => {
     if (!currentDoc) return; setShowRejectConfirm(false); setActionLoading(true);
-    try { const res = await fetch(`/api/documents/${currentDoc.id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ status: "rejected" }) }); if (!res.ok) throw new Error(); addToast(`"${currentDoc.fileName}" rejected`); setIsEditing(false); const rem = documents.filter((d) => d.status === "review" && d.id !== currentDoc.id); setSelectedDocId(rem[0]?.id ?? null); await fetchDocuments(); }
+    try { const res = await fetch(apiUrl(`/api/documents/${currentDoc.id}`), { method: "PATCH", headers: { "Content-Type": "application/json" }, credentials: "include", body: JSON.stringify({ status: "rejected" }) }); if (!res.ok) throw new Error(); addToast(`"${currentDoc.fileName}" rejected`); setIsEditing(false); const rem = documents.filter((d) => d.status === "review" && d.id !== currentDoc.id); setSelectedDocId(rem[0]?.id ?? null); await fetchDocuments(); }
     catch { addToast("Failed to reject", "error"); } finally { setActionLoading(false); }
   }, [currentDoc, documents, addToast, fetchDocuments]);
 
@@ -173,7 +174,7 @@ function ReviewPageContent() {
 
   const downloadExcel = useCallback(async () => {
     if (!currentDoc) return;
-    try { const res = await fetch(`/api/documents/${currentDoc.id}/excel`); if (!res.ok) throw new Error(); const blob = await res.blob(); const url = URL.createObjectURL(blob); const a = document.createElement("a"); a.href = url; a.download = `${currentDoc.fileName.replace(/\.[^.]+$/, "")}_data.csv`; a.click(); URL.revokeObjectURL(url); addToast("Excel downloaded"); }
+    try { const res = await fetch(apiUrl(`/api/documents/${currentDoc.id}/excel`), { credentials: "include" }); if (!res.ok) throw new Error(); const blob = await res.blob(); const url = URL.createObjectURL(blob); const a = document.createElement("a"); a.href = url; a.download = `${currentDoc.fileName.replace(/\.[^.]+$/, "")}_data.csv`; a.click(); URL.revokeObjectURL(url); addToast("Excel downloaded"); }
     catch { addToast("Failed to download", "error"); }
   }, [currentDoc, addToast]);
 

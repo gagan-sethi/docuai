@@ -16,6 +16,7 @@ import {
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import AuthLayout from "@/components/auth/AuthLayout";
+import { apiUrl } from "@/lib/api";
 
 function LoginPageContent() {
   const router = useRouter();
@@ -44,9 +45,10 @@ function LoginPageContent() {
     setError("");
 
     try {
-      const res = await fetch("/api/auth/login", {
+      const res = await fetch(apiUrl("/api/auth/login"), {
         method: "POST",
         headers: { "Content-Type": "application/json" },
+        credentials: "include",
         body: JSON.stringify({
           email: form.email,
           password: form.password,

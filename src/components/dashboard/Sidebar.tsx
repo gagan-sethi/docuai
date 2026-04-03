@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
+import { apiUrl } from "@/lib/api";
 import {
   LayoutDashboard,
   FileText,
@@ -86,7 +87,7 @@ export default function Sidebar() {
   const [user, setUser] = useState<{ fullName: string; email: string } | null>(null);
 
   useEffect(() => {
-    fetch("/api/auth/me")
+    fetch(apiUrl("/api/auth/me"), { credentials: "include" })
       .then((r) => (r.ok ? r.json() : null))
       .then((data) => {
         if (data?.user) setUser(data.user);
@@ -95,7 +96,7 @@ export default function Sidebar() {
   }, []);
 
   const handleLogout = useCallback(async () => {
-    await fetch("/api/auth/me", { method: "POST" });
+    await fetch(apiUrl("/api/auth/me"), { method: "POST", credentials: "include" });
     router.push("/login");
   }, [router]);
 

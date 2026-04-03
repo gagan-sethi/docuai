@@ -28,6 +28,7 @@ import {
 import Link from "next/link";
 import Sidebar from "@/components/dashboard/Sidebar";
 import TopBar from "@/components/dashboard/TopBar";
+import { apiUrl } from "@/lib/api";
 
 // ─── Types ──────────────────────────────────────────────────────
 type FileStatus = "queued" | "detecting" | "ready" | "uploading" | "processing" | "structuring" | "done" | "error";
@@ -102,8 +103,9 @@ async function detectDocumentType(
     const formData = new FormData();
     formData.append("file", file.file);
 
-    const res = await fetch("/api/detect-type", {
+    const res = await fetch(apiUrl("/api/detect-type"), {
       method: "POST",
+      credentials: "include",
       body: formData,
     });
 
@@ -139,7 +141,7 @@ async function processFile(
       formData.append("isHandwritten", "true");
     }
 
-    const uploadRes = await fetch("/api/upload", { method: "POST", body: formData });
+    const uploadRes = await fetch(apiUrl("/api/upload"), { method: "POST", credentials: "include", body: formData });
 
     if (!uploadRes.ok) {
       const err = await uploadRes.json();
@@ -154,9 +156,10 @@ async function processFile(
 
     onUpdate({ status: "processing", progress: 60 });
 
-    const processRes = await fetch("/api/process", {
+    const processRes = await fetch(apiUrl("/api/process"), {
       method: "POST",
       headers: { "Content-Type": "application/json" },
+      credentials: "include",
       body: JSON.stringify({ documentId: uploadData.documentId }),
     });
 
@@ -645,7 +648,7 @@ export default function UploadPage() {
                             </motion.button>
                           )}
                           {file.status === "done" && file.documentId && (
-                            <a href={`/api/documents/${file.documentId}/excel`} download
+                            <a href={apiUrl(`/api/documents/${file.documentId}/excel`)} download
                               className="p-1.5 rounded-lg text-success hover:bg-success/10 transition-colors opacity-0 group-hover:opacity-100" title="Download Excel">
                               <FileSpreadsheet className="w-4 h-4" />
                             </a>
@@ -686,7 +689,7 @@ export default function UploadPage() {
                   </div>
                   <div className="grid grid-cols-2 gap-3">
                     <a href={files.find(f => f.status === "done" && f.documentId)
-                        ? `/api/documents/${files.find(f => f.status === "done" && f.documentId)!.documentId}/excel` : "#"}
+                        ? apiUrl(`/api/documents/${files.find(f => f.status === "done" && f.documentId)!.documentId}/excel`) : "#"}
                       download
                       className="flex items-center justify-center gap-2 px-5 py-3 text-sm font-bold text-white bg-gradient-to-r from-success to-emerald-600 rounded-xl shadow-lg shadow-success/25 hover:shadow-success/40 hover:scale-[1.02] transition-all">
                       <FileSpreadsheet className="w-5 h-5" />Download Excel<Download className="w-4 h-4" />
@@ -701,7 +704,7 @@ export default function UploadPage() {
                       <p className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider">Download individual files:</p>
                       <div className="flex flex-wrap gap-2">
                         {files.filter(f => f.status === "done" && f.documentId).map(f => (
-                          <a key={f.id} href={`/api/documents/${f.documentId}/excel`} download
+                          <a key={f.id} href={apiUrl(`/api/documents/${f.documentId}/excel`)} download
                             className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-success bg-success/10 rounded-lg hover:bg-success/20 transition-colors">
                             <FileSpreadsheet className="w-3 h-3" />{f.name.replace(/\.[^.]+$/, "")}.csv
                           </a>
