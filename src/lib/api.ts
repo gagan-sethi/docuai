@@ -5,7 +5,7 @@
  */
 export const API_BASE_URL =
   process.env.NEXT_PUBLIC_API_URL || "";
-  
+   
 /**
  * Build a full API URL.
  * Usage: apiUrl("/api/auth/login") → "https://your-api.com/api/auth/login"
