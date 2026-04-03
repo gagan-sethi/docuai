@@ -2,12 +2,13 @@
 
 import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Menu, X, FileText } from "lucide-react";
+import { Menu, X, FileText, MessageCircle } from "lucide-react";
 import Link from "next/link";
 
 const navLinks = [
   { name: "Features", href: "#features" },
   { name: "How It Works", href: "#how-it-works" },
+  { name: "WhatsApp", href: "#whatsapp", highlight: true },
   { name: "Demo", href: "#demo" },
   { name: "Pricing", href: "/pricing" },
   { name: "Partners", href: "#partners" },
@@ -55,8 +56,13 @@ export default function Navbar() {
               <a
                 key={link.name}
                 href={link.href}
-                className="px-4 py-2 text-sm font-medium text-slate-600 hover:text-primary transition-colors rounded-lg hover:bg-primary/5"
+                className={`px-4 py-2 text-sm font-medium rounded-lg transition-colors ${
+                  link.highlight
+                    ? "text-green-700 bg-green-50 hover:bg-green-100 flex items-center gap-1.5"
+                    : "text-slate-600 hover:text-primary hover:bg-primary/5"
+                }`}
               >
+                {link.highlight && <MessageCircle className="w-3.5 h-3.5" />}
                 {link.name}
               </a>
             ))}

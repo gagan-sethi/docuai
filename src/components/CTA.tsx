@@ -1,7 +1,7 @@
 "use client";
 
 import { motion } from "framer-motion";
-import { ArrowRight, Upload, Sparkles } from "lucide-react";
+import { ArrowRight, Upload, Sparkles, MessageCircle } from "lucide-react";
 import Link from "next/link";
 
 export default function CTA() {
@@ -27,8 +27,7 @@ export default function CTA() {
           </h2>
           <p className="mt-6 text-lg text-muted max-w-2xl mx-auto leading-relaxed">
             Join hundreds of businesses that have already automated their
-            document processing. Start your free trial today — no credit card
-            required.
+            document processing. Upload or send via WhatsApp — start your free trial today.
           </p>
 
           <div className="mt-10 flex flex-col sm:flex-row items-center justify-center gap-4">
@@ -40,12 +39,13 @@ export default function CTA() {
               Start Free Trial
               <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
             </Link>
-            <Link
-              href="#demo"
-              className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-10 py-4 text-base font-semibold text-slate-700 bg-white border-2 border-slate-200 rounded-2xl hover:border-primary/30 hover:text-primary transition-all duration-200"
+            <a
+              href="#whatsapp"
+              className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-10 py-4 text-base font-semibold text-green-700 bg-green-50 border-2 border-green-200 rounded-2xl hover:bg-green-100 hover:border-green-300 transition-all duration-200"
             >
-              Try Live Demo
-            </Link>
+              <MessageCircle className="w-5 h-5" />
+              Try WhatsApp Upload
+            </a>
           </div>
 
           <p className="mt-6 text-sm text-muted">

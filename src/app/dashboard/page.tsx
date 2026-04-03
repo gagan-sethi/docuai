@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { motion } from "framer-motion";
+import { motion, AnimatePresence } from "framer-motion";
 import {
   FileText,
   Upload,
@@ -23,6 +23,7 @@ import {
   Calendar,
   Filter,
   Hand,
+  FileSpreadsheet,
 } from "lucide-react";
 import Link from "next/link";
 import Sidebar from "@/components/dashboard/Sidebar";
@@ -59,8 +60,8 @@ function AnimatedNumber({ target, suffix = "" }: { target: number; suffix?: stri
 const stats = [
   {
     label: "Documents Processed",
-    value: 1247,
-    change: "+12.5%",
+    value: 0,
+    change: "",
     trend: "up" as const,
     icon: FileText,
     color: "from-primary to-primary-dark",
@@ -68,8 +69,8 @@ const stats = [
   },
   {
     label: "Pending Review",
-    value: 12,
-    change: "-3",
+    value: 0,
+    change: "",
     trend: "down" as const,
     icon: Clock,
     color: "from-amber-500 to-orange-500",
@@ -77,9 +78,9 @@ const stats = [
   },
   {
     label: "Accuracy Rate",
-    value: 94,
+    value: 0,
     suffix: "%",
-    change: "+1.2%",
+    change: "",
     trend: "up" as const,
     icon: CheckCircle2,
     color: "from-success to-emerald-600",
@@ -87,8 +88,8 @@ const stats = [
   },
   {
     label: "WhatsApp Received",
-    value: 38,
-    change: "+8",
+    value: 0,
+    change: "",
     trend: "up" as const,
     icon: MessageSquare,
     color: "from-secondary to-cyan-600",
@@ -96,143 +97,57 @@ const stats = [
   },
 ];
 
-// ─── Recent Documents ───────────────────────────────────────────
-const recentDocs = [
-  {
-    id: "DOC-001",
-    name: "Invoice_Hamdan_Trading.pdf",
-    type: "Invoice",
-    status: "completed" as const,
-    confidence: 97,
-    date: "2 min ago",
-    source: "upload",
-  },
-  {
-    id: "DOC-002",
-    name: "PO_AlFuttaim_March.pdf",
-    type: "Purchase Order",
-    status: "review" as const,
-    confidence: 82,
-    date: "15 min ago",
-    source: "whatsapp",
-  },
-  {
-    id: "DOC-003",
-    name: "DeliveryNote_DHL_08472.jpg",
-    type: "Delivery Note",
-    status: "processing" as const,
-    confidence: 0,
-    date: "22 min ago",
-    source: "upload",
-  },
-  {
-    id: "DOC-004",
-    name: "Receipt_Carrefour_2026.png",
-    type: "Receipt",
-    status: "completed" as const,
-    confidence: 95,
-    date: "1 hr ago",
-    source: "whatsapp",
-  },
-  {
-    id: "DOC-005",
-    name: "Invoice_Emirates_Steel.pdf",
-    type: "Invoice",
-    status: "completed" as const,
-    confidence: 99,
-    date: "2 hrs ago",
-    source: "upload",
-  },
-  {
-    id: "DOC-006",
-    name: "PO_Majid_AlFuttaim.pdf",
-    type: "Purchase Order",
-    status: "failed" as const,
-    confidence: 0,
-    date: "3 hrs ago",
-    source: "upload",
-  },
-];
-
-const statusConfig = {
-  completed: {
-    label: "Completed",
-    color: "text-success",
-    bg: "bg-success/10",
-    icon: CheckCircle2,
-  },
-  review: {
-    label: "Needs Review",
-    color: "text-amber-600",
-    bg: "bg-amber-50",
-    icon: Eye,
-  },
-  processing: {
-    label: "Processing",
-    color: "text-primary",
-    bg: "bg-primary/10",
-    icon: RefreshCcw,
-  },
-  failed: {
-    label: "Failed",
-    color: "text-red-500",
-    bg: "bg-red-50",
-    icon: AlertTriangle,
-  },
+// ─── Status Config ──────────────────────────────────────────────
+const statusConfig: Record<string, { label: string; color: string; bg: string; icon: typeof CheckCircle2 }> = {
+  completed: { label: "Completed", color: "text-success", bg: "bg-success/10", icon: CheckCircle2 },
+  approved: { label: "Approved", color: "text-success", bg: "bg-success/10", icon: CheckCircle2 },
+  review: { label: "Needs Review", color: "text-amber-600", bg: "bg-amber-50", icon: Eye },
+  processing: { label: "Processing", color: "text-primary", bg: "bg-primary/10", icon: RefreshCcw },
+  structuring: { label: "Structuring", color: "text-secondary", bg: "bg-secondary/10", icon: RefreshCcw },
+  uploaded: { label: "Uploaded", color: "text-slate-500", bg: "bg-slate-100", icon: Upload },
+  rejected: { label: "Rejected", color: "text-red-500", bg: "bg-red-50", icon: AlertTriangle },
+  failed: { label: "Failed", color: "text-red-500", bg: "bg-red-50", icon: AlertTriangle },
+  error: { label: "Failed", color: "text-red-500", bg: "bg-red-50", icon: AlertTriangle },
 };
 
-// ─── Activity Feed ──────────────────────────────────────────────
-const activity = [
-  {
-    action: "Processed",
-    doc: "Invoice_Hamdan_Trading.pdf",
-    result: "97% confidence",
-    time: "2 min ago",
-    icon: Sparkles,
-    color: "text-success",
-  },
-  {
-    action: "WhatsApp received",
-    doc: "PO_AlFuttaim_March.pdf",
-    result: "Queued for processing",
-    time: "15 min ago",
-    icon: MessageSquare,
-    color: "text-secondary",
-  },
-  {
-    action: "Exported",
-    doc: "Batch_March_Week3.xlsx",
-    result: "12 documents",
-    time: "1 hr ago",
-    icon: Download,
-    color: "text-primary",
-  },
-  {
-    action: "Reviewed & Approved",
-    doc: "Receipt_Carrefour_2026.png",
-    result: "3 fields corrected",
-    time: "2 hrs ago",
-    icon: CheckCircle2,
-    color: "text-success",
-  },
-  {
-    action: "Alert",
-    doc: "PO_Majid_AlFuttaim.pdf",
-    result: "Processing failed – retrying",
-    time: "3 hrs ago",
-    icon: AlertTriangle,
-    color: "text-red-500",
-  },
+// Activity action config map
+const activityActionConfig: Record<string, { label: string; color: string; Icon: typeof CheckCircle2 }> = {
+  user_signup: { label: "Signed up", color: "text-success", Icon: CheckCircle2 },
+  user_login: { label: "Logged in", color: "text-primary", Icon: Zap },
+  user_email_verified: { label: "Email verified", color: "text-success", Icon: CheckCircle2 },
+  doc_uploaded: { label: "Uploaded", color: "text-primary", Icon: Upload },
+  doc_processing: { label: "Processing", color: "text-secondary", Icon: RefreshCcw },
+  doc_processed: { label: "Processed", color: "text-success", Icon: Sparkles },
+  doc_approved: { label: "Approved", color: "text-success", Icon: CheckCircle2 },
+  doc_rejected: { label: "Rejected", color: "text-red-500", Icon: AlertTriangle },
+  doc_exported: { label: "Exported", color: "text-primary", Icon: Download },
+  doc_deleted: { label: "Deleted", color: "text-red-500", Icon: AlertTriangle },
+  doc_reviewed: { label: "Reviewed", color: "text-amber-500", Icon: Eye },
+  plan_changed: { label: "Plan upgraded", color: "text-primary", Icon: Zap },
+};
+
+// ─── Processing Pipeline (static defaults, overridden with real data) ──
+const pipelineDefaults = [
+  { stage: "Uploaded", count: 0, color: "bg-slate-400" },
+  { stage: "OCR Running", count: 0, color: "bg-primary" },
+  { stage: "AI Extraction", count: 0, color: "bg-secondary" },
+  { stage: "Pending Review", count: 0, color: "bg-amber-500" },
+  { stage: "Completed Today", count: 0, color: "bg-success" },
 ];
 
-// ─── Processing Pipeline ────────────────────────────────────────
-const pipeline = [
-  { stage: "Uploaded", count: 3, color: "bg-slate-400" },
-  { stage: "OCR Running", count: 1, color: "bg-primary" },
-  { stage: "AI Extraction", count: 2, color: "bg-secondary" },
-  { stage: "Pending Review", count: 12, color: "bg-amber-500" },
-  { stage: "Completed Today", count: 45, color: "bg-success" },
-];
+// ─── Relative Time Helper ──────────────────────────────────────
+function getRelativeTime(dateStr: string): string {
+  const now = Date.now();
+  const then = new Date(dateStr).getTime();
+  const diffMs = now - then;
+  const diffMin = Math.floor(diffMs / 60000);
+  if (diffMin < 1) return "Just now";
+  if (diffMin < 60) return `${diffMin} min ago`;
+  const diffHr = Math.floor(diffMin / 60);
+  if (diffHr < 24) return `${diffHr} hr${diffHr > 1 ? "s" : ""} ago`;
+  const diffDays = Math.floor(diffHr / 24);
+  return `${diffDays} day${diffDays > 1 ? "s" : ""} ago`;
+}
 
 // ─── Quick Actions ──────────────────────────────────────────────
 const quickActions = [
@@ -245,21 +160,21 @@ const quickActions = [
   },
   {
     name: "Review Queue",
-    desc: "12 documents pending",
+    desc: "0 documents pending",
     icon: Eye,
     href: "/dashboard/review",
     color: "from-amber-500 to-orange-500",
   },
   {
-    name: "Export to Excel",
-    desc: "Download extracted data",
-    icon: Download,
-    href: "#",
+    name: "Download Excel",
+    desc: "Export extracted data",
+    icon: FileSpreadsheet,
+    href: "/dashboard/review",
     color: "from-success to-emerald-600",
   },
   {
     name: "WhatsApp Inbox",
-    desc: "3 new documents",
+    desc: "Coming soon",
     icon: MessageSquare,
     href: "/dashboard/whatsapp",
     color: "from-secondary to-cyan-600",
@@ -269,6 +184,39 @@ const quickActions = [
 // ─── Main Dashboard ─────────────────────────────────────────────
 export default function DashboardPage() {
   const [sidebarWidth, setSidebarWidth] = useState(260);
+  const [userName, setUserName] = useState("");
+  const [apiStats, setApiStats] = useState<{
+    total: number;
+    review: number;
+    approved: number;
+    errors: number;
+    avgConfidence: number;
+    processing: number;
+  } | null>(null);
+  const [apiDocs, setApiDocs] = useState<Array<{
+    id: string;
+    fileName: string;
+    docType?: string;
+    status: string;
+    overallConfidence: number;
+    source: string;
+    createdAt: string;
+  }>>([]);
+  const [apiActivities, setApiActivities] = useState<Array<{
+    action: string;
+    description: string;
+    createdAt: string;
+  }>>([]);
+  const [planData, setPlanData] = useState<{
+    plan: string;
+    label: string;
+    documentsPerMonth: number | string;
+    documentsUsed: number;
+    documentsRemaining: number | string;
+    usagePercent: number;
+    resetsAt: string;
+  } | null>(null);
+  const [showUpgradeModal, setShowUpgradeModal] = useState(false);
 
   useEffect(() => {
     // Listen for sidebar collapse
@@ -285,6 +233,81 @@ export default function DashboardPage() {
     }
     return () => observer.disconnect();
   }, []);
+
+  // Fetch user
+  useEffect(() => {
+    fetch("/api/auth/me")
+      .then((r) => (r.ok ? r.json() : null))
+      .then((data) => {
+        if (data?.user?.fullName) {
+          setUserName(data.user.fullName.split(" ")[0]);
+        }
+      })
+      .catch(() => {});
+  }, []);
+
+  // Fetch real data from API
+  useEffect(() => {
+    const fetchData = async () => {
+      try {
+        const [docRes, actRes, planRes] = await Promise.all([
+          fetch("/api/documents"),
+          fetch("/api/activities?limit=5"),
+          fetch("/api/plan"),
+        ]);
+        if (docRes.ok) {
+          const data = await docRes.json();
+          if (data.stats) setApiStats(data.stats);
+          if (data.documents) setApiDocs(data.documents);
+        }
+        if (actRes.ok) {
+          const data = await actRes.json();
+          if (data.activities) setApiActivities(data.activities);
+        }
+        if (planRes.ok) {
+          const data = await planRes.json();
+          setPlanData(data);
+        }
+      } catch {
+        // Silently fall back to defaults
+      }
+    };
+    fetchData();
+    // Poll every 10s for updates
+    const interval = setInterval(fetchData, 10000);
+    return () => clearInterval(interval);
+  }, []);
+
+  // Compute dynamic pipeline from real data
+  const pipeline = apiStats
+    ? [
+        { stage: "Uploaded", count: apiStats.total - apiStats.processing - apiStats.review - apiStats.approved - apiStats.errors, color: "bg-slate-400" },
+        { stage: "OCR Running", count: apiStats.processing, color: "bg-primary" },
+        { stage: "AI Extraction", count: 0, color: "bg-secondary" },
+        { stage: "Pending Review", count: apiStats.review, color: "bg-amber-500" },
+        { stage: "Completed Today", count: apiStats.approved, color: "bg-success" },
+      ].map(p => ({ ...p, count: Math.max(0, p.count) }))
+    : pipelineDefaults;
+
+  // Compute dynamic quick actions descriptions
+  const dynamicQuickActions = quickActions.map(a => {
+    if (a.name === "Review Queue" && apiStats) {
+      return { ...a, desc: `${apiStats.review} documents pending` };
+    }
+    return a;
+  });
+
+  // Merge API docs into recent docs for display
+  const displayDocs = apiDocs.slice(0, 6).map(d => ({
+    id: d.id,
+    displayId: d.id.slice(0, 8).toUpperCase(),
+    name: d.fileName,
+    type: d.docType || "Document",
+    status: d.status,
+    confidence: Math.round(d.overallConfidence),
+    date: getRelativeTime(d.createdAt),
+    source: d.source || "upload",
+  }));
 
   return (
     <div className="min-h-screen bg-surface">
@@ -310,12 +333,12 @@ export default function DashboardPage() {
             <div className="relative flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
               <div>
                 <h2 className="text-xl sm:text-2xl font-bold text-white flex items-center gap-2">
-                  Welcome back, Gagan
+                  Welcome back{userName ? `, ${userName}` : ""}
                   <Hand className="w-6 h-6 text-amber-300" />
                 </h2>
                 <p className="text-sm text-slate-300 mt-1">
-                  You have <span className="text-amber-400 font-semibold">12 documents</span> pending review and{" "}
-                  <span className="text-success font-semibold">45 processed</span> today.
+                  You have <span className="text-amber-400 font-semibold">{apiStats ? apiStats.review : 0} documents</span> pending review and{" "}
+                  <span className="text-success font-semibold">{apiStats ? apiStats.approved : 0} approved</span> today.
                 </p>
               </div>
               <Link
@@ -330,7 +353,12 @@ export default function DashboardPage() {
 
           {/* Stats Grid */}
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-            {stats.map((stat, i) => (
+            {[
+              { ...stats[0], value: apiStats ? apiStats.total : stats[0].value },
+              { ...stats[1], value: apiStats ? apiStats.review : stats[1].value },
+              { ...stats[2], value: apiStats ? apiStats.avgConfidence || 94 : stats[2].value },
+              { ...stats[3], value: stats[3].value },
+            ].map((stat, i) => (
               <motion.div
                 key={stat.label}
                 initial={{ opacity: 0, y: 20 }}
@@ -342,18 +370,20 @@ export default function DashboardPage() {
                   <div className={`p-2.5 rounded-xl ${stat.bgLight}`}>
                     <stat.icon className={`w-5 h-5 bg-gradient-to-br ${stat.color} bg-clip-text`} style={{ color: 'var(--primary)' }} />
                   </div>
-                  <span
-                    className={`flex items-center gap-0.5 text-xs font-semibold ${
-                      stat.trend === "up" ? "text-success" : "text-amber-500"
-                    }`}
-                  >
-                    {stat.trend === "up" ? (
-                      <ArrowUpRight className="w-3.5 h-3.5" />
-                    ) : (
-                      <ArrowDownRight className="w-3.5 h-3.5" />
-                    )}
-                    {stat.change}
-                  </span>
+                  {stat.change && (
+                    <span
+                      className={`flex items-center gap-0.5 text-xs font-semibold ${
+                        stat.trend === "up" ? "text-success" : "text-amber-500"
+                      }`}
+                    >
+                      {stat.trend === "up" ? (
+                        <ArrowUpRight className="w-3.5 h-3.5" />
+                      ) : (
+                        <ArrowDownRight className="w-3.5 h-3.5" />
+                      )}
+                      {stat.change}
+                    </span>
+                  )}
                 </div>
                 <p className="text-3xl font-extrabold text-slate-900">
                   <AnimatedNumber target={stat.value} suffix={stat.suffix} />
@@ -365,7 +395,7 @@ export default function DashboardPage() {
 
           {/* Quick Actions */}
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-            {quickActions.map((action, i) => (
+            {dynamicQuickActions.map((action, i) => (
               <motion.div
                 key={action.name}
                 initial={{ opacity: 0, y: 20 }}
@@ -457,8 +487,8 @@ export default function DashboardPage() {
               </div>
 
               <div className="divide-y divide-slate-50">
-                {recentDocs.map((doc) => {
-                  const cfg = statusConfig[doc.status];
+                {displayDocs.length > 0 ? displayDocs.map((doc) => {
+                  const cfg = statusConfig[doc.status] || statusConfig.processing;
                   const StatusIcon = cfg.icon;
                   return (
                     <div
@@ -520,18 +550,23 @@ export default function DashboardPage() {
 
                       {/* Actions */}
                       <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                        {doc.status === "review" && (
+                        {(doc.status === "review" || doc.status === "approved" || doc.status === "completed") && (
                           <Link
-                            href="/dashboard/review"
+                            href={`/dashboard/review?id=${doc.id}`}
                             className="p-1.5 rounded-lg text-primary hover:bg-primary/10 transition-colors"
+                            title="Review document"
                           >
                             <Eye className="w-4 h-4" />
                           </Link>
                         )}
-                        {doc.status === "completed" && (
-                          <button className="p-1.5 rounded-lg text-slate-400 hover:text-primary hover:bg-primary/10 transition-colors">
+                        {(doc.status === "approved" || doc.status === "completed") && (
+                          <Link
+                            href={`/api/documents/${doc.id}/excel`}
+                            className="p-1.5 rounded-lg text-slate-400 hover:text-primary hover:bg-primary/10 transition-colors"
+                            title="Download Excel"
+                          >
                             <Download className="w-4 h-4" />
-                          </button>
+                          </Link>
                         )}
                         <button className="p-1.5 rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition-colors">
                           <MoreHorizontal className="w-4 h-4" />
@@ -539,7 +574,24 @@ export default function DashboardPage() {
                       </div>
                     </div>
                   );
-                })}
+                }) : (
+                  <div className="flex flex-col items-center justify-center py-14 px-5">
+                    <div className="w-14 h-14 rounded-2xl bg-primary/5 flex items-center justify-center mb-4">
+                      <FileText className="w-7 h-7 text-primary/40" />
+                    </div>
+                    <p className="text-sm font-semibold text-slate-600">No documents yet</p>
+                    <p className="text-xs text-muted mt-1 text-center max-w-[220px]">
+                      Upload your first document to get started with AI extraction.
+                    </p>
+                    <Link
+                      href="/dashboard/upload"
+                      className="mt-4 flex items-center gap-2 px-4 py-2 text-xs font-semibold text-white bg-gradient-to-r from-primary to-primary-dark rounded-xl hover:scale-105 transition-transform shadow-md"
+                    >
+                      <Upload className="w-3.5 h-3.5" />
+                      Upload Document
+                    </Link>
+                  </div>
+                )}
               </div>
             </motion.div>
 
@@ -560,28 +612,37 @@ export default function DashboardPage() {
               </div>
 
               <div className="divide-y divide-slate-50">
-                {activity.map((item, i) => (
-                  <div
-                    key={i}
-                    className="flex items-start gap-3 px-5 py-3.5 hover:bg-slate-50/50 transition-colors"
-                  >
-                    <div className="p-1.5 rounded-lg bg-slate-50 flex-shrink-0 mt-0.5">
-                      <item.icon className={`w-3.5 h-3.5 ${item.color}`} />
+                {apiActivities.length > 0
+                  ? apiActivities.map((a, i) => {
+                      const cfg = activityActionConfig[a.action] || { label: a.action, color: "text-slate-500", Icon: FileText };
+                      const ActivityIcon = cfg.Icon;
+                      return (
+                        <div key={i} className="flex items-start gap-3 px-5 py-3.5 hover:bg-slate-50/50 transition-colors">
+                          <div className="p-1.5 rounded-lg bg-slate-50 flex-shrink-0 mt-0.5">
+                            <ActivityIcon className={`w-3.5 h-3.5 ${cfg.color}`} />
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <p className="text-xs text-slate-800">
+                              <span className="font-semibold">{cfg.label}</span>{" "}
+                              <span className="text-muted">{a.description}</span>
+                            </p>
+                          </div>
+                          <span className="text-[10px] text-slate-400 whitespace-nowrap mt-0.5">
+                            {getRelativeTime(a.createdAt)}
+                          </span>
+                        </div>
+                      );
+                    })
+                  : (
+                    <div className="flex flex-col items-center justify-center py-10 px-5">
+                      <div className="w-10 h-10 rounded-full bg-slate-50 flex items-center justify-center mb-3">
+                        <Clock className="w-5 h-5 text-slate-300" />
+                      </div>
+                      <p className="text-xs font-medium text-slate-500">No activity yet</p>
+                      <p className="text-[10px] text-muted mt-0.5">Your actions will appear here</p>
                     </div>
-                    <div className="flex-1 min-w-0">
-                      <p className="text-xs text-slate-800">
-                        <span className="font-semibold">{item.action}</span>{" "}
-                        <span className="text-muted">{item.doc}</span>
-                      </p>
-                      <p className="text-[10px] text-muted mt-0.5">
-                        {item.result}
-                      </p>
-                    </div>
-                    <span className="text-[10px] text-slate-400 whitespace-nowrap mt-0.5">
-                      {item.time}
-                    </span>
-                  </div>
-                ))}
+                  )
+                }
               </div>
 
               <div className="px-5 py-3 bg-slate-50 border-t border-slate-100">
@@ -599,41 +660,310 @@ export default function DashboardPage() {
             transition={{ delay: 0.8 }}
             className="bg-white rounded-2xl border border-slate-100 p-5"
           >
-            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-              <div className="flex items-center gap-4">
-                <div className="p-3 rounded-xl bg-primary/5">
-                  <Zap className="w-6 h-6 text-primary" />
-                </div>
-                <div>
-                  <h3 className="text-sm font-bold text-slate-900">
-                    Professional Plan
-                  </h3>
-                  <p className="text-xs text-muted mt-0.5">
-                    247 of 1,000 documents used this month
-                  </p>
-                </div>
-              </div>
-              <div className="flex items-center gap-4 w-full sm:w-auto">
-                <div className="flex-1 sm:w-48">
-                  <div className="flex items-center justify-between text-xs mb-1.5">
-                    <span className="text-muted">Usage</span>
-                    <span className="font-semibold text-slate-700">24.7%</span>
+            {(() => {
+              const plan = planData?.plan || "free";
+              const label = planData?.label || "Free";
+              const used = planData?.documentsUsed || 0;
+              const limit = typeof planData?.documentsPerMonth === "number" ? planData.documentsPerMonth : 5;
+              const isUnlimited = planData?.documentsPerMonth === "Unlimited";
+              const usagePct = isUnlimited ? 0 : Math.min((used / limit) * 100, 100);
+              const isNearLimit = !isUnlimited && usagePct >= 80;
+              const isAtLimit = !isUnlimited && used >= limit;
+              const remaining = isUnlimited ? "∞" : Math.max(0, limit - used);
+              const resetsAt = planData?.resetsAt ? new Date(planData.resetsAt).toLocaleDateString("en-US", { month: "short", day: "numeric" }) : "";
+
+              return (
+                <div className="space-y-4">
+                  <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+                    <div className="flex items-center gap-4">
+                      <div className={`p-3 rounded-xl ${plan === "free" ? "bg-slate-100" : "bg-primary/5"}`}>
+                        <Zap className={`w-6 h-6 ${plan === "free" ? "text-slate-500" : "text-primary"}`} />
+                      </div>
+                      <div>
+                        <div className="flex items-center gap-2">
+                          <h3 className="text-sm font-bold text-slate-900">
+                            {label} Plan
+                          </h3>
+                          {plan === "free" && (
+                            <span className="px-2 py-0.5 text-[10px] font-bold bg-amber-50 text-amber-600 rounded-full border border-amber-200">
+                              FREE
+                            </span>
+                          )}
+                        </div>
+                        <p className="text-xs text-muted mt-0.5">
+                          {isUnlimited
+                            ? `${used.toLocaleString()} documents used this month · Unlimited`
+                            : `${used} of ${limit} documents used this month`}
+                          {resetsAt && <span className="text-slate-400"> · Resets {resetsAt}</span>}
+                        </p>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-4 w-full sm:w-auto">
+                      <div className="flex-1 sm:w-48">
+                        <div className="flex items-center justify-between text-xs mb-1.5">
+                          <span className="text-muted">{isUnlimited ? "Unlimited" : `${remaining} remaining`}</span>
+                          {!isUnlimited && (
+                            <span className={`font-semibold ${isAtLimit ? "text-red-500" : isNearLimit ? "text-amber-500" : "text-slate-700"}`}>
+                              {usagePct.toFixed(0)}%
+                            </span>
+                          )}
+                        </div>
+                        <div className="h-2 bg-slate-100 rounded-full overflow-hidden">
+                          <div
+                            className={`h-full rounded-full transition-all duration-500 ${
+                              isAtLimit
+                                ? "bg-gradient-to-r from-red-400 to-red-500"
+                                : isNearLimit
+                                ? "bg-gradient-to-r from-amber-400 to-amber-500"
+                                : "bg-gradient-to-r from-primary to-secondary"
+                            }`}
+                            style={{ width: `${isUnlimited ? 0 : usagePct}%` }}
+                          />
+                        </div>
+                      </div>
+                      <button
+                        onClick={() => setShowUpgradeModal(true)}
+                        className={`px-4 py-2 text-xs font-semibold rounded-xl hover:scale-105 transition-transform shadow-md ${
+                          plan === "free"
+                            ? "text-white bg-gradient-to-r from-primary to-primary-dark"
+                            : "text-primary border border-primary/20 hover:bg-primary/5 shadow-none"
+                        }`}
+                      >
+                        {plan === "free" ? "Manage Plan" : "Manage Plan"}
+                      </button>
+                    </div>
                   </div>
-                  <div className="h-2 bg-slate-100 rounded-full overflow-hidden">
-                    <div className="h-full w-[24.7%] bg-gradient-to-r from-primary to-secondary rounded-full" />
-                  </div>
+
+                  {/* Warning when near/at limit */}
+                  {isAtLimit && (
+                    <div className="flex items-center gap-3 px-4 py-3 bg-red-50 border border-red-100 rounded-xl">
+                      <AlertTriangle className="w-4 h-4 text-red-500 flex-shrink-0" />
+                      <p className="text-xs text-red-600 font-medium flex-1">
+                        You&apos;ve reached your monthly document limit. Paid plans coming soon — your limit resets {resetsAt || "next month"}.
+                      </p>
+                      <button
+                        onClick={() => setShowUpgradeModal(true)}
+                        className="px-3 py-1.5 text-[10px] font-bold text-white bg-red-500 rounded-lg hover:bg-red-600 transition-colors whitespace-nowrap"
+                      >
+                        View Plans
+                      </button>
+                    </div>
+                  )}
+                  {isNearLimit && !isAtLimit && (
+                    <div className="flex items-center gap-3 px-4 py-3 bg-amber-50 border border-amber-100 rounded-xl">
+                      <AlertTriangle className="w-4 h-4 text-amber-500 flex-shrink-0" />
+                      <p className="text-xs text-amber-600 font-medium flex-1">
+                        You&apos;re running low — only {remaining} document{remaining === 1 ? "" : "s"} remaining this month.
+                      </p>
+                      <button
+                        onClick={() => setShowUpgradeModal(true)}
+                        className="px-3 py-1.5 text-[10px] font-bold text-amber-700 bg-amber-100 rounded-lg hover:bg-amber-200 transition-colors whitespace-nowrap"
+                      >
+                        View Plans
+                      </button>
+                    </div>
+                  )}
                 </div>
-                <Link
-                  href="/pricing"
-                  className="px-4 py-2 text-xs font-semibold text-primary border border-primary/20 rounded-xl hover:bg-primary/5 transition-colors"
-                >
-                  Manage Plan
-                </Link>
-              </div>
-            </div>
+              );
+            })()}
           </motion.div>
         </main>
       </motion.div>
+
+      {/* Plan Management Modal */}
+      <AnimatePresence>
+        {showUpgradeModal && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4"
+            onClick={() => setShowUpgradeModal(false)}
+          >
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 20 }}
+              transition={{ type: "spring", damping: 25, stiffness: 300 }}
+              className="bg-white rounded-2xl shadow-2xl max-w-3xl w-full overflow-hidden"
+              onClick={(e) => e.stopPropagation()}
+            >
+              {/* Header */}
+              <div className="relative bg-gradient-to-r from-primary via-primary-dark to-slate-900 px-6 py-5 text-white">
+                <div className="absolute inset-0 opacity-10">
+                  <div className="absolute top-0 right-0 w-40 h-40 bg-secondary rounded-full blur-3xl" />
+                </div>
+                <div className="relative flex items-start justify-between">
+                  <div>
+                    <div className="flex items-center gap-2 mb-1">
+                      <Sparkles className="w-5 h-5 text-amber-300" />
+                      <h2 className="text-lg font-bold">Manage Your Plan</h2>
+                    </div>
+                    <p className="text-sm text-slate-300">
+                      You&apos;re currently on the <strong className="text-white">{planData?.label || "Free"}</strong> plan.
+                      {planData?.documentsUsed !== undefined && (
+                        <> You&apos;ve used <strong className="text-amber-300">{planData.documentsUsed}</strong> of{" "}
+                        <strong className="text-white">{typeof planData?.documentsPerMonth === "number" ? planData.documentsPerMonth : planData?.documentsPerMonth || 5}</strong> documents this month.</>
+                      )}
+                    </p>
+                  </div>
+                  <button
+                    onClick={() => setShowUpgradeModal(false)}
+                    className="p-1.5 rounded-lg hover:bg-white/10 transition-colors text-slate-300 hover:text-white"
+                  >
+                    <svg xmlns="http://www.w3.org/2000/svg" className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                  </button>
+                </div>
+              </div>
+
+              {/* Plans Grid */}
+              <div className="p-6 grid grid-cols-1 sm:grid-cols-2 gap-4">
+                {[
+                  {
+                    key: "free",
+                    name: "Free",
+                    price: "$0",
+                    period: "/mo",
+                    docs: "5 documents/month",
+                    features: ["PDF & image upload", "AI OCR extraction", "Excel export", "1 user account"],
+                    color: "border-slate-200",
+                    gradient: "from-slate-50 to-white",
+                    iconBg: "bg-slate-100",
+                    iconColor: "text-slate-500",
+                  },
+                  {
+                    key: "starter",
+                    name: "Starter",
+                    price: "$49",
+                    period: "/mo",
+                    docs: "100 documents/month",
+                    features: ["Everything in Free", "Priority processing", "Email support", "1 user account"],
+                    color: "border-blue-200",
+                    gradient: "from-blue-50/50 to-white",
+                    iconBg: "bg-blue-100",
+                    iconColor: "text-blue-500",
+                  },
+                  {
+                    key: "professional",
+                    name: "Professional",
+                    price: "$149",
+                    period: "/mo",
+                    docs: "1,000 documents/month",
+                    features: ["Everything in Starter", "WhatsApp integration", "Bulk upload", "5 user accounts", "API access"],
+                    color: "border-primary/30",
+                    gradient: "from-primary/5 to-white",
+                    iconBg: "bg-primary/10",
+                    iconColor: "text-primary",
+                  },
+                  {
+                    key: "enterprise",
+                    name: "Enterprise",
+                    price: "Custom",
+                    period: "",
+                    docs: "Unlimited documents",
+                    features: ["Everything in Professional", "ERP integration", "Unlimited users", "Dedicated support", "Custom SLA"],
+                    color: "border-slate-200",
+                    gradient: "from-slate-50/50 to-white",
+                    iconBg: "bg-slate-100",
+                    iconColor: "text-slate-600",
+                  },
+                ].map((p) => {
+                  const currentPlan = planData?.plan || "free";
+                  const isCurrent = p.key === currentPlan;
+                  const isPaid = p.key !== "free";
+
+                  return (
+                    <div
+                      key={p.key}
+                      className={`relative flex flex-col p-5 rounded-xl border-2 bg-gradient-to-b transition-all ${
+                        isCurrent
+                          ? "border-primary shadow-lg shadow-primary/10 ring-1 ring-primary/20"
+                          : `${p.color} hover:shadow-md`
+                      } ${p.gradient}`}
+                    >
+                      {/* Current plan badge */}
+                      {isCurrent && (
+                        <span className="absolute -top-2.5 left-4 px-3 py-0.5 text-[10px] font-bold text-white bg-gradient-to-r from-primary to-secondary rounded-full shadow-sm">
+                          CURRENT PLAN
+                        </span>
+                      )}
+
+                      {/* Coming Soon badge for paid plans */}
+                      {isPaid && !isCurrent && (
+                        <span className="absolute -top-2.5 right-4 px-3 py-0.5 text-[10px] font-bold text-amber-700 bg-amber-100 border border-amber-200 rounded-full">
+                          COMING SOON
+                        </span>
+                      )}
+
+                      {/* Plan header */}
+                      <div className="flex items-center gap-3 mb-3">
+                        <div className={`p-2 rounded-lg ${p.iconBg}`}>
+                          <Zap className={`w-4 h-4 ${p.iconColor}`} />
+                        </div>
+                        <div>
+                          <h3 className="text-sm font-bold text-slate-900">{p.name}</h3>
+                          <div className="flex items-baseline gap-0.5">
+                            <span className="text-lg font-extrabold text-slate-900">{p.price}</span>
+                            {p.period && <span className="text-xs text-muted">{p.period}</span>}
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Docs limit */}
+                      <p className="text-xs font-medium text-slate-600 mb-3 pb-3 border-b border-slate-100">
+                        {p.docs}
+                      </p>
+
+                      {/* Features */}
+                      <ul className="space-y-1.5 flex-1">
+                        {p.features.map((f) => (
+                          <li key={f} className="flex items-center gap-2 text-xs text-slate-600">
+                            <CheckCircle2 className={`w-3.5 h-3.5 flex-shrink-0 ${isCurrent ? "text-primary" : "text-success"}`} />
+                            {f}
+                          </li>
+                        ))}
+                      </ul>
+
+                      {/* Action button */}
+                      <div className="mt-4 pt-3 border-t border-slate-100">
+                        {isCurrent ? (
+                          <div className="w-full py-2 text-center text-xs font-semibold text-primary bg-primary/5 rounded-lg">
+                            ✓ Active Plan
+                          </div>
+                        ) : isPaid ? (
+                          <button
+                            disabled
+                            className="w-full py-2 text-xs font-semibold text-slate-400 bg-slate-100 rounded-lg cursor-not-allowed"
+                          >
+                            Coming Soon
+                          </button>
+                        ) : (
+                          <div className="w-full py-2 text-center text-xs font-medium text-slate-400 bg-slate-50 rounded-lg">
+                            Free Forever
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+
+              {/* Footer */}
+              <div className="flex items-center justify-between px-6 py-4 bg-slate-50 border-t border-slate-100">
+                <p className="text-[10px] text-muted">
+                  Paid plans coming soon. We&apos;ll notify you when they&apos;re available.
+                </p>
+                <button
+                  onClick={() => setShowUpgradeModal(false)}
+                  className="text-xs font-medium text-slate-500 hover:text-slate-700 transition-colors"
+                >
+                  Close
+                </button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }

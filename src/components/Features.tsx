@@ -22,6 +22,14 @@ const features = [
     bgColor: "bg-primary/5",
   },
   {
+    icon: Smartphone,
+    title: "WhatsApp Integration",
+    description:
+      "Send invoices & POs via WhatsApp — auto-processed instantly. No login needed. Our #1 feature for mobile-first businesses.",
+    color: "from-green-500 to-green-600",
+    bgColor: "bg-green-50",
+  },
+  {
     icon: BrainCircuit,
     title: "Smart Document Understanding",
     description:
@@ -30,28 +38,20 @@ const features = [
     bgColor: "bg-secondary/5",
   },
   {
+    icon: FileSpreadsheet,
+    title: "Download Excel Instantly",
+    description:
+      "One-click Excel export after processing. Get structured XLSX or CSV files ready for your accounting system or ERP.",
+    color: "from-success to-emerald-600",
+    bgColor: "bg-success/5",
+  },
+  {
     icon: TableProperties,
     title: "Structured Data Output",
     description:
       "Converts unstructured documents into clean, structured datasets with customer codes, product details, quantities, and totals.",
     color: "from-accent to-violet-600",
     bgColor: "bg-accent/5",
-  },
-  {
-    icon: FileSpreadsheet,
-    title: "Export Anywhere",
-    description:
-      "Download structured data as Excel (XLSX) or CSV. API-ready output for seamless ERP and third-party integrations.",
-    color: "from-success to-emerald-600",
-    bgColor: "bg-success/5",
-  },
-  {
-    icon: Smartphone,
-    title: "WhatsApp Integration",
-    description:
-      "Send invoices via WhatsApp and the system automatically processes them. Perfect for mobile-first workflows.",
-    color: "from-green-500 to-green-600",
-    bgColor: "bg-green-50",
   },
   {
     icon: Shield,

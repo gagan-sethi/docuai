@@ -15,6 +15,8 @@ import {
   ShoppingBag,
   Truck,
   Briefcase,
+  MessageCircle,
+  FileSpreadsheet,
 } from "lucide-react";
 import Link from "next/link";
 
@@ -155,19 +157,34 @@ export default function Hero() {
             {/* Trust indicators */}
             <div className="mt-6 flex flex-wrap items-center gap-4 justify-center lg:justify-start">
               {[
-                "90–95% Accuracy",
-                "No Templates Needed",
-                "Process in Seconds",
+                { text: "90–95% Accuracy", icon: CheckCircle2, color: "text-success" },
+                { text: "WhatsApp Upload", icon: MessageCircle, color: "text-green-500" },
+                { text: "Export to Excel", icon: FileSpreadsheet, color: "text-success" },
               ].map((item) => (
                 <div
-                  key={item}
+                  key={item.text}
                   className="flex items-center gap-1.5 text-sm text-muted"
                 >
-                  <CheckCircle2 className="w-4 h-4 text-success" />
-                  <span>{item}</span>
+                  <item.icon className={`w-4 h-4 ${item.color}`} />
+                  <span>{item.text}</span>
                 </div>
               ))}
             </div>
+
+            {/* WhatsApp Highlight Banner */}
+            <motion.div
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.8 }}
+              className="mt-6 flex items-center gap-3 p-3 rounded-xl bg-green-50 border border-green-100 max-w-xl mx-auto lg:mx-0"
+            >
+              <div className="w-9 h-9 rounded-lg bg-green-100 flex items-center justify-center flex-shrink-0">
+                <MessageCircle className="w-5 h-5 text-green-600" />
+              </div>
+              <p className="text-sm text-green-800">
+                <span className="font-semibold">Send via WhatsApp</span> — Forward invoices &amp; POs directly from your phone. Auto-processed &amp; ready in your dashboard.
+              </p>
+            </motion.div>
 
             {/* CTA Buttons */}
             <div className="mt-10 flex flex-col sm:flex-row items-center gap-4 justify-center lg:justify-start">

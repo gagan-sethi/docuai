@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { motion } from "framer-motion";
 import {
   Mail,
@@ -10,26 +10,64 @@ import {
   ArrowRight,
   FileText,
   Loader2,
+  CheckCircle,
+  AlertCircle,
 } from "lucide-react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import AuthLayout from "@/components/auth/AuthLayout";
 
 export default function LoginPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [form, setForm] = useState({ email: "", password: "" });
   const [rememberMe, setRememberMe] = useState(false);
+  const [error, setError] = useState("");
+  const [successMessage, setSuccessMessage] = useState("");
 
-  const handleSubmit = (e: React.FormEvent) => {
+  // Check for verification redirect messages
+  useEffect(() => {
+    const verified = searchParams.get("verified");
+    const message = searchParams.get("message");
+    if (verified === "success" && message) {
+      setSuccessMessage(message);
+    } else if (verified === "error" && message) {
+      setError(message);
+    }
+  }, [searchParams]);
+
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
-    // Skip validation — redirect to dashboard for demo
-    setTimeout(() => {
-      setIsLoading(false);
+    setError("");
+
+    try {
+      const res = await fetch("/api/auth/login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          email: form.email,
+          password: form.password,
+          rememberMe,
+        }),
+      });
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        setError(data.error || "Login failed");
+        setIsLoading(false);
+        return;
+      }
+
+      // Redirect to dashboard on success
       router.push("/dashboard");
-    }, 1000);
+    } catch {
+      setError("Something went wrong. Please try again.");
+      setIsLoading(false);
+    }
   };
 
   return (
@@ -61,6 +99,22 @@ export default function LoginPage() {
 
         {/* Form */}
         <form onSubmit={handleSubmit} className="space-y-5">
+          {/* Success message */}
+          {successMessage && (
+            <div className="flex items-center gap-2 p-3 text-sm text-green-700 bg-green-50 border border-green-200 rounded-xl">
+              <CheckCircle className="w-4 h-4 flex-shrink-0" />
+              {successMessage}
+            </div>
+          )}
+
+          {/* Error message */}
+          {error && (
+            <div className="flex items-center gap-2 p-3 text-sm text-red-700 bg-red-50 border border-red-200 rounded-xl">
+              <AlertCircle className="w-4 h-4 flex-shrink-0" />
+              {error}
+            </div>
+          )}
+
           {/* Email */}
           <div>
             <label

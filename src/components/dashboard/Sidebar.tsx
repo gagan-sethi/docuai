@@ -1,8 +1,8 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect, useCallback } from "react";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   LayoutDashboard,
@@ -81,7 +81,32 @@ const bottomNav = [
 
 export default function Sidebar() {
   const pathname = usePathname();
+  const router = useRouter();
   const [collapsed, setCollapsed] = useState(false);
+  const [user, setUser] = useState<{ fullName: string; email: string } | null>(null);
+
+  useEffect(() => {
+    fetch("/api/auth/me")
+      .then((r) => (r.ok ? r.json() : null))
+      .then((data) => {
+        if (data?.user) setUser(data.user);
+      })
+      .catch(() => {});
+  }, []);
+
+  const handleLogout = useCallback(async () => {
+    await fetch("/api/auth/me", { method: "POST" });
+    router.push("/login");
+  }, [router]);
+
+  const initials = user?.fullName
+    ? user.fullName
+        .split(" ")
+        .map((n) => n[0])
+        .join("")
+        .toUpperCase()
+        .slice(0, 2)
+    : "U";
 
   return (
     <motion.aside
@@ -221,7 +246,7 @@ export default function Sidebar() {
           }`}
         >
           <div className="w-9 h-9 rounded-full bg-gradient-to-br from-primary to-accent flex items-center justify-center flex-shrink-0 text-white text-sm font-bold">
-            GS
+            {initials}
           </div>
           <AnimatePresence>
             {!collapsed && (
@@ -232,18 +257,18 @@ export default function Sidebar() {
                 className="flex-1 min-w-0"
               >
                 <p className="text-sm font-semibold text-white truncate">
-                  Gagan Sethi
+                  {user?.fullName || "Loading..."}
                 </p>
                 <p className="text-xs text-slate-500 truncate">
-                  gagan@company.com
+                  {user?.email || ""}
                 </p>
               </motion.div>
             )}
           </AnimatePresence>
           {!collapsed && (
-            <Link href="/login" className="p-1 text-slate-500 hover:text-red-400 transition-colors">
+            <button onClick={handleLogout} className="p-1 text-slate-500 hover:text-red-400 transition-colors">
               <LogOut className="w-4 h-4" />
-            </Link>
+            </button>
           )}
         </div>
       </div>

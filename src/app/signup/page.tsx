@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef, useEffect, useCallback } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   User,
@@ -11,21 +11,24 @@ import {
   Eye,
   EyeOff,
   ArrowRight,
-  ArrowLeft,
   FileText,
   Loader2,
   CheckCircle2,
   MessageCircle,
-  Smartphone,
-  Shield,
   Sparkles,
   PartyPopper,
   Check,
+  AlertCircle,
+  MailCheck,
+  ShieldCheck,
+  RefreshCcw,
 } from "lucide-react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import AuthLayout from "@/components/auth/AuthLayout";
 
-type Step = "details" | "otp" | "whatsapp" | "complete";
+type Step = "details" | "verify-email" | "verify-otp" | "whatsapp" | "complete";
+type AccountRole = "business" | "accounting";
 
 interface SignupForm {
   fullName: string;
@@ -34,74 +37,18 @@ interface SignupForm {
   mobile: string;
   password: string;
   confirmPassword: string;
+  role: AccountRole;
 }
 
-// ─── OTP Input Component ───────────────────────────────────────
-function OTPInput({
-  length = 6,
-  value,
-  onChange,
-}: {
-  length?: number;
-  value: string;
-  onChange: (val: string) => void;
-}) {
-  const inputs = useRef<(HTMLInputElement | null)[]>([]);
-
-  const handleChange = (idx: number, char: string) => {
-    if (!/^\d*$/.test(char)) return;
-    const arr = value.split("");
-    arr[idx] = char;
-    const next = arr.join("").slice(0, length);
-    onChange(next);
-    if (char && idx < length - 1) {
-      inputs.current[idx + 1]?.focus();
-    }
-  };
-
-  const handleKeyDown = (idx: number, e: React.KeyboardEvent) => {
-    if (e.key === "Backspace" && !value[idx] && idx > 0) {
-      inputs.current[idx - 1]?.focus();
-    }
-  };
-
-  const handlePaste = (e: React.ClipboardEvent) => {
-    e.preventDefault();
-    const paste = e.clipboardData.getData("text").replace(/\D/g, "").slice(0, length);
-    onChange(paste);
-    const nextIdx = Math.min(paste.length, length - 1);
-    inputs.current[nextIdx]?.focus();
-  };
-
-  return (
-    <div className="flex items-center justify-center gap-2 sm:gap-3">
-      {Array.from({ length }).map((_, i) => (
-        <input
-          key={i}
-          ref={(el) => { inputs.current[i] = el; }}
-          type="text"
-          inputMode="numeric"
-          maxLength={1}
-          value={value[i] || ""}
-          onChange={(e) => handleChange(i, e.target.value)}
-          onKeyDown={(e) => handleKeyDown(i, e)}
-          onPaste={handlePaste}
-          className={`w-11 h-13 sm:w-12 sm:h-14 text-center text-xl font-bold rounded-xl border-2 transition-all focus:outline-none ${
-            value[i]
-              ? "border-primary bg-primary/5 text-primary"
-              : "border-slate-200 bg-slate-50 text-slate-800 focus:border-primary focus:ring-2 focus:ring-primary/20"
-          }`}
-        />
-      ))}
-    </div>
-  );
-}
+// Demo OTP — shown on screen for demo purposes
+const DEMO_OTP = "123456";
 
 // ─── Step Indicator ─────────────────────────────────────────────
 function StepIndicator({ currentStep }: { currentStep: Step }) {
   const steps = [
     { key: "details", label: "Account" },
-    { key: "otp", label: "Verify" },
+    { key: "verify-email", label: "Email" },
+    { key: "verify-otp", label: "Phone" },
     { key: "whatsapp", label: "WhatsApp" },
     { key: "complete", label: "Done" },
   ];
@@ -150,13 +97,79 @@ function StepIndicator({ currentStep }: { currentStep: Step }) {
   );
 }
 
+// ─── OTP Input Component ────────────────────────────────────────
+function OTPInput({
+  value,
+  onChange,
+  length = 6,
+}: {
+  value: string;
+  onChange: (val: string) => void;
+  length?: number;
+}) {
+  const inputRefs = useRef<(HTMLInputElement | null)[]>([]);
+
+  const handleChange = (index: number, char: string) => {
+    if (!/^\d*$/.test(char)) return;
+    const newVal = value.split("");
+    newVal[index] = char;
+    const joined = newVal.join("").slice(0, length);
+    onChange(joined);
+    if (char && index < length - 1) {
+      inputRefs.current[index + 1]?.focus();
+    }
+  };
+
+  const handleKeyDown = (index: number, e: React.KeyboardEvent) => {
+    if (e.key === "Backspace" && !value[index] && index > 0) {
+      inputRefs.current[index - 1]?.focus();
+    }
+  };
+
+  const handlePaste = (e: React.ClipboardEvent) => {
+    e.preventDefault();
+    const pasteData = e.clipboardData.getData("text").replace(/\D/g, "").slice(0, length);
+    onChange(pasteData);
+    const focusIndex = Math.min(pasteData.length, length - 1);
+    inputRefs.current[focusIndex]?.focus();
+  };
+
+  return (
+    <div className="flex items-center justify-center gap-2.5">
+      {Array.from({ length }, (_, i) => (
+        <input
+          key={i}
+          ref={(el) => { inputRefs.current[i] = el; }}
+          type="text"
+          inputMode="numeric"
+          maxLength={1}
+          value={value[i] || ""}
+          onChange={(e) => handleChange(i, e.target.value)}
+          onKeyDown={(e) => handleKeyDown(i, e)}
+          onPaste={handlePaste}
+          className={`w-12 h-14 text-center text-xl font-bold rounded-xl border-2 transition-all duration-200 focus:outline-none ${
+            value[i]
+              ? "border-primary bg-primary/5 text-primary shadow-md shadow-primary/10"
+              : "border-slate-200 bg-slate-50 text-slate-800 focus:border-primary focus:ring-2 focus:ring-primary/20"
+          }`}
+        />
+      ))}
+    </div>
+  );
+}
+
 // ─── Main Signup Page ───────────────────────────────────────────
 export default function SignupPage() {
+  const router = useRouter();
   const [step, setStep] = useState<Step>("details");
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
-  const [otp, setOtp] = useState("");
-  const [resendTimer, setResendTimer] = useState(0);
+  const [error, setError] = useState("");
+  const [otpValue, setOtpValue] = useState("");
+  const [otpError, setOtpError] = useState("");
+  const [otpVerified, setOtpVerified] = useState(false);
+  const [otpCountdown, setOtpCountdown] = useState(30);
+  const [whatsAppLinked, setWhatsAppLinked] = useState(false);
   const [form, setForm] = useState<SignupForm>({
     fullName: "",
     companyName: "",
@@ -164,53 +177,129 @@ export default function SignupPage() {
     mobile: "",
     password: "",
     confirmPassword: "",
+    role: "business",
   });
 
   const updateField = (field: keyof SignupForm, value: string) => {
     setForm((prev) => ({ ...prev, [field]: value }));
   };
 
-  // Resend OTP timer
+  // OTP countdown timer
   useEffect(() => {
-    if (resendTimer <= 0) return;
-    const interval = setInterval(() => {
-      setResendTimer((t) => t - 1);
+    if (step !== "verify-otp") return;
+    if (otpCountdown <= 0) return;
+    const timer = setInterval(() => {
+      setOtpCountdown((prev) => prev - 1);
     }, 1000);
-    return () => clearInterval(interval);
-  }, [resendTimer]);
+    return () => clearInterval(timer);
+  }, [step, otpCountdown]);
 
-  const handleSignup = (e: React.FormEvent) => {
+  const handleSignup = async (e: React.FormEvent) => {
     e.preventDefault();
+    setError("");
+
+    if (form.password !== form.confirmPassword) {
+      setError("Passwords do not match");
+      return;
+    }
+
+    if (form.password.length < 8) {
+      setError("Password must be at least 8 characters");
+      return;
+    }
+
     setIsLoading(true);
-    setTimeout(() => {
+
+    try {
+      const res = await fetch("/api/auth/signup", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          fullName: form.fullName,
+          companyName: form.companyName,
+          email: form.email,
+          mobile: form.mobile,
+          password: form.password,
+          role: form.role,
+        }),
+      });
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        setError(data.error || "Signup failed");
+        setIsLoading(false);
+        return;
+      }
+
       setIsLoading(false);
-      setStep("otp");
-      setResendTimer(30);
-    }, 1500);
+      setStep("verify-email");
+    } catch {
+      setError("Something went wrong. Please try again.");
+      setIsLoading(false);
+    }
   };
 
-  const handleVerifyOtp = () => {
-    if (otp.length !== 6) return;
+  const handleVerifyOtp = useCallback(async () => {
+    setOtpError("");
     setIsLoading(true);
-    setTimeout(() => {
+
+    try {
+      const res = await fetch("/api/auth/verify-otp", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ otp: otpValue }),
+      });
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        setOtpError(data.error || "Invalid OTP");
+        setIsLoading(false);
+        return;
+      }
+
+      setOtpVerified(true);
       setIsLoading(false);
-      setStep("whatsapp");
-    }, 1500);
-  };
+
+      // Auto-advance after success animation
+      setTimeout(() => {
+        setStep("whatsapp");
+      }, 1500);
+    } catch {
+      setOtpError("Something went wrong. Please try again.");
+      setIsLoading(false);
+    }
+  }, [otpValue]);
 
   const handleResendOtp = () => {
-    if (resendTimer > 0) return;
-    setResendTimer(30);
-    setOtp("");
+    setOtpCountdown(30);
+    setOtpValue("");
+    setOtpError("");
   };
 
-  const handleLinkWhatsApp = () => {
+  const handleLinkWhatsApp = useCallback(async () => {
     setIsLoading(true);
-    setTimeout(() => {
+
+    try {
+      const res = await fetch("/api/auth/link-whatsapp", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+      });
+
+      if (res.ok) {
+        setWhatsAppLinked(true);
+      }
+
+      setIsLoading(false);
+      setTimeout(() => {
+        setStep("complete");
+      }, 1200);
+    } catch {
       setIsLoading(false);
       setStep("complete");
-    }, 1500);
-  };
+    }
+  }, []);
 
   const slideVariants = {
     enter: { x: 30, opacity: 0 },
@@ -254,11 +343,72 @@ export default function SignupPage() {
                   Create your account
                 </h1>
                 <p className="mt-1.5 text-sm text-muted">
-                  Start your 14-day free trial. No credit card needed.
+                  Start with your free plan. No credit card needed.
                 </p>
               </div>
 
+              {/* Role Selection */}
+              <div className="mb-6">
+                <label className="block text-sm font-medium text-slate-700 mb-2">
+                  I am a
+                </label>
+                <div className="grid grid-cols-2 gap-3">
+                  {([
+                    {
+                      value: "business" as AccountRole,
+                      label: "Business",
+                      desc: "Process my own documents",
+                      icon: Building2,
+                    },
+                    {
+                      value: "accounting" as AccountRole,
+                      label: "Accounting Firm",
+                      desc: "Process for multiple clients",
+                      icon: FileText,
+                    },
+                  ]).map((option) => (
+                    <button
+                      key={option.value}
+                      type="button"
+                      onClick={() => setForm((prev) => ({ ...prev, role: option.value }))}
+                      className={`relative flex flex-col items-center gap-2 p-4 rounded-xl border-2 transition-all duration-200 text-center ${
+                        form.role === option.value
+                          ? "border-primary bg-primary/5 shadow-md shadow-primary/10"
+                          : "border-slate-200 bg-slate-50 hover:border-slate-300 hover:bg-white"
+                      }`}
+                    >
+                      {form.role === option.value && (
+                        <div className="absolute top-2 right-2">
+                          <CheckCircle2 className="w-4 h-4 text-primary" />
+                        </div>
+                      )}
+                      <div className={`w-10 h-10 rounded-xl flex items-center justify-center transition-colors ${
+                        form.role === option.value
+                          ? "bg-primary/10 text-primary"
+                          : "bg-slate-100 text-slate-400"
+                      }`}>
+                        <option.icon className="w-5 h-5" />
+                      </div>
+                      <div>
+                        <p className={`text-sm font-semibold transition-colors ${
+                          form.role === option.value ? "text-primary" : "text-slate-700"
+                        }`}>{option.label}</p>
+                        <p className="text-[10px] text-muted mt-0.5">{option.desc}</p>
+                      </div>
+                    </button>
+                  ))}
+                </div>
+              </div>
+
               <form onSubmit={handleSignup} className="space-y-4">
+                {/* Error message */}
+                {error && (
+                  <div className="flex items-center gap-2 p-3 text-sm text-red-700 bg-red-50 border border-red-200 rounded-xl">
+                    <AlertCircle className="w-4 h-4 flex-shrink-0" />
+                    {error}
+                  </div>
+                )}
+
                 {/* Full Name */}
                 <div>
                   <label className="block text-sm font-medium text-slate-700 mb-1.5">
@@ -320,7 +470,7 @@ export default function SignupPage() {
                   <label className="block text-sm font-medium text-slate-700 mb-1.5">
                     Mobile Number{" "}
                     <span className="text-xs text-muted font-normal">
-                      (for WhatsApp linking)
+                      (for OTP &amp; WhatsApp)
                     </span>
                   </label>
                   <div className="relative">
@@ -330,7 +480,7 @@ export default function SignupPage() {
                       required
                       value={form.mobile}
                       onChange={(e) => updateField("mobile", e.target.value)}
-                      placeholder="+971 50 123 4567"
+                      placeholder="+91 98765 43210"
                       className="w-full pl-11 pr-4 py-3 text-sm bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all placeholder:text-slate-400"
                     />
                   </div>
@@ -367,26 +517,64 @@ export default function SignupPage() {
                   {/* Password strength indicator */}
                   {form.password && (
                     <div className="mt-2 flex items-center gap-1.5">
-                      {[1, 2, 3, 4].map((level) => (
-                        <div
-                          key={level}
-                          className={`h-1 flex-1 rounded-full transition-all ${
-                            form.password.length >= level * 3
-                              ? level <= 2
-                                ? "bg-orange-400"
-                                : "bg-success"
-                              : "bg-slate-200"
-                          }`}
-                        />
-                      ))}
+                      {[1, 2, 3, 4].map((level) => {
+                        const strength =
+                          form.password.length >= 12 && /[A-Z]/.test(form.password) && /\d/.test(form.password)
+                            ? 4
+                            : form.password.length >= 10
+                            ? 3
+                            : form.password.length >= 8
+                            ? 2
+                            : form.password.length >= 4
+                            ? 1
+                            : 0;
+                        return (
+                          <div
+                            key={level}
+                            className={`h-1 flex-1 rounded-full transition-all ${
+                              level <= strength
+                                ? strength <= 1
+                                  ? "bg-red-400"
+                                  : strength <= 2
+                                  ? "bg-orange-400"
+                                  : "bg-success"
+                                : "bg-slate-200"
+                            }`}
+                          />
+                        );
+                      })}
                       <span className="text-[10px] font-medium text-muted ml-1">
-                        {form.password.length < 6
+                        {form.password.length < 4
+                          ? "Too short"
+                          : form.password.length < 8
                           ? "Weak"
                           : form.password.length < 10
                           ? "Good"
                           : "Strong"}
                       </span>
                     </div>
+                  )}
+                </div>
+
+                {/* Confirm Password */}
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-1.5">
+                    Confirm Password
+                  </label>
+                  <div className="relative">
+                    <Lock className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+                    <input
+                      type={showPassword ? "text" : "password"}
+                      required
+                      minLength={8}
+                      value={form.confirmPassword}
+                      onChange={(e) => updateField("confirmPassword", e.target.value)}
+                      placeholder="Re-enter your password"
+                      className="w-full pl-11 pr-4 py-3 text-sm bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all placeholder:text-slate-400"
+                    />
+                  </div>
+                  {form.confirmPassword && form.password !== form.confirmPassword && (
+                    <p className="mt-1.5 text-xs text-red-500">Passwords do not match</p>
                   )}
                 </div>
 
@@ -439,98 +627,199 @@ export default function SignupPage() {
             </motion.div>
           )}
 
-          {/* ─── STEP 2: OTP Verification ───────────────────────── */}
-          {step === "otp" && (
+          {/* ─── STEP 2: Email Verification Sent ────────────────── */}
+          {step === "verify-email" && (
             <motion.div
-              key="otp"
+              key="verify-email"
               variants={slideVariants}
               initial="enter"
               animate="center"
               exit="exit"
               transition={{ duration: 0.3 }}
             >
-              <button
-                onClick={() => setStep("details")}
-                className="flex items-center gap-1.5 text-sm text-muted hover:text-slate-700 mb-6 transition-colors"
-              >
-                <ArrowLeft className="w-4 h-4" />
-                Back
-              </button>
-
               <div className="text-center mb-8">
                 <div className="w-16 h-16 mx-auto mb-5 rounded-2xl bg-gradient-to-br from-primary/10 to-secondary/10 flex items-center justify-center">
-                  <Smartphone className="w-8 h-8 text-primary" />
+                  <MailCheck className="w-8 h-8 text-primary" />
                 </div>
                 <h1 className="text-2xl font-bold text-slate-900 tracking-tight">
-                  Verify your mobile number
+                  Check your email
                 </h1>
                 <p className="mt-2 text-sm text-muted">
-                  We sent a 6-digit code to{" "}
+                  We sent a verification link to{" "}
                   <span className="font-semibold text-slate-700">
-                    {form.mobile || "+971 50 *** 4567"}
+                    {form.email}
                   </span>
                 </p>
               </div>
 
-              {/* OTP Input */}
-              <div className="mb-6">
-                <OTPInput value={otp} onChange={setOtp} />
-              </div>
-
-              {/* Resend */}
-              <div className="text-center mb-8">
-                {resendTimer > 0 ? (
-                  <p className="text-sm text-muted">
-                    Resend code in{" "}
-                    <span className="font-semibold text-primary">
-                      {resendTimer}s
-                    </span>
-                  </p>
-                ) : (
-                  <button
-                    onClick={handleResendOtp}
-                    className="text-sm font-semibold text-primary hover:text-primary-dark transition-colors"
-                  >
-                    Resend verification code
-                  </button>
-                )}
-              </div>
-
-              {/* Verify button */}
-              <button
-                onClick={handleVerifyOtp}
-                disabled={otp.length !== 6 || isLoading}
-                className="btn-shine group w-full flex items-center justify-center gap-2 px-6 py-3.5 text-sm font-semibold text-white bg-gradient-to-r from-primary to-primary-dark rounded-xl shadow-lg shadow-primary/20 hover:shadow-primary/30 hover:scale-[1.02] active:scale-[0.98] transition-all duration-200 disabled:opacity-60 disabled:cursor-not-allowed disabled:hover:scale-100"
-              >
-                {isLoading ? (
-                  <Loader2 className="w-4 h-4 animate-spin" />
-                ) : (
-                  <>
-                    Verify & Continue
-                    <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
-                  </>
-                )}
-              </button>
-
-              <div className="mt-6 p-4 rounded-xl bg-slate-50 border border-slate-100">
+              <div className="p-4 rounded-xl bg-blue-50 border border-blue-100 mb-6">
                 <div className="flex items-start gap-3">
-                  <Shield className="w-5 h-5 text-primary mt-0.5 flex-shrink-0" />
+                  <Mail className="w-5 h-5 text-blue-600 mt-0.5 flex-shrink-0" />
                   <div>
-                    <p className="text-xs font-semibold text-slate-700">
-                      Why do we verify your number?
+                    <p className="text-xs font-semibold text-blue-800">
+                      Verify your email address
                     </p>
-                    <p className="text-xs text-muted mt-0.5 leading-relaxed">
-                      Your mobile number is used to link your WhatsApp account.
-                      When you send documents via WhatsApp, we auto-route them
-                      to your dashboard.
+                    <p className="text-xs text-blue-600 mt-0.5 leading-relaxed">
+                      Click the link in the email we sent you to verify your account.
+                      The link expires in 24 hours. Check your spam folder if you
+                      don&apos;t see it.
                     </p>
                   </div>
                 </div>
               </div>
+
+              {/* Continue to Phone OTP */}
+              <button
+                onClick={() => {
+                  setOtpCountdown(30);
+                  setStep("verify-otp");
+                }}
+                className="btn-shine group w-full flex items-center justify-center gap-2 px-6 py-3.5 text-sm font-semibold text-white bg-gradient-to-r from-primary to-primary-dark rounded-xl shadow-lg shadow-primary/20 hover:shadow-primary/30 hover:scale-[1.02] active:scale-[0.98] transition-all duration-200"
+              >
+                Continue to Phone Verification
+                <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
+              </button>
+
+              <button
+                onClick={() => setStep("complete")}
+                className="w-full mt-3 text-center text-sm text-muted hover:text-slate-600 transition-colors"
+              >
+                Skip — I&apos;ll verify later
+              </button>
             </motion.div>
           )}
 
-          {/* ─── STEP 3: WhatsApp Linking ───────────────────────── */}
+          {/* ─── STEP 3: Phone OTP Verification ─────────────────── */}
+          {step === "verify-otp" && (
+            <motion.div
+              key="verify-otp"
+              variants={slideVariants}
+              initial="enter"
+              animate="center"
+              exit="exit"
+              transition={{ duration: 0.3 }}
+            >
+              <div className="text-center mb-8">
+                <div className="w-16 h-16 mx-auto mb-5 rounded-2xl bg-gradient-to-br from-amber-500/10 to-orange-500/10 flex items-center justify-center">
+                  <ShieldCheck className="w-8 h-8 text-amber-600" />
+                </div>
+                <h1 className="text-2xl font-bold text-slate-900 tracking-tight">
+                  Verify your phone
+                </h1>
+                <p className="mt-2 text-sm text-muted">
+                  Enter the OTP sent to{" "}
+                  <span className="font-semibold text-slate-700">
+                    {form.mobile || "+91 XXXXX XXXXX"}
+                  </span>
+                </p>
+              </div>
+
+              {/* Demo OTP Banner */}
+              <div className="p-4 rounded-xl bg-gradient-to-r from-amber-50 to-orange-50 border border-amber-200 mb-6">
+                <div className="flex items-start gap-3">
+                  <Sparkles className="w-5 h-5 text-amber-600 mt-0.5 flex-shrink-0" />
+                  <div>
+                    <p className="text-xs font-bold text-amber-800 uppercase tracking-wide">
+                      Demo Mode
+                    </p>
+                    <p className="text-xs text-amber-700 mt-0.5 leading-relaxed">
+                      In production, a real OTP will be sent via SMS. For demo, use this OTP:
+                    </p>
+                    <div className="mt-2.5 flex items-center gap-2">
+                      <div className="flex items-center gap-1">
+                        {DEMO_OTP.split("").map((digit, i) => (
+                          <span
+                            key={i}
+                            className="inline-flex items-center justify-center w-8 h-10 text-lg font-bold text-amber-800 bg-white border-2 border-amber-300 rounded-lg shadow-sm"
+                          >
+                            {digit}
+                          </span>
+                        ))}
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => setOtpValue(DEMO_OTP)}
+                        className="px-3 py-1.5 text-[10px] font-bold text-amber-700 bg-amber-100 border border-amber-300 rounded-lg hover:bg-amber-200 transition-colors"
+                      >
+                        Auto-fill
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* OTP Input */}
+              {otpVerified ? (
+                <motion.div
+                  initial={{ scale: 0.8, opacity: 0 }}
+                  animate={{ scale: 1, opacity: 1 }}
+                  className="flex flex-col items-center gap-3 py-6"
+                >
+                  <div className="w-16 h-16 rounded-full bg-success/10 flex items-center justify-center">
+                    <CheckCircle2 className="w-8 h-8 text-success" />
+                  </div>
+                  <p className="text-sm font-semibold text-success">Phone verified successfully!</p>
+                  <p className="text-xs text-muted">Redirecting to WhatsApp setup...</p>
+                </motion.div>
+              ) : (
+                <>
+                  <div className="mb-6">
+                    <OTPInput value={otpValue} onChange={setOtpValue} />
+                  </div>
+
+                  {/* OTP Error */}
+                  {otpError && (
+                    <div className="flex items-center gap-2 p-3 text-sm text-red-700 bg-red-50 border border-red-200 rounded-xl mb-4">
+                      <AlertCircle className="w-4 h-4 flex-shrink-0" />
+                      {otpError}
+                    </div>
+                  )}
+
+                  {/* Verify Button */}
+                  <button
+                    onClick={handleVerifyOtp}
+                    disabled={isLoading || otpValue.length < 6}
+                    className="btn-shine group w-full flex items-center justify-center gap-2 px-6 py-3.5 text-sm font-semibold text-white bg-gradient-to-r from-primary to-primary-dark rounded-xl shadow-lg shadow-primary/20 hover:shadow-primary/30 hover:scale-[1.02] active:scale-[0.98] transition-all duration-200 disabled:opacity-60 disabled:cursor-not-allowed disabled:hover:scale-100"
+                  >
+                    {isLoading ? (
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                    ) : (
+                      <>
+                        <ShieldCheck className="w-4 h-4" />
+                        Verify OTP
+                      </>
+                    )}
+                  </button>
+
+                  {/* Resend OTP */}
+                  <div className="flex items-center justify-center gap-2 mt-4">
+                    {otpCountdown > 0 ? (
+                      <p className="text-xs text-muted">
+                        Resend OTP in <span className="font-semibold text-primary">{otpCountdown}s</span>
+                      </p>
+                    ) : (
+                      <button
+                        onClick={handleResendOtp}
+                        className="flex items-center gap-1.5 text-xs font-medium text-primary hover:text-primary-dark transition-colors"
+                      >
+                        <RefreshCcw className="w-3.5 h-3.5" />
+                        Resend OTP
+                      </button>
+                    )}
+                  </div>
+
+                  <button
+                    onClick={() => setStep("whatsapp")}
+                    className="w-full mt-3 text-center text-sm text-muted hover:text-slate-600 transition-colors"
+                  >
+                    Skip — I&apos;ll verify later
+                  </button>
+                </>
+              )}
+            </motion.div>
+          )}
+
+          {/* ─── STEP 4: WhatsApp Linking ───────────────────────── */}
           {step === "whatsapp" && (
             <motion.div
               key="whatsapp"
@@ -563,7 +852,7 @@ export default function SignupPage() {
                     <MessageCircle className="w-5 h-5 text-white" />
                   </div>
                   <span className="text-2xl font-bold text-green-800 tracking-wide">
-                    +971 4 XXX XXXX
+                    +91 XXXXX XXXXX
                   </span>
                 </div>
                 <p className="text-xs text-green-600 text-center mt-3">
@@ -639,33 +928,55 @@ export default function SignupPage() {
                 </div>
               </div>
 
-              <div className="flex items-center gap-3">
-                <button
-                  onClick={handleLinkWhatsApp}
-                  disabled={isLoading}
-                  className="btn-shine group flex-1 flex items-center justify-center gap-2 px-6 py-3.5 text-sm font-semibold text-white bg-gradient-to-r from-green-500 to-green-600 rounded-xl shadow-lg shadow-green-500/20 hover:shadow-green-500/30 hover:scale-[1.02] active:scale-[0.98] transition-all duration-200 disabled:opacity-60"
+              {whatsAppLinked ? (
+                <motion.div
+                  initial={{ opacity: 0, scale: 0.9 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  className="flex flex-col items-center gap-4"
                 >
-                  {isLoading ? (
-                    <Loader2 className="w-4 h-4 animate-spin" />
-                  ) : (
-                    <>
-                      <MessageCircle className="w-4 h-4" />
-                      Link WhatsApp & Continue
-                    </>
-                  )}
-                </button>
-              </div>
+                  <div className="w-16 h-16 rounded-full bg-green-50 flex items-center justify-center">
+                    <CheckCircle2 className="w-8 h-8 text-green-500" />
+                  </div>
+                  <p className="text-sm font-medium text-green-700">WhatsApp linked successfully!</p>
+                  <button
+                    onClick={() => setStep("complete")}
+                    className="btn-shine group w-full flex items-center justify-center gap-2 px-6 py-3.5 text-sm font-semibold text-white bg-gradient-to-r from-primary to-primary-dark rounded-xl shadow-lg shadow-primary/20 hover:shadow-primary/30 hover:scale-[1.02] transition-all duration-200"
+                  >
+                    Continue
+                    <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
+                  </button>
+                </motion.div>
+              ) : (
+                <>
+                  <div className="flex items-center gap-3">
+                    <button
+                      onClick={handleLinkWhatsApp}
+                      disabled={isLoading}
+                      className="btn-shine group flex-1 flex items-center justify-center gap-2 px-6 py-3.5 text-sm font-semibold text-white bg-gradient-to-r from-green-500 to-green-600 rounded-xl shadow-lg shadow-green-500/20 hover:shadow-green-500/30 hover:scale-[1.02] active:scale-[0.98] transition-all duration-200 disabled:opacity-60"
+                    >
+                      {isLoading ? (
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                      ) : (
+                        <>
+                          <MessageCircle className="w-4 h-4" />
+                          Link WhatsApp & Continue
+                        </>
+                      )}
+                    </button>
+                  </div>
 
-              <button
-                onClick={() => setStep("complete")}
-                className="w-full mt-3 text-center text-sm text-muted hover:text-slate-600 transition-colors"
-              >
-                Skip for now — I&apos;ll set this up later
-              </button>
+                  <button
+                    onClick={() => setStep("complete")}
+                    className="w-full mt-3 text-center text-sm text-muted hover:text-slate-600 transition-colors"
+                  >
+                    Skip for now — I&apos;ll set this up later
+                  </button>
+                </>
+              )}
             </motion.div>
           )}
 
-          {/* ─── STEP 4: Complete ───────────────────────────────── */}
+          {/* ─── STEP 5: Complete ───────────────────────────────── */}
           {step === "complete" && (
             <motion.div
               key="complete"
@@ -706,15 +1017,17 @@ export default function SignupPage() {
                 </p>
                 <div className="space-y-3">
                   {[
-                    { label: "Name", value: form.fullName || "John Doe" },
-                    { label: "Company", value: form.companyName || "Acme Corp" },
-                    { label: "Email", value: form.email || "john@acme.com" },
+                    { label: "Name", value: form.fullName || "—" },
+                    { label: "Company", value: form.companyName || "—" },
+                    { label: "Account Type", value: form.role === "accounting" ? "Accounting Firm" : "Business" },
+                    { label: "Email", value: form.email || "—", verified: true },
                     {
                       label: "Mobile",
-                      value: form.mobile || "+971 50 123 4567",
+                      value: form.mobile || "—",
+                      verified: otpVerified,
                     },
-                    { label: "WhatsApp", value: "Linked" },
-                    { label: "Plan", value: "Free Trial (14 days)" },
+                    { label: "WhatsApp", value: whatsAppLinked ? "Linked" : "Not linked", verified: whatsAppLinked },
+                    { label: "Plan", value: "Free (5 docs/month)" },
                   ].map((row) => (
                     <div
                       key={row.label}
@@ -723,8 +1036,11 @@ export default function SignupPage() {
                       <span className="text-xs text-muted">{row.label}</span>
                       <span className="text-sm font-medium text-slate-800 flex items-center gap-1">
                         {row.value}
-                        {row.label === "WhatsApp" && (
+                        {"verified" in row && row.verified && (
                           <CheckCircle2 className="w-3.5 h-3.5 text-success" />
+                        )}
+                        {"verified" in row && !row.verified && (
+                          <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-amber-50 text-amber-600 font-medium">Skipped</span>
                         )}
                       </span>
                     </div>
