@@ -204,7 +204,7 @@ function SignupPageContent() {
     if (step !== "verify-email" || emailVerified) return;
     const interval = setInterval(async () => {
       try {
-        const res = await fetch(apiUrl("/api/auth/email-status"), { credentials: "include" });
+        const res = await fetch(apiUrl(`/api/auth/email-status?email=${encodeURIComponent(form.email)}`), { credentials: "include" });
         if (res.ok) {
           const data = await res.json();
           if (data.verified) {
