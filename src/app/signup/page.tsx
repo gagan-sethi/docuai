@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef, useCallback } from "react";
+import { useState, useEffect, useRef, useCallback, Suspense } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   User,
@@ -24,7 +24,7 @@ import {
   RefreshCcw,
 } from "lucide-react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import AuthLayout from "@/components/auth/AuthLayout";
 import { apiUrl } from "@/lib/api";
 
@@ -160,8 +160,9 @@ function OTPInput({
 }
 
 // ─── Main Signup Page ───────────────────────────────────────────
-export default function SignupPage() {
+function SignupPageContent() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const [step, setStep] = useState<Step>("details");
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
@@ -171,6 +172,7 @@ export default function SignupPage() {
   const [otpVerified, setOtpVerified] = useState(false);
   const [otpCountdown, setOtpCountdown] = useState(30);
   const [whatsAppLinked, setWhatsAppLinked] = useState(false);
+  const [emailVerified, setEmailVerified] = useState(false);
   const [form, setForm] = useState<SignupForm>({
     fullName: "",
     companyName: "",
@@ -184,6 +186,41 @@ export default function SignupPage() {
   const updateField = (field: keyof SignupForm, value: string) => {
     setForm((prev) => ({ ...prev, [field]: value }));
   };
+
+  // ── Handle return from email verification link ──
+  useEffect(() => {
+    const verified = searchParams.get("verified");
+    if (verified === "success") {
+      setEmailVerified(true);
+      setStep("verify-otp");
+      setOtpCountdown(30);
+    } else if (verified === "error") {
+      setStep("verify-email");
+    }
+  }, [searchParams]);
+
+  // ── Poll email verification status while on verify-email step ──
+  useEffect(() => {
+    if (step !== "verify-email" || emailVerified) return;
+    const interval = setInterval(async () => {
+      try {
+        const res = await fetch(apiUrl("/api/auth/email-status"), { credentials: "include" });
+        if (res.ok) {
+          const data = await res.json();
+          if (data.verified) {
+            setEmailVerified(true);
+            // Auto-advance after a short success animation
+            setTimeout(() => {
+              setOtpCountdown(30);
+              setStep("verify-otp");
+            }, 1500);
+            clearInterval(interval);
+          }
+        }
+      } catch { /* ignore polling errors */ }
+    }, 3000);
+    return () => clearInterval(interval);
+  }, [step, emailVerified]);
 
   // OTP countdown timer
   useEffect(() => {
@@ -642,54 +679,80 @@ export default function SignupPage() {
               transition={{ duration: 0.3 }}
             >
               <div className="text-center mb-8">
-                <div className="w-16 h-16 mx-auto mb-5 rounded-2xl bg-gradient-to-br from-primary/10 to-secondary/10 flex items-center justify-center">
-                  <MailCheck className="w-8 h-8 text-primary" />
+                <div className={`w-16 h-16 mx-auto mb-5 rounded-2xl flex items-center justify-center transition-all duration-500 ${
+                  emailVerified
+                    ? "bg-gradient-to-br from-success/20 to-emerald-100"
+                    : "bg-gradient-to-br from-primary/10 to-secondary/10"
+                }`}>
+                  {emailVerified ? (
+                    <motion.div initial={{ scale: 0 }} animate={{ scale: 1 }} transition={{ type: "spring", stiffness: 300, damping: 15 }}>
+                      <CheckCircle2 className="w-8 h-8 text-success" />
+                    </motion.div>
+                  ) : (
+                    <MailCheck className="w-8 h-8 text-primary" />
+                  )}
                 </div>
                 <h1 className="text-2xl font-bold text-slate-900 tracking-tight">
-                  Check your email
+                  {emailVerified ? "Email verified!" : "Check your email"}
                 </h1>
                 <p className="mt-2 text-sm text-muted">
-                  We sent a verification link to{" "}
-                  <span className="font-semibold text-slate-700">
-                    {form.email}
-                  </span>
+                  {emailVerified ? (
+                    <span className="text-success font-medium">Your email has been verified. Moving to phone verification...</span>
+                  ) : (
+                    <>
+                      We sent a verification link to{" "}
+                      <span className="font-semibold text-slate-700">
+                        {form.email}
+                      </span>
+                    </>
+                  )}
                 </p>
               </div>
 
-              <div className="p-4 rounded-xl bg-blue-50 border border-blue-100 mb-6">
-                <div className="flex items-start gap-3">
-                  <Mail className="w-5 h-5 text-blue-600 mt-0.5 flex-shrink-0" />
-                  <div>
-                    <p className="text-xs font-semibold text-blue-800">
-                      Verify your email address
-                    </p>
-                    <p className="text-xs text-blue-600 mt-0.5 leading-relaxed">
-                      Click the link in the email we sent you to verify your account.
-                      The link expires in 24 hours. Check your spam folder if you
-                      don&apos;t see it.
-                    </p>
+              {!emailVerified && (
+                <>
+                  <div className="p-4 rounded-xl bg-blue-50 border border-blue-100 mb-6">
+                    <div className="flex items-start gap-3">
+                      <Mail className="w-5 h-5 text-blue-600 mt-0.5 flex-shrink-0" />
+                      <div>
+                        <p className="text-xs font-semibold text-blue-800">
+                          Verify your email address
+                        </p>
+                        <p className="text-xs text-blue-600 mt-0.5 leading-relaxed">
+                          Click the link in the email we sent you to verify your account.
+                          The link expires in 24 hours. Check your spam folder if you
+                          don&apos;t see it.
+                        </p>
+                      </div>
+                    </div>
                   </div>
-                </div>
-              </div>
 
-              {/* Continue to Phone OTP */}
-              <button
-                onClick={() => {
-                  setOtpCountdown(30);
-                  setStep("verify-otp");
-                }}
-                className="btn-shine group w-full flex items-center justify-center gap-2 px-6 py-3.5 text-sm font-semibold text-white bg-gradient-to-r from-primary to-primary-dark rounded-xl shadow-lg shadow-primary/20 hover:shadow-primary/30 hover:scale-[1.02] active:scale-[0.98] transition-all duration-200"
-              >
-                Continue to Phone Verification
-                <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
-              </button>
+                  {/* Waiting indicator */}
+                  <div className="flex items-center justify-center gap-2 mb-6 p-3 rounded-xl bg-slate-50 border border-slate-100">
+                    <Loader2 className="w-4 h-4 animate-spin text-primary" />
+                    <span className="text-xs text-muted">Waiting for email verification...</span>
+                  </div>
 
-              <button
-                onClick={() => setStep("complete")}
-                className="w-full mt-3 text-center text-sm text-muted hover:text-slate-600 transition-colors"
-              >
-                Skip — I&apos;ll verify later
-              </button>
+                  {/* Continue to Phone OTP — skip email verification */}
+                  <button
+                    onClick={() => {
+                      setOtpCountdown(30);
+                      setStep("verify-otp");
+                    }}
+                    className="btn-shine group w-full flex items-center justify-center gap-2 px-6 py-3.5 text-sm font-semibold text-white bg-gradient-to-r from-primary to-primary-dark rounded-xl shadow-lg shadow-primary/20 hover:shadow-primary/30 hover:scale-[1.02] active:scale-[0.98] transition-all duration-200"
+                  >
+                    Continue to Phone Verification
+                    <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
+                  </button>
+
+                  <button
+                    onClick={() => setStep("complete")}
+                    className="w-full mt-3 text-center text-sm text-muted hover:text-slate-600 transition-colors"
+                  >
+                    Skip — I&apos;ll verify later
+                  </button>
+                </>
+              )}
             </motion.div>
           )}
 
@@ -1064,5 +1127,19 @@ export default function SignupPage() {
         </AnimatePresence>
       </motion.div>
     </AuthLayout>
+  );
+}
+
+export default function SignupPage() {
+  return (
+    <Suspense fallback={
+      <AuthLayout>
+        <div className="flex items-center justify-center py-20">
+          <Loader2 className="w-8 h-8 animate-spin text-primary" />
+        </div>
+      </AuthLayout>
+    }>
+      <SignupPageContent />
+    </Suspense>
   );
 }
