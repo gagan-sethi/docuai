@@ -23,9 +23,13 @@ import {
   ShieldCheck,
   RefreshCcw,
   Pencil,
+  Tag,
+  BadgePercent,
+  Users,
+  Calculator,
 } from "lucide-react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import AuthLayout from "@/components/auth/AuthLayout";
 import { apiUrl } from "@/lib/api";
 
@@ -41,6 +45,14 @@ interface SignupForm {
   password: string;
   confirmPassword: string;
   role: AccountRole;
+  promoCode: string;
+}
+
+interface PromoValidation {
+  valid: boolean;
+  code: string;
+  discountPercent: number;
+  firmName: string;
 }
 
 const DEMO_OTP = "123456";
@@ -163,6 +175,7 @@ function OTPInput({
 // ─── Main Signup Page ───────────────────────────────────────────
 function SignupPageContent() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const [step, setStep] = useState<Step>("details");
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
@@ -178,6 +191,9 @@ function SignupPageContent() {
   const [changingEmail, setChangingEmail] = useState(false);
   const [newEmail, setNewEmail] = useState("");
   const [emailChangeError, setEmailChangeError] = useState("");
+  const [promoValidation, setPromoValidation] = useState<PromoValidation | null>(null);
+  const [promoError, setPromoError] = useState("");
+  const [promoChecking, setPromoChecking] = useState(false);
   const [form, setForm] = useState<SignupForm>({
     fullName: "",
     companyName: "",
@@ -186,11 +202,38 @@ function SignupPageContent() {
     password: "",
     confirmPassword: "",
     role: "business",
+    promoCode: "",
   });
 
   const updateField = (field: keyof SignupForm, value: string) => {
     setForm((prev) => ({ ...prev, [field]: value }));
   };
+
+  // ── Auto-fill referral code from ?ref= URL parameter ──
+  useEffect(() => {
+    const refCode = searchParams.get("ref");
+    if (refCode && !promoValidation) {
+      const code = refCode.toUpperCase().trim();
+      setForm((prev) => ({ ...prev, promoCode: code, role: "business" }));
+      // Auto-validate the referral code
+      (async () => {
+        setPromoChecking(true);
+        try {
+          const res = await fetch(apiUrl(`/api/referrals/validate?code=${encodeURIComponent(code)}`));
+          const data = await res.json();
+          if (res.ok) {
+            setPromoValidation(data);
+          } else {
+            setPromoError(data.error || "Invalid referral code");
+          }
+        } catch {
+          setPromoError("Could not validate code. Try again.");
+        }
+        setPromoChecking(false);
+      })();
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchParams]);
 
   // ── Poll email verification status while on verify-email step ──
   useEffect(() => {
@@ -249,6 +292,7 @@ function SignupPageContent() {
           mobile: form.mobile,
           password: form.password,
           role: form.role,
+          promoCode: promoValidation?.code || undefined,
         }),
       });
 
@@ -298,6 +342,29 @@ function SignupPageContent() {
     setOtpValue("");
     setOtpError("");
   };
+
+  const handleValidatePromo = useCallback(async () => {
+    if (!form.promoCode.trim()) {
+      setPromoValidation(null);
+      setPromoError("");
+      return;
+    }
+    setPromoChecking(true);
+    setPromoError("");
+    setPromoValidation(null);
+    try {
+      const res = await fetch(apiUrl(`/api/referrals/validate?code=${encodeURIComponent(form.promoCode.trim())}`));
+      const data = await res.json();
+      if (!res.ok) {
+        setPromoError(data.error || "Invalid promo code");
+      } else {
+        setPromoValidation(data);
+      }
+    } catch {
+      setPromoError("Could not validate code. Try again.");
+    }
+    setPromoChecking(false);
+  }, [form.promoCode]);
 
   const handleLinkWhatsApp = useCallback(async () => {
     setIsLoading(true);
@@ -405,13 +472,17 @@ function SignupPageContent() {
                 <label className="block text-sm font-medium text-slate-700 mb-2">I am a</label>
                 <div className="grid grid-cols-2 gap-3">
                   {([
-                    { value: "business" as AccountRole, label: "Business", desc: "Process my own documents", icon: Building2 },
-                    { value: "accounting" as AccountRole, label: "Accounting Firm", desc: "Process for multiple clients", icon: FileText },
+                    { value: "business" as AccountRole, label: "Business", desc: "Process my documents", icon: Building2, perks: ["Upload & process docs", "Apply promo codes", "AI-powered extraction"] },
+                    { value: "accounting" as AccountRole, label: "Accounting Firm", desc: "Manage multiple clients", icon: Calculator, perks: ["Create referral codes", "Track referred clients", "Earn commissions"] },
                   ]).map((option) => (
                     <button
                       key={option.value}
                       type="button"
-                      onClick={() => setForm((prev) => ({ ...prev, role: option.value }))}
+                      onClick={() => {
+                        setForm((prev) => ({ ...prev, role: option.value, promoCode: "" }));
+                        setPromoValidation(null);
+                        setPromoError("");
+                      }}
                       className={`relative flex flex-col items-center gap-2 p-4 rounded-xl border-2 transition-all duration-200 text-center ${
                         form.role === option.value
                           ? "border-primary bg-primary/5 shadow-md shadow-primary/10"
@@ -430,10 +501,90 @@ function SignupPageContent() {
                         <p className={`text-sm font-semibold transition-colors ${form.role === option.value ? "text-primary" : "text-slate-700"}`}>{option.label}</p>
                         <p className="text-[10px] text-muted mt-0.5">{option.desc}</p>
                       </div>
+                      {form.role === option.value && (
+                        <div className="w-full mt-1 space-y-1">
+                          {option.perks.map((perk) => (
+                            <div key={perk} className="flex items-center gap-1 text-[10px] text-primary/70">
+                              <Check className="w-3 h-3 flex-shrink-0" />{perk}
+                            </div>
+                          ))}
+                        </div>
+                      )}
                     </button>
                   ))}
                 </div>
               </div>
+
+              {/* Promo Code — only for Business users */}
+              {form.role === "business" && (
+                <div className="mb-4">
+                  <label className="block text-sm font-medium text-slate-700 mb-1.5">
+                    Promo Code <span className="text-xs text-muted font-normal">(optional — from your accounting firm)</span>
+                  </label>
+                  <div className="flex gap-2">
+                    <div className="relative flex-1">
+                      <Tag className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+                      <input
+                        type="text"
+                        value={form.promoCode}
+                        onChange={(e) => {
+                          updateField("promoCode", e.target.value.toUpperCase());
+                          if (promoValidation) setPromoValidation(null);
+                          if (promoError) setPromoError("");
+                        }}
+                        placeholder="e.g. ACME20"
+                        maxLength={30}
+                        className="w-full pl-11 pr-4 py-3 text-sm bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all placeholder:text-slate-400 uppercase"
+                      />
+                    </div>
+                    <button
+                      type="button"
+                      onClick={handleValidatePromo}
+                      disabled={promoChecking || !form.promoCode.trim()}
+                      className="px-4 py-3 text-sm font-semibold text-primary bg-primary/5 border border-primary/20 rounded-xl hover:bg-primary/10 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1.5"
+                    >
+                      {promoChecking ? <Loader2 className="w-4 h-4 animate-spin" /> : "Apply"}
+                    </button>
+                  </div>
+                  {promoError && (
+                    <p className="mt-1.5 text-xs text-red-500 flex items-center gap-1"><AlertCircle className="w-3 h-3" />{promoError}</p>
+                  )}
+                  {promoValidation && (
+                    <div className="mt-2 p-3 rounded-xl bg-gradient-to-r from-success/5 to-emerald-50 border border-success/20">
+                      <div className="flex items-center gap-2">
+                        <div className="w-8 h-8 rounded-lg bg-success/10 flex items-center justify-center">
+                          <BadgePercent className="w-4 h-4 text-success" />
+                        </div>
+                        <div className="flex-1">
+                          <p className="text-sm font-semibold text-success">
+                            {promoValidation.discountPercent}% discount applied!
+                          </p>
+                          <p className="text-[10px] text-muted">
+                            Referred by <span className="font-medium text-slate-600">{promoValidation.firmName}</span>
+                          </p>
+                        </div>
+                        <CheckCircle2 className="w-5 h-5 text-success" />
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* Accounting firm info banner */}
+              {form.role === "accounting" && (
+                <div className="mb-4 p-3 rounded-xl bg-gradient-to-r from-indigo-50 to-purple-50 border border-indigo-100">
+                  <div className="flex items-start gap-2.5">
+                    <Users className="w-5 h-5 text-indigo-600 mt-0.5 flex-shrink-0" />
+                    <div>
+                      <p className="text-xs font-semibold text-indigo-800">Accounting Firm Benefits</p>
+                      <p className="text-[11px] text-indigo-600 mt-0.5 leading-relaxed">
+                        As an accounting firm, you can create referral promo codes and share them with your clients.
+                        Track referrals and earn commissions from your dashboard.
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              )}
 
               <form onSubmit={handleSignup} className="space-y-4">
                 {error && (
@@ -822,6 +973,7 @@ function SignupPageContent() {
                     { label: "Email", value: form.email || "—", verified: emailVerified },
                     { label: "Mobile", value: form.mobile || "—", verified: otpVerified },
                     { label: "WhatsApp", value: whatsAppLinked ? "Linked" : "Not linked", verified: whatsAppLinked },
+                    ...(promoValidation ? [{ label: "Promo Code", value: `${promoValidation.code} (${promoValidation.discountPercent}% off)` }] : []),
                     { label: "Plan", value: "Free (5 docs/month)" },
                   ].map((row) => (
                     <div key={row.label} className="flex items-center justify-between">

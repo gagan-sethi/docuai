@@ -20,6 +20,7 @@ import {
   MessageSquare,
   BarChart3,
   Bell,
+  Gift,
 } from "lucide-react";
 
 const mainNav = [
@@ -57,6 +58,14 @@ const mainNav = [
   },
 ];
 
+// Extra nav item only shown to accounting-firm users
+const referralsNav = {
+  name: "Referrals",
+  href: "/dashboard/referrals",
+  icon: Gift,
+  badge: undefined as number | undefined,
+};
+
 const bottomNav = [
   {
     name: "Team",
@@ -84,7 +93,7 @@ export default function Sidebar() {
   const pathname = usePathname();
   const router = useRouter();
   const [collapsed, setCollapsed] = useState(false);
-  const [user, setUser] = useState<{ fullName: string; email: string } | null>(null);
+  const [user, setUser] = useState<{ fullName: string; email: string; role?: string } | null>(null);
 
   useEffect(() => {
     fetch(apiUrl("/api/auth/me"), { credentials: "include" })
@@ -154,7 +163,7 @@ export default function Sidebar() {
               Main
             </p>
           )}
-          {mainNav.map((item) => {
+          {[...mainNav, ...(user?.role === "accounting" ? [referralsNav] : [])].map((item) => {
             const isActive =
               pathname === item.href ||
               (item.href !== "/dashboard" &&
