@@ -1,9 +1,8 @@
 "use client";
 
-import { useState, useEffect, useCallback, useRef } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
-  Gift,
   Copy,
   CheckCircle2,
   Users,
@@ -22,7 +21,7 @@ import {
   Award,
   UserPlus,
   Clock,
-  ChevronDown,
+  Gift,
   X,
 } from "lucide-react";
 import Sidebar from "@/components/dashboard/Sidebar";
@@ -60,8 +59,8 @@ interface ReferralStats {
   totalRedemptions: number;
 }
 
-// ─── Share Menu ─────────────────────────────────────────────────
-function ShareMenu({
+// ─── Share Modal ────────────────────────────────────────────────
+function ShareModal({
   code,
   signupUrl,
   onClose,
@@ -70,109 +69,149 @@ function ShareMenu({
   signupUrl: string;
   onClose: () => void;
 }) {
-  const menuRef = useRef<HTMLDivElement>(null);
   const [copied, setCopied] = useState<string | null>(null);
-
-  useEffect(() => {
-    const handleClickOutside = (e: MouseEvent) => {
-      if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
-        onClose();
-      }
-    };
-    document.addEventListener("mousedown", handleClickOutside);
-    return () => document.removeEventListener("mousedown", handleClickOutside);
-  }, [onClose]);
 
   const handleCopy = (text: string, label: string) => {
     navigator.clipboard.writeText(text);
     setCopied(label);
-    setTimeout(() => setCopied(null), 2000);
+    setTimeout(() => setCopied(null), 2500);
   };
 
-  const shareMessage = `Hey! Sign up for DocuAI using my referral link and get a discount on your plan: ${signupUrl}`;
-
-  const shareOptions = [
-    {
-      id: "link",
-      label: "Copy Referral Link",
-      icon: Link2,
-      onClick: () => handleCopy(signupUrl, "link"),
-      color: "text-primary",
-      bg: "bg-primary/5 hover:bg-primary/10",
-    },
-    {
-      id: "code",
-      label: "Copy Referral Code",
-      icon: Copy,
-      onClick: () => handleCopy(code, "code"),
-      color: "text-indigo-600",
-      bg: "bg-indigo-50 hover:bg-indigo-100",
-    },
-    {
-      id: "whatsapp",
-      label: "Share via WhatsApp",
-      icon: MessageCircle,
-      onClick: () => {
-        window.open(`https://wa.me/?text=${encodeURIComponent(shareMessage)}`, "_blank");
-        onClose();
-      },
-      color: "text-green-600",
-      bg: "bg-green-50 hover:bg-green-100",
-    },
-    {
-      id: "email",
-      label: "Share via Email",
-      icon: Mail,
-      onClick: () => {
-        window.open(
-          `mailto:?subject=${encodeURIComponent("Join DocuAI with my referral!")}&body=${encodeURIComponent(shareMessage)}`,
-          "_blank"
-        );
-        onClose();
-      },
-      color: "text-amber-600",
-      bg: "bg-amber-50 hover:bg-amber-100",
-    },
-  ];
+  const shareMessage = `Hey! Sign up for DocuAI using my referral link and get a discount on your plan:\n${signupUrl}`;
 
   return (
     <motion.div
-      ref={menuRef}
-      initial={{ opacity: 0, scale: 0.95, y: -8 }}
-      animate={{ opacity: 1, scale: 1, y: 0 }}
-      exit={{ opacity: 0, scale: 0.95, y: -8 }}
-      transition={{ duration: 0.15 }}
-      className="absolute right-0 top-full mt-2 w-72 bg-white rounded-2xl shadow-2xl border border-slate-100 z-50 overflow-hidden"
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
+      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm"
+      onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
     >
-      <div className="px-4 py-3 border-b border-slate-100 flex items-center justify-between">
-        <p className="text-sm font-bold text-slate-800">Share Your Referral</p>
-        <button onClick={onClose} className="p-1 rounded-lg hover:bg-slate-100 transition-colors">
-          <X className="w-4 h-4 text-slate-400" />
-        </button>
-      </div>
-      <div className="p-2">
-        {shareOptions.map((option) => (
+      <motion.div
+        initial={{ opacity: 0, scale: 0.92, y: 20 }}
+        animate={{ opacity: 1, scale: 1, y: 0 }}
+        exit={{ opacity: 0, scale: 0.92, y: 20 }}
+        transition={{ type: "spring", damping: 25, stiffness: 350 }}
+        className="bg-white rounded-3xl shadow-2xl w-full max-w-md overflow-hidden"
+      >
+        {/* Header */}
+        <div className="relative bg-gradient-to-br from-indigo-600 via-primary to-purple-600 px-6 pt-6 pb-8 text-center">
           <button
-            key={option.id}
-            onClick={option.onClick}
-            className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl transition-all ${option.bg}`}
+            onClick={onClose}
+            className="absolute top-4 right-4 p-1.5 rounded-xl bg-white/15 hover:bg-white/25 transition-colors"
           >
-            <div className={`w-9 h-9 rounded-lg flex items-center justify-center ${option.bg}`}>
-              <option.icon className={`w-4 h-4 ${option.color}`} />
+            <X className="w-4 h-4 text-white" />
+          </button>
+          <div className="w-14 h-14 mx-auto mb-3 rounded-2xl bg-white/15 backdrop-blur-sm flex items-center justify-center">
+            <Share2 className="w-7 h-7 text-white" />
+          </div>
+          <h3 className="text-lg font-bold text-white">Share Your Referral</h3>
+          <p className="text-sm text-white/70 mt-1">Invite clients and give them a discount</p>
+
+          {/* Code display */}
+          <div className="mt-4 inline-flex items-center gap-3 px-5 py-2.5 bg-white/15 backdrop-blur-sm rounded-xl border border-white/20">
+            <span className="text-xl font-black font-mono tracking-[0.15em] text-white">{code}</span>
+            <button
+              onClick={() => handleCopy(code, "code")}
+              className="p-1.5 rounded-lg bg-white/15 hover:bg-white/25 transition-colors"
+            >
+              {copied === "code" ? (
+                <CheckCircle2 className="w-4 h-4 text-green-300" />
+              ) : (
+                <Copy className="w-4 h-4 text-white/70" />
+              )}
+            </button>
+          </div>
+        </div>
+
+        {/* Share options */}
+        <div className="p-5 space-y-2.5">
+          {/* Copy link */}
+          <button
+            onClick={() => handleCopy(signupUrl, "link")}
+            className="group w-full flex items-center gap-4 px-4 py-3.5 rounded-2xl border-2 border-slate-100 hover:border-primary/30 hover:bg-primary/5 transition-all"
+          >
+            <div className="w-11 h-11 rounded-xl bg-gradient-to-br from-primary/10 to-indigo-50 flex items-center justify-center flex-shrink-0">
+              <Link2 className="w-5 h-5 text-primary" />
             </div>
-            <span className="text-sm font-medium text-slate-700 flex-1 text-left">{option.label}</span>
-            {copied === option.id && (
-              <motion.span
-                initial={{ opacity: 0, scale: 0.8 }}
-                animate={{ opacity: 1, scale: 1 }}
-                className="text-[10px] font-bold text-success bg-success/10 px-2 py-0.5 rounded-full"
-              >
-                Copied!
-              </motion.span>
+            <div className="flex-1 text-left">
+              <p className="text-sm font-semibold text-slate-800">Copy Referral Link</p>
+              <p className="text-[11px] text-slate-400 truncate max-w-[220px] font-mono">{signupUrl}</p>
+            </div>
+            {copied === "link" ? (
+              <span className="text-[11px] font-bold text-success bg-success/10 px-2.5 py-1 rounded-full">Copied!</span>
+            ) : (
+              <Copy className="w-4 h-4 text-slate-300 group-hover:text-primary transition-colors" />
             )}
           </button>
-        ))}
-      </div>
+
+          {/* WhatsApp */}
+          <button
+            onClick={() => {
+              window.open(`https://wa.me/?text=${encodeURIComponent(shareMessage)}`, "_blank");
+            }}
+            className="group w-full flex items-center gap-4 px-4 py-3.5 rounded-2xl border-2 border-slate-100 hover:border-green-200 hover:bg-green-50/50 transition-all"
+          >
+            <div className="w-11 h-11 rounded-xl bg-gradient-to-br from-green-500 to-green-600 flex items-center justify-center flex-shrink-0">
+              <MessageCircle className="w-5 h-5 text-white" />
+            </div>
+            <div className="flex-1 text-left">
+              <p className="text-sm font-semibold text-slate-800">Share via WhatsApp</p>
+              <p className="text-[11px] text-slate-400">Send directly to a client or group</p>
+            </div>
+            <svg className="w-4 h-4 text-slate-300 group-hover:text-green-500 transition-colors" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" /></svg>
+          </button>
+
+          {/* Email */}
+          <button
+            onClick={() => {
+              window.open(
+                `mailto:?subject=${encodeURIComponent("Join DocuAI with my referral!")}&body=${encodeURIComponent(shareMessage)}`,
+                "_blank"
+              );
+            }}
+            className="group w-full flex items-center gap-4 px-4 py-3.5 rounded-2xl border-2 border-slate-100 hover:border-amber-200 hover:bg-amber-50/50 transition-all"
+          >
+            <div className="w-11 h-11 rounded-xl bg-gradient-to-br from-amber-500 to-orange-500 flex items-center justify-center flex-shrink-0">
+              <Mail className="w-5 h-5 text-white" />
+            </div>
+            <div className="flex-1 text-left">
+              <p className="text-sm font-semibold text-slate-800">Share via Email</p>
+              <p className="text-[11px] text-slate-400">Open your email client with a pre-filled message</p>
+            </div>
+            <svg className="w-4 h-4 text-slate-300 group-hover:text-amber-500 transition-colors" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" /></svg>
+          </button>
+
+          {/* Copy code */}
+          <button
+            onClick={() => handleCopy(code, "justcode")}
+            className="group w-full flex items-center gap-4 px-4 py-3.5 rounded-2xl border-2 border-slate-100 hover:border-indigo-200 hover:bg-indigo-50/50 transition-all"
+          >
+            <div className="w-11 h-11 rounded-xl bg-gradient-to-br from-indigo-500 to-purple-500 flex items-center justify-center flex-shrink-0">
+              <Copy className="w-5 h-5 text-white" />
+            </div>
+            <div className="flex-1 text-left">
+              <p className="text-sm font-semibold text-slate-800">Copy Code Only</p>
+              <p className="text-[11px] text-slate-400">Copy just the referral code: <span className="font-mono font-bold text-indigo-600">{code}</span></p>
+            </div>
+            {copied === "justcode" ? (
+              <span className="text-[11px] font-bold text-success bg-success/10 px-2.5 py-1 rounded-full">Copied!</span>
+            ) : (
+              <Copy className="w-4 h-4 text-slate-300 group-hover:text-indigo-500 transition-colors" />
+            )}
+          </button>
+        </div>
+
+        {/* Footer */}
+        <div className="px-6 pb-5">
+          <button
+            onClick={onClose}
+            className="w-full py-3 text-sm font-semibold text-slate-500 bg-slate-50 rounded-xl hover:bg-slate-100 transition-colors"
+          >
+            Done
+          </button>
+        </div>
+      </motion.div>
     </motion.div>
   );
 }
@@ -389,26 +428,27 @@ export default function ReferralsPage() {
                   </div>
 
                   {/* Right: Share button */}
-                  <div className="relative">
+                  <div>
                     <button
-                      onClick={() => setShowShare(!showShare)}
+                      onClick={() => setShowShare(true)}
                       className="flex items-center gap-2.5 px-6 py-3.5 bg-white text-primary font-bold rounded-2xl shadow-lg shadow-black/10 hover:shadow-xl hover:scale-[1.02] active:scale-[0.98] transition-all"
                     >
                       <Share2 className="w-5 h-5" />
                       Share with Clients
-                      <ChevronDown className={`w-4 h-4 transition-transform ${showShare ? "rotate-180" : ""}`} />
                     </button>
-                    <AnimatePresence>
-                      {showShare && primaryCode && (
-                        <ShareMenu
-                          code={primaryCode.code}
-                          signupUrl={signupUrl}
-                          onClose={() => setShowShare(false)}
-                        />
-                      )}
-                    </AnimatePresence>
                   </div>
                 </div>
+
+                {/* Share Modal — rendered outside the hero overflow */}
+                <AnimatePresence>
+                  {showShare && primaryCode && (
+                    <ShareModal
+                      code={primaryCode.code}
+                      signupUrl={signupUrl}
+                      onClose={() => setShowShare(false)}
+                    />
+                  )}
+                </AnimatePresence>
 
                 {/* Quick summary */}
                 <div className="relative z-10 mt-6 pt-6 border-t border-white/15 grid grid-cols-2 md:grid-cols-4 gap-4">
