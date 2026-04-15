@@ -2,19 +2,25 @@
 
 import { useState, useEffect, useCallback } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import { apiUrl } from "@/lib/api";
 import {
   Bell,
   Search,
   Upload,
-  Plus,
   ChevronDown,
   FileText,
   CheckCircle2,
   AlertCircle,
   Clock,
   X,
+  User,
+  Settings,
+  CreditCard,
+  HelpCircle,
+  LogOut,
+  Shield,
 } from "lucide-react";
 
 interface Notification {
@@ -50,11 +56,13 @@ function timeAgo(dateStr: string): string {
 }
 
 export default function TopBar({ title }: { title: string }) {
+  const router = useRouter();
   const [showNotif, setShowNotif] = useState(false);
   const [showSearch, setShowSearch] = useState(false);
+  const [showProfile, setShowProfile] = useState(false);
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [unreadCount, setUnreadCount] = useState(0);
-  const [user, setUser] = useState<{ fullName: string } | null>(null);
+  const [user, setUser] = useState<{ fullName: string; email?: string; role?: string } | null>(null);
 
   const fetchNotifications = useCallback(async () => {
     try {
@@ -91,6 +99,11 @@ export default function TopBar({ title }: { title: string }) {
     });
     setUnreadCount(0);
     setNotifications((prev) => prev.map((n) => ({ ...n, isRead: true })));
+  };
+
+  const handleLogout = async () => {
+    await fetch(apiUrl("/api/auth/me"), { method: "POST", credentials: "include" });
+    router.push("/login");
   };
 
   const initials = user?.fullName
@@ -230,15 +243,121 @@ export default function TopBar({ title }: { title: string }) {
             </AnimatePresence>
           </div>
 
-          {/* User avatar */}
-          <button className="flex items-center gap-2 p-1.5 rounded-xl hover:bg-slate-50 transition-colors">
-            <div className="w-8 h-8 rounded-full bg-gradient-to-br from-primary to-accent flex items-center justify-center text-white text-xs font-bold">
-              {initials}
-            </div>
-            <ChevronDown className="w-3.5 h-3.5 text-slate-400 hidden sm:block" />
-          </button>
+          {/* User avatar + dropdown */}
+          <div className="relative">
+            <button
+              onClick={() => { setShowProfile(!showProfile); setShowNotif(false); }}
+              className="flex items-center gap-2 p-1.5 rounded-xl hover:bg-slate-50 transition-colors"
+            >
+              <div className="w-8 h-8 rounded-full bg-gradient-to-br from-primary to-accent flex items-center justify-center text-white text-xs font-bold">
+                {initials}
+              </div>
+              <div className="hidden sm:block text-left">
+                <p className="text-xs font-semibold text-slate-800 leading-tight max-w-[100px] truncate">
+                  {user?.fullName || "User"}
+                </p>
+                {user?.role && (
+                  <p className="text-[10px] text-slate-400 capitalize leading-tight">{user.role}</p>
+                )}
+              </div>
+              <ChevronDown className="w-3.5 h-3.5 text-slate-400 hidden sm:block" />
+            </button>
+
+            <AnimatePresence>
+              {showProfile && (
+                <>
+                  <div className="fixed inset-0 z-40" onClick={() => setShowProfile(false)} />
+                  <motion.div
+                    initial={{ opacity: 0, y: 10, scale: 0.95 }}
+                    animate={{ opacity: 1, y: 0, scale: 1 }}
+                    exit={{ opacity: 0, y: 10, scale: 0.95 }}
+                    className="absolute right-0 top-full mt-2 w-64 bg-white rounded-2xl shadow-2xl shadow-black/10 border border-slate-100 overflow-hidden z-50"
+                  >
+                    {/* User info header */}
+                    <div className="px-4 py-4 bg-gradient-to-br from-primary/5 to-accent/5 border-b border-slate-100">
+                      <div className="flex items-center gap-3">
+                        <div className="w-10 h-10 rounded-full bg-gradient-to-br from-primary to-accent flex items-center justify-center text-white text-sm font-bold flex-shrink-0">
+                          {initials}
+                        </div>
+                        <div className="min-w-0">
+                          <p className="text-sm font-bold text-slate-900 truncate">
+                            {user?.fullName || "User"}
+                          </p>
+                          <p className="text-xs text-slate-500 truncate">{user?.email || ""}</p>
+                          {user?.role && (
+                            <span className="inline-flex items-center gap-1 mt-1 text-[10px] font-semibold text-primary bg-primary/10 rounded-full px-2 py-0.5 capitalize">
+                              <Shield className="w-2.5 h-2.5" />
+                              {user.role}
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Menu items */}
+                    <div className="py-1.5">
+                      <ProfileMenuItem
+                        icon={<User className="w-4 h-4" />}
+                        label="My Profile"
+                        href="/dashboard/settings"
+                        onClick={() => setShowProfile(false)}
+                      />
+                      <ProfileMenuItem
+                        icon={<Settings className="w-4 h-4" />}
+                        label="Settings"
+                        href="/dashboard/settings"
+                        onClick={() => setShowProfile(false)}
+                      />
+                      <ProfileMenuItem
+                        icon={<CreditCard className="w-4 h-4" />}
+                        label="Billing & Plan"
+                        href="/dashboard/billing"
+                        onClick={() => setShowProfile(false)}
+                      />
+                      <ProfileMenuItem
+                        icon={<HelpCircle className="w-4 h-4" />}
+                        label="Help & Support"
+                        href="/dashboard/support"
+                        onClick={() => setShowProfile(false)}
+                      />
+                    </div>
+
+                    <div className="border-t border-slate-100 py-1.5">
+                      <button
+                        onClick={() => { setShowProfile(false); handleLogout(); }}
+                        className="w-full flex items-center gap-3 px-4 py-2.5 text-sm font-medium text-red-600 hover:bg-red-50 transition-colors"
+                      >
+                        <LogOut className="w-4 h-4" />
+                        Sign out
+                      </button>
+                    </div>
+                  </motion.div>
+                </>
+              )}
+            </AnimatePresence>
+          </div>
         </div>
       </div>
     </header>
+  );
+}
+
+function ProfileMenuItem({
+  icon, label, href, onClick,
+}: {
+  icon: React.ReactNode;
+  label: string;
+  href: string;
+  onClick: () => void;
+}) {
+  return (
+    <Link
+      href={href}
+      onClick={onClick}
+      className="flex items-center gap-3 px-4 py-2.5 text-sm font-medium text-slate-700 hover:bg-slate-50 hover:text-primary transition-colors"
+    >
+      <span className="text-slate-400">{icon}</span>
+      {label}
+    </Link>
   );
 }

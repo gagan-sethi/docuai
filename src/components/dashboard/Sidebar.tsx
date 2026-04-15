@@ -38,7 +38,7 @@ const mainNav = [
     name: "Review & Edit",
     href: "/dashboard/review",
     icon: CheckSquare,
-    badge: 12,
+    badgeKey: "review" as const,
   },
   {
     name: "Documents",
@@ -49,7 +49,7 @@ const mainNav = [
     name: "WhatsApp Inbox",
     href: "/dashboard/whatsapp",
     icon: MessageSquare,
-    badge: 3,
+    badgeKey: "whatsapp" as const,
   },
   {
     name: "Analytics",
@@ -94,6 +94,8 @@ export default function Sidebar() {
   const router = useRouter();
   const [collapsed, setCollapsed] = useState(false);
   const [user, setUser] = useState<{ fullName: string; email: string; role?: string } | null>(null);
+  const [reviewCount, setReviewCount] = useState(0);
+  const [waUnprocessed, setWaUnprocessed] = useState(0);
 
   useEffect(() => {
     fetch(apiUrl("/api/auth/me"), { credentials: "include" })
@@ -102,6 +104,22 @@ export default function Sidebar() {
         if (data?.user) setUser(data.user);
       })
       .catch(() => {});
+
+    // Fetch stats for badges
+    const fetchStats = () => {
+      fetch(apiUrl("/api/documents?limit=1"), { credentials: "include" })
+        .then((r) => (r.ok ? r.json() : null))
+        .then((data) => {
+          if (data?.stats) {
+            setReviewCount(data.stats.review || 0);
+            setWaUnprocessed(data.stats.whatsappUnprocessed || 0);
+          }
+        })
+        .catch(() => {});
+    };
+    fetchStats();
+    const interval = setInterval(fetchStats, 30000);
+    return () => clearInterval(interval);
   }, []);
 
   const handleLogout = useCallback(async () => {
@@ -168,6 +186,14 @@ export default function Sidebar() {
               pathname === item.href ||
               (item.href !== "/dashboard" &&
                 pathname.startsWith(item.href));
+            const badgeCount =
+              "badgeKey" in item
+                ? item.badgeKey === "review"
+                  ? reviewCount
+                  : item.badgeKey === "whatsapp"
+                    ? waUnprocessed
+                    : 0
+                : 0;
             return (
               <Link
                 key={item.name}
@@ -198,13 +224,19 @@ export default function Sidebar() {
                     </motion.span>
                   )}
                 </AnimatePresence>
-                {item.badge && !collapsed && (
-                  <span className="ml-auto px-2 py-0.5 text-[10px] font-bold bg-primary/20 text-primary rounded-full">
-                    {item.badge}
+                {badgeCount > 0 && !collapsed && (
+                  <span className={`ml-auto px-2 py-0.5 text-[10px] font-bold rounded-full ${
+                    "badgeKey" in item && item.badgeKey === "whatsapp"
+                      ? "bg-green-500/20 text-green-400"
+                      : "bg-primary/20 text-primary"
+                  }`}>
+                    {badgeCount}
                   </span>
                 )}
-                {item.badge && collapsed && (
-                  <span className="absolute top-1 right-1 w-2 h-2 bg-primary rounded-full" />
+                {badgeCount > 0 && collapsed && (
+                  <span className={`absolute top-1 right-1 w-2 h-2 rounded-full ${
+                    "badgeKey" in item && item.badgeKey === "whatsapp" ? "bg-green-500" : "bg-primary"
+                  }`} />
                 )}
               </Link>
             );

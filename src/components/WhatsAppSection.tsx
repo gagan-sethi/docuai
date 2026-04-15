@@ -203,7 +203,7 @@ export default function WhatsAppSection() {
                     <p className="text-xs font-semibold text-green-100 uppercase tracking-wider">
                       Send Documents To
                     </p>
-                    <p className="text-xl font-bold tracking-wide">+971 4 XXX XXXX</p>
+                    <p className="text-xl font-bold tracking-wide">+1 (555) 071-0321</p>
                   </div>
                 </div>
               </div>
@@ -218,6 +218,15 @@ export default function WhatsAppSection() {
                 <CheckCircle2 className="w-4 h-4 text-green-200" />
                 <span className="text-green-100">Auto-processing · Instant replies · No login needed</span>
               </div>
+              <a
+                href="https://wa.me/15550710321?text=Hi%2C%20I%20want%20to%20process%20a%20document"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="mt-4 w-full inline-flex items-center justify-center gap-2 px-5 py-3 text-sm font-bold text-green-700 bg-white rounded-xl hover:bg-green-50 transition-colors shadow-lg"
+              >
+                <Send className="w-4 h-4" />
+                Send on WhatsApp Now
+              </a>
             </div>
 
             <Link

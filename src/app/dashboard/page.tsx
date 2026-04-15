@@ -24,6 +24,10 @@ import {
   Filter,
   Hand,
   FileSpreadsheet,
+  Send,
+  MessageCircle,
+  Smartphone,
+  ExternalLink,
 } from "lucide-react";
 import Link from "next/link";
 import Sidebar from "@/components/dashboard/Sidebar";
@@ -420,6 +424,64 @@ export default function DashboardPage() {
               </motion.div>
             ))}
           </div>
+
+          {/* WhatsApp Automation CTA */}
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.45 }}
+            className="relative overflow-hidden rounded-2xl bg-gradient-to-r from-green-600 via-emerald-600 to-green-700 p-6 sm:p-7"
+          >
+            <div className="absolute inset-0 opacity-10">
+              <div className="absolute top-0 right-0 w-64 h-64 bg-green-300 rounded-full blur-3xl" />
+              <div className="absolute bottom-0 left-1/4 w-48 h-48 bg-emerald-200 rounded-full blur-3xl" />
+            </div>
+            <div className="relative flex flex-col sm:flex-row items-start sm:items-center justify-between gap-5">
+              <div className="flex items-start gap-4">
+                <div className="w-14 h-14 rounded-2xl bg-white/15 flex items-center justify-center flex-shrink-0">
+                  <MessageCircle className="w-7 h-7 text-white" />
+                </div>
+                <div>
+                  <h3 className="text-lg font-bold text-white flex items-center gap-2">
+                    Automate via WhatsApp
+                    <span className="px-2 py-0.5 text-[10px] font-bold bg-white/20 text-green-100 rounded-full">NEW</span>
+                  </h3>
+                  <p className="text-sm text-green-100 mt-1 max-w-md">
+                    Skip the upload — just send your invoices, receipts, or POs to our WhatsApp number and get structured data back instantly.
+                  </p>
+                  <div className="mt-3 flex items-center gap-3">
+                    <div className="flex items-center gap-2 px-3 py-1.5 bg-white/10 rounded-lg">
+                      <Smartphone className="w-4 h-4 text-green-200" />
+                      <span className="text-sm font-bold text-white tracking-wide">+1 (555) 071-0321</span>
+                    </div>
+                    <div className="hidden sm:flex items-center gap-1.5 text-xs text-green-200">
+                      <CheckCircle2 className="w-3.5 h-3.5" />
+                      Auto-processed by AI
+                    </div>
+                  </div>
+                </div>
+              </div>
+              <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 w-full sm:w-auto">
+                <a
+                  href="https://wa.me/15550710321?text=Hi%2C%20I%20want%20to%20process%20a%20document"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center justify-center gap-2 px-5 py-3 text-sm font-bold text-green-700 bg-white rounded-xl hover:bg-green-50 hover:scale-105 transition-all shadow-lg"
+                >
+                  <Send className="w-4 h-4" />
+                  Send on WhatsApp
+                  <ExternalLink className="w-3.5 h-3.5 opacity-60" />
+                </a>
+                <Link
+                  href="/dashboard/whatsapp"
+                  className="inline-flex items-center justify-center gap-2 px-5 py-3 text-sm font-semibold text-white border border-white/25 rounded-xl hover:bg-white/10 transition-all"
+                >
+                  View Inbox
+                  <ChevronRight className="w-4 h-4" />
+                </Link>
+              </div>
+            </div>
+          </motion.div>
 
           {/* Processing Pipeline */}
           <motion.div
