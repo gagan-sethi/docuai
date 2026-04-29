@@ -1,6 +1,7 @@
 import Navbar from "@/components/Navbar";
 import Hero from "@/components/Hero";
 import Features from "@/components/Features";
+import BatchMergeSection from "@/components/BatchMergeSection";
 import HowItWorks from "@/components/HowItWorks";
 import WhatsAppSection from "@/components/WhatsAppSection";
 import DemoSection from "@/components/DemoSection";
@@ -18,6 +19,7 @@ export default function Home() {
       <main className="flex-1">
         <Hero />
         <Features />
+        <BatchMergeSection />
         <Stats />
         <HowItWorks />
         <WhatsAppSection />

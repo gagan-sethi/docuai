@@ -30,6 +30,7 @@ import {
 import Link from "next/link";
 import Sidebar from "@/components/dashboard/Sidebar";
 import TopBar from "@/components/dashboard/TopBar";
+import MergeBar from "@/components/dashboard/MergeBar";
 import { apiUrl } from "@/lib/api";
 import type { ProcessedDocument, DocumentStatus } from "@/lib/types";
 
@@ -115,6 +116,16 @@ export default function DocumentsPage() {
   const [showSourceDd, setShowSourceDd] = useState(false);
   const [showSortDd, setShowSortDd] = useState(false);
   const [selectedDoc, setSelectedDoc] = useState<ProcessedDocument | null>(null);
+  const [selectedIds, setSelectedIds] = useState<string[]>([]);
+
+  /** A document is mergeable once it has been processed (fields available). */
+  const isMergeable = (d: ProcessedDocument) =>
+    d.status === "review" || d.status === "approved" || (d.fields?.length ?? 0) > 0;
+
+  const toggleSelected = (id: string) =>
+    setSelectedIds((prev) =>
+      prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]
+    );
 
   useEffect(() => {
     const sidebar = document.querySelector("aside");
@@ -371,6 +382,25 @@ export default function DocumentsPage() {
               <table className="w-full text-sm">
                 <thead className="bg-slate-50 border-b border-slate-100">
                   <tr>
+                    <th className="px-3 py-3 w-10">
+                      <input
+                        type="checkbox"
+                        aria-label="Select all visible mergeable documents"
+                        checked={
+                          filtered.filter(isMergeable).length > 0 &&
+                          filtered.filter(isMergeable).every((d) => selectedIds.includes(d.id))
+                        }
+                        onChange={(e) => {
+                          const ids = filtered.filter(isMergeable).map((d) => d.id);
+                          setSelectedIds((prev) =>
+                            e.target.checked
+                              ? Array.from(new Set([...prev, ...ids]))
+                              : prev.filter((x) => !ids.includes(x))
+                          );
+                        }}
+                        className="w-4 h-4 rounded border-slate-300 text-primary focus:ring-primary"
+                      />
+                    </th>
                     <th className="text-left px-5 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wide">Document</th>
                     <th className="text-left px-4 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wide">Type</th>
                     <th className="text-left px-4 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wide">Source</th>
@@ -388,6 +418,9 @@ export default function DocumentsPage() {
                         doc={doc}
                         index={i}
                         onPreview={() => setSelectedDoc(doc)}
+                        selectable={isMergeable(doc)}
+                        selected={selectedIds.includes(doc.id)}
+                        onToggleSelect={() => toggleSelected(doc.id)}
                       />
                     ))}
                   </AnimatePresence>
@@ -403,11 +436,25 @@ export default function DocumentsPage() {
                     doc={doc}
                     index={i}
                     onPreview={() => setSelectedDoc(doc)}
+                    selectable={isMergeable(doc)}
+                    selected={selectedIds.includes(doc.id)}
+                    onToggleSelect={() => toggleSelected(doc.id)}
                   />
                 ))}
               </AnimatePresence>
             </div>
           )}
+
+          {/* Merge bar */}
+          <MergeBar
+            selectedIds={selectedIds}
+            totalSelectable={filtered.filter(isMergeable).length}
+            onSelectAll={() =>
+              setSelectedIds(filtered.filter(isMergeable).map((d) => d.id))
+            }
+            onClear={() => setSelectedIds([])}
+            populationLabel="processed documents"
+          />
         </main>
       </div>
 
@@ -492,7 +539,21 @@ function DropdownItem({ active, onClick, children }: { active: boolean; onClick:
 }
 
 // ─── List Row ────────────────────────────────────────────────────
-function ListRow({ doc, index, onPreview }: { doc: ProcessedDocument; index: number; onPreview: () => void }) {
+function ListRow({
+  doc,
+  index,
+  onPreview,
+  selectable,
+  selected,
+  onToggleSelect,
+}: {
+  doc: ProcessedDocument;
+  index: number;
+  onPreview: () => void;
+  selectable: boolean;
+  selected: boolean;
+  onToggleSelect: () => void;
+}) {
   const conf = doc.overallConfidence > 1 ? Math.round(doc.overallConfidence) : Math.round(doc.overallConfidence * 100);
 
   return (
@@ -500,8 +561,22 @@ function ListRow({ doc, index, onPreview }: { doc: ProcessedDocument; index: num
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       transition={{ delay: Math.min(index * 0.02, 0.3) }}
-      className="group hover:bg-slate-50/80 transition-colors"
+      className={`group hover:bg-slate-50/80 transition-colors ${selected ? "bg-primary/5" : ""}`}
     >
+      <td className="px-3 py-3.5">
+        {selectable ? (
+          <input
+            type="checkbox"
+            checked={selected}
+            onChange={onToggleSelect}
+            onClick={(e) => e.stopPropagation()}
+            className="w-4 h-4 rounded border-slate-300 text-primary focus:ring-primary"
+            aria-label={`Select ${doc.fileName}`}
+          />
+        ) : (
+          <span className="inline-block w-4" />
+        )}
+      </td>
       <td className="px-5 py-3.5">
         <div className="flex items-center gap-3">
           <FileTypeIcon fileType={doc.fileType} />
@@ -578,7 +653,21 @@ function ListRow({ doc, index, onPreview }: { doc: ProcessedDocument; index: num
 }
 
 // ─── Grid Card ───────────────────────────────────────────────────
-function GridCard({ doc, index, onPreview }: { doc: ProcessedDocument; index: number; onPreview: () => void }) {
+function GridCard({
+  doc,
+  index,
+  onPreview,
+  selectable,
+  selected,
+  onToggleSelect,
+}: {
+  doc: ProcessedDocument;
+  index: number;
+  onPreview: () => void;
+  selectable: boolean;
+  selected: boolean;
+  onToggleSelect: () => void;
+}) {
   const conf = doc.overallConfidence > 1 ? Math.round(doc.overallConfidence) : Math.round(doc.overallConfidence * 100);
 
   return (
@@ -586,9 +675,21 @@ function GridCard({ doc, index, onPreview }: { doc: ProcessedDocument; index: nu
       initial={{ opacity: 0, scale: 0.97 }}
       animate={{ opacity: 1, scale: 1 }}
       transition={{ delay: Math.min(index * 0.03, 0.4) }}
-      className="bg-white rounded-2xl border border-slate-100 p-4 hover:shadow-md hover:border-slate-200 transition-all group cursor-pointer"
+      className={`relative bg-white rounded-2xl border p-4 hover:shadow-md transition-all group cursor-pointer ${
+        selected ? "border-primary shadow-md" : "border-slate-100 hover:border-slate-200"
+      }`}
       onClick={onPreview}
     >
+      {selectable && (
+        <input
+          type="checkbox"
+          checked={selected}
+          onChange={onToggleSelect}
+          onClick={(e) => e.stopPropagation()}
+          aria-label={`Select ${doc.fileName}`}
+          className="absolute top-3 left-3 w-4 h-4 rounded border-slate-300 text-primary focus:ring-primary"
+        />
+      )}
       <div className="flex items-start justify-between mb-3">
         <div className="p-2.5 rounded-xl bg-slate-50">
           <FileTypeIcon fileType={doc.fileType} large />

@@ -27,6 +27,7 @@ import {
 import Link from "next/link";
 import Sidebar from "@/components/dashboard/Sidebar";
 import TopBar from "@/components/dashboard/TopBar";
+import MergeBar from "@/components/dashboard/MergeBar";
 import { apiUrl } from "@/lib/api";
 import type { ProcessedDocument, DocumentStatus } from "@/lib/types";
 
@@ -99,6 +100,77 @@ export default function WhatsAppInboxPage() {
   const [showFilter, setShowFilter] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [user, setUser] = useState<{ fullName: string; mobile?: string; isWhatsAppLinked?: boolean } | null>(null);
+  const [selectedIds, setSelectedIds] = useState<string[]>([]);
+  // Per-user preference: when multiple files arrive together via WhatsApp,
+  // automatically combine them into one merged Excel/CSV instead of separate files.
+  const [autoMerge, setAutoMerge] = useState(false);
+  const [autoMergeSaving, setAutoMergeSaving] = useState(false);
+
+  /** A WhatsApp doc is mergeable once it has been processed. */
+  const isMergeable = useCallback(
+    (d: ProcessedDocument) =>
+      d.status === "review" || d.status === "approved" || (d.fields?.length ?? 0) > 0,
+    []
+  );
+
+  // Load auto-merge preference: server first (source of truth across devices),
+  // localStorage as a fast fallback if the request fails.
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch(apiUrl("/api/user/preferences"), {
+          credentials: "include",
+          cache: "no-store",
+        });
+        if (res.ok) {
+          const data = (await res.json()) as {
+            preferences?: { whatsappAutoMerge?: boolean };
+          };
+          if (!cancelled) {
+            const v = !!data.preferences?.whatsappAutoMerge;
+            setAutoMerge(v);
+            try {
+              localStorage.setItem("whatsapp.autoMerge", v ? "1" : "0");
+            } catch {
+              /* ignore */
+            }
+            return;
+          }
+        }
+      } catch {
+        /* fall through to localStorage */
+      }
+      try {
+        const v = localStorage.getItem("whatsapp.autoMerge");
+        if (!cancelled && v === "1") setAutoMerge(true);
+      } catch {
+        /* ignore */
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  // Persist preference change. Best-effort sync to backend; localStorage is the source of truth client-side.
+  const saveAutoMerge = useCallback(async (next: boolean) => {
+    setAutoMerge(next);
+    setAutoMergeSaving(true);
+    try {
+      localStorage.setItem("whatsapp.autoMerge", next ? "1" : "0");
+      // Best-effort: notify backend so the WhatsApp ingestion pipeline can apply it.
+      // If the endpoint doesn't exist, we silently keep the local preference.
+      await fetch(apiUrl("/api/user/preferences"), {
+        method: "PATCH",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ whatsappAutoMerge: next }),
+      }).catch(() => {});
+    } finally {
+      setAutoMergeSaving(false);
+    }
+  }, []);
 
   // Track sidebar width
   useEffect(() => {
@@ -240,6 +312,35 @@ export default function WhatsAppInboxPage() {
                 </p>
               </div>
             </div>
+
+            {/* Auto-merge preference */}
+            <div className="mt-4 pt-4 border-t border-slate-100 flex items-start justify-between gap-3">
+              <div className="min-w-0">
+                <label htmlFor="wa-automerge" className="text-xs font-semibold text-slate-700 cursor-pointer">
+                  Auto-merge incoming WhatsApp files into one Excel
+                </label>
+                <p className="text-[11px] text-slate-400 mt-0.5">
+                  When you send multiple invoices in the same chat, we&apos;ll combine
+                  them into a single audit-ready CSV. Otherwise each file is processed separately.
+                </p>
+              </div>
+              <button
+                id="wa-automerge"
+                role="switch"
+                aria-checked={autoMerge}
+                onClick={() => saveAutoMerge(!autoMerge)}
+                disabled={autoMergeSaving}
+                className={`relative inline-flex h-6 w-11 flex-shrink-0 items-center rounded-full transition-colors ${
+                  autoMerge ? "bg-green-500" : "bg-slate-200"
+                } ${autoMergeSaving ? "opacity-60" : ""}`}
+              >
+                <span
+                  className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                    autoMerge ? "translate-x-6" : "translate-x-1"
+                  }`}
+                />
+              </button>
+            </div>
           </div>
 
           {/* Stats bar */}
@@ -359,6 +460,25 @@ export default function WhatsAppInboxPage() {
                 <table className="w-full text-sm">
                   <thead className="sticky top-0 bg-slate-50 border-b border-slate-100">
                     <tr>
+                      <th className="px-3 py-3 w-10">
+                        <input
+                          type="checkbox"
+                          aria-label="Select all visible mergeable WhatsApp files"
+                          checked={
+                            filtered.filter(isMergeable).length > 0 &&
+                            filtered.filter(isMergeable).every((d) => selectedIds.includes(d.id))
+                          }
+                          onChange={(e) => {
+                            const ids = filtered.filter(isMergeable).map((d) => d.id);
+                            setSelectedIds((prev) =>
+                              e.target.checked
+                                ? Array.from(new Set([...prev, ...ids]))
+                                : prev.filter((x) => !ids.includes(x))
+                            );
+                          }}
+                          className="w-4 h-4 rounded border-slate-300 text-primary focus:ring-primary"
+                        />
+                      </th>
                       <th className="text-left px-5 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wide">File</th>
                       <th className="text-left px-4 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wide">Type</th>
                       <th className="text-left px-4 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wide">Status</th>
@@ -370,7 +490,20 @@ export default function WhatsAppInboxPage() {
                   <tbody className="divide-y divide-slate-50">
                     <AnimatePresence>
                       {filtered.map((doc, i) => (
-                        <DocRow key={doc.id} doc={doc} index={i} />
+                        <DocRow
+                          key={doc.id}
+                          doc={doc}
+                          index={i}
+                          selectable={isMergeable(doc)}
+                          selected={selectedIds.includes(doc.id)}
+                          onToggleSelect={() =>
+                            setSelectedIds((prev) =>
+                              prev.includes(doc.id)
+                                ? prev.filter((x) => x !== doc.id)
+                                : [...prev, doc.id]
+                            )
+                          }
+                        />
                       ))}
                     </AnimatePresence>
                   </tbody>
@@ -378,6 +511,17 @@ export default function WhatsAppInboxPage() {
               </div>
             </div>
           )}
+
+          {/* Merge bar — appears when one or more processed WhatsApp files are selected */}
+          <MergeBar
+            selectedIds={selectedIds}
+            totalSelectable={filtered.filter(isMergeable).length}
+            onSelectAll={() =>
+              setSelectedIds(filtered.filter(isMergeable).map((d) => d.id))
+            }
+            onClear={() => setSelectedIds([])}
+            populationLabel="WhatsApp documents"
+          />
         </main>
       </div>
     </div>
@@ -385,7 +529,19 @@ export default function WhatsAppInboxPage() {
 }
 
 // ─── Doc Row ─────────────────────────────────────────────────────
-function DocRow({ doc, index }: { doc: ProcessedDocument; index: number }) {
+function DocRow({
+  doc,
+  index,
+  selectable,
+  selected,
+  onToggleSelect,
+}: {
+  doc: ProcessedDocument;
+  index: number;
+  selectable: boolean;
+  selected: boolean;
+  onToggleSelect: () => void;
+}) {
   const conf = doc.overallConfidence > 1 ? Math.round(doc.overallConfidence) : Math.round(doc.overallConfidence * 100);
   const isNew = doc.status === "uploaded" || doc.status === "processing" || doc.status === "structuring";
 
@@ -394,8 +550,21 @@ function DocRow({ doc, index }: { doc: ProcessedDocument; index: number }) {
       initial={{ opacity: 0, y: 6 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ delay: Math.min(index * 0.03, 0.3) }}
-      className={`group transition-colors hover:bg-slate-50/80 ${isNew ? "bg-green-50/30" : ""}`}
+      className={`group transition-colors hover:bg-slate-50/80 ${isNew ? "bg-green-50/30" : ""} ${selected ? "bg-primary/5" : ""}`}
     >
+      <td className="px-3 py-3.5">
+        {selectable ? (
+          <input
+            type="checkbox"
+            checked={selected}
+            onChange={onToggleSelect}
+            className="w-4 h-4 rounded border-slate-300 text-primary focus:ring-primary"
+            aria-label={`Select ${doc.fileName}`}
+          />
+        ) : (
+          <span className="inline-block w-4" />
+        )}
+      </td>
       <td className="px-5 py-3.5">
         <div className="flex items-center gap-3">
           {isNew && <Dot className="w-5 h-5 text-green-500 -ml-2 flex-shrink-0" />}

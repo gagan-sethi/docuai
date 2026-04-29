@@ -10,6 +10,7 @@ import {
   Shield,
   Users,
   CreditCard,
+  Layers,
 } from "lucide-react";
 
 const features = [
@@ -44,6 +45,14 @@ const features = [
       "One-click Excel export after processing. Get structured XLSX or CSV files ready for your accounting system or ERP.",
     color: "from-success to-emerald-600",
     bgColor: "bg-success/5",
+  },
+  {
+    icon: Layers,
+    title: "AI Batch Merge to One Sheet",
+    description:
+      "Select 100s of invoices — AI unifies vendor columns (VAT No, Tax ID, GSTIN → one column) and exports a single audit-ready spreadsheet.",
+    color: "from-primary to-secondary",
+    bgColor: "bg-primary/5",
   },
   {
     icon: TableProperties,

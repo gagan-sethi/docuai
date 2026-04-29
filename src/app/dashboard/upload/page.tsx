@@ -28,6 +28,7 @@ import {
 import Link from "next/link";
 import Sidebar from "@/components/dashboard/Sidebar";
 import TopBar from "@/components/dashboard/TopBar";
+import MergeBar from "@/components/dashboard/MergeBar";
 import { apiUrl } from "@/lib/api";
 
 // ─── Types ──────────────────────────────────────────────────────
@@ -216,6 +217,7 @@ export default function UploadPage() {
   const [dragActive, setDragActive] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
   const [upgradeMessage, setUpgradeMessage] = useState("");
+  const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -632,6 +634,29 @@ export default function UploadPage() {
                           {cfg.label}
                         </span>
 
+                        {/* Selection checkbox (only for completed docs) */}
+                        {file.status === "done" && file.documentId && (
+                          <label
+                            className="flex items-center justify-center w-6 h-6 rounded cursor-pointer hover:bg-slate-100 transition"
+                            title="Select for merge"
+                            onClick={(e) => e.stopPropagation()}
+                          >
+                            <input
+                              type="checkbox"
+                              checked={selectedIds.includes(file.documentId)}
+                              onChange={(e) => {
+                                const id = file.documentId!;
+                                setSelectedIds((prev) =>
+                                  e.target.checked
+                                    ? Array.from(new Set([...prev, id]))
+                                    : prev.filter((x) => x !== id)
+                                );
+                              }}
+                              className="w-4 h-4 rounded border-slate-300 text-primary focus:ring-primary"
+                            />
+                          </label>
+                        )}
+
                         {/* Actions */}
                         <div className="flex items-center gap-1">
                           {(file.status === "ready" || file.status === "queued") && (
@@ -735,6 +760,21 @@ export default function UploadPage() {
               ))}
             </motion.div>
           )}
+
+          {/* Merge bar — appears when one or more processed files are selected */}
+          <MergeBar
+            selectedIds={selectedIds}
+            totalSelectable={files.filter((f) => f.status === "done" && f.documentId).length}
+            onSelectAll={() =>
+              setSelectedIds(
+                files
+                  .filter((f) => f.status === "done" && f.documentId)
+                  .map((f) => f.documentId!)
+              )
+            }
+            onClear={() => setSelectedIds([])}
+            populationLabel="processed documents"
+          />
 
           {/* Info banner */}
           <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.3 }}
