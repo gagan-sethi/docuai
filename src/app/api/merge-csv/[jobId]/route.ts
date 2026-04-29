@@ -3,14 +3,14 @@
  * and `/api/merge-csv/:jobId/download` (CSV body) when `?download=1`.
  */
 
-import { NextRequest, NextResponse, type RouteContext } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { apiUrl } from "@/lib/api";
 
 export const runtime = "nodejs";
 
 export async function GET(
   req: NextRequest,
-  ctx: RouteContext<"/api/merge-csv/[jobId]">
+  ctx: { params: Promise<{ jobId: string }> }
 ) {
   const { jobId } = await ctx.params;
   const url = new URL(req.url);
