@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, type KeyboardEvent, type FormEvent } from "react";
+import { useState, type KeyboardEvent, type FormEvent, useEffect, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import Link from "next/link";
 import Sidebar from "@/components/dashboard/Sidebar";
@@ -220,34 +220,31 @@ export default function SupportPage() {
   const [sidebarWidth, setSidebarWidth] = useState(260);
   const [searchQuery, setSearchQuery] = useState<string>("");
   const [submitState, setSubmitState] = useState<"idle" | "loading" | "success">("idle");
+  const [mounted, setMounted] = useState(false);
 
-  // Handle sidebar width for margin animation
-  useState(() => {
+  // Handle sidebar width for margin animation - only run on client
+ useEffect(() => {
+  setMounted(true);
+  
+  // Initial measurement
+  const sidebar = document.querySelector("aside");
+  if (sidebar) {
+    setSidebarWidth(sidebar.getBoundingClientRect().width);
+    
+    // Set up observer for sidebar width changes
     const observer = new MutationObserver(() => {
-      const sidebar = document.querySelector("aside");
       if (sidebar) setSidebarWidth(sidebar.getBoundingClientRect().width);
     });
-    const sidebar = document.querySelector("aside");
-    if (sidebar) {
-      observer.observe(sidebar, { attributes: true, attributeFilter: ["style"] });
-      setSidebarWidth(sidebar.getBoundingClientRect().width);
-    }
+    
+    observer.observe(sidebar, { attributes: true, attributeFilter: ["style"] });
+    
     return () => observer.disconnect();
-  });
-
+  }
+}, []);
   const handleSearchKeyDown = (e: KeyboardEvent<HTMLInputElement>) => {
     if (e.key === "Enter" && searchQuery.trim()) {
       document.getElementById("faq")?.scrollIntoView({ behavior: "smooth" });
     }
-  };
-
-  const handleSubmit = (e: FormEvent<HTMLFormElement>) => {
-    e.preventDefault();
-    setSubmitState("loading");
-    setTimeout(() => {
-      setSubmitState("success");
-      setTimeout(() => setSubmitState("idle"), 3000);
-    }, 1200);
   };
 
   const formik = useFormik({
@@ -305,7 +302,7 @@ export default function SupportPage() {
       <motion.div
         className="flex-1 flex flex-col overflow-hidden"
         initial={{ opacity: 0 }}
-        animate={{ opacity: 1, marginLeft: sidebarWidth }}
+        animate={{ opacity: 1, marginLeft: mounted ? sidebarWidth : 260 }}
         transition={{ duration: 0.2, ease: "easeInOut" }}
       >
         <TopBar title="Help & Support" />
@@ -397,22 +394,7 @@ export default function SupportPage() {
             />
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
               {guides.map((guide) => (
-                // <Link
-                //   key={guide.title}
-                //   href={guide.link}
-                //   className="bg-white rounded-xl border border-slate-200 shadow-sm p-5 flex flex-col gap-3 cursor-pointer group transition-all duration-200 hover:-translate-y-1 hover:shadow-md hover:border-indigo-200 no-underline"
-                // >
-                //   <span className={`inline-flex w-fit text-[10px] font-semibold tracking-wider uppercase px-3 py-1 rounded-full ${guide.tagClass}`}>
-                //     {guide.tag}
-                //   </span>
-                //   <h3 className="font-semibold text-slate-800 leading-snug group-hover:text-indigo-600 transition-colors">
-                //     {guide.title}
-                //   </h3>
-                //   <p className="text-sm text-slate-500 leading-relaxed flex-1">{guide.description}</p>
-                //   <span className="text-sm font-medium text-indigo-600 group-hover:underline mt-1 inline-flex items-center gap-1">
-                //     Read guide <ArrowRight className="w-3.5 h-3.5" />
-                //   </span>
-                // </Link>
+                // Commented out Link as per original code
                 <div
                   key={guide.title}
                   className="bg-white rounded-xl border border-slate-200 shadow-sm p-5 flex flex-col gap-3 cursor-pointer group transition-all duration-200 hover:-translate-y-1 hover:shadow-md hover:border-indigo-200 no-underline"
@@ -535,7 +517,6 @@ export default function SupportPage() {
                         onChange={formik.handleChange}
                         onBlur={formik.handleBlur}
                         required
-                        defaultValue=""
                         className="w-full rounded-lg border border-slate-200 text-sm px-3.5 py-2.5 text-slate-800 bg-white outline-none transition focus:ring-2 focus:ring-indigo-400/30 focus:border-indigo-300"
                       >
                         <option value="" disabled>Select a category…</option>
