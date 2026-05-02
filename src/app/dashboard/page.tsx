@@ -33,6 +33,7 @@ import Link from "next/link";
 import Sidebar from "@/components/dashboard/Sidebar";
 import TopBar from "@/components/dashboard/TopBar";
 import { apiUrl } from "@/lib/api";
+import { useRouter } from "next/navigation";
 
 // ─── Animated Counter ───────────────────────────────────────────
 function AnimatedNumber({ target, suffix = "" }: { target: number; suffix?: string }) {
@@ -186,6 +187,22 @@ const quickActions = [
   },
 ];
 
+const usdFormatter = new Intl.NumberFormat("en-US", {
+  style: "currency",
+  currency: "USD",
+});
+
+type PlanOption = {
+  _id?: string;
+  id?: string;
+  name?: string;
+  label?: string;
+  price?: number;
+  interval?: string;
+  documentsPerMonth?: number | string;
+  features?: string[];
+};
+
 // ─── Main Dashboard ─────────────────────────────────────────────
 export default function DashboardPage() {
   const [sidebarWidth, setSidebarWidth] = useState(260);
@@ -222,6 +239,10 @@ export default function DashboardPage() {
     resetsAt: string;
   } | null>(null);
   const [showUpgradeModal, setShowUpgradeModal] = useState(false);
+  const [plans, setPlans] = useState<PlanOption[]>([]);
+  const [loadingPlans, setLoadingPlans] = useState(true);
+  const [navigatingPlanId, setNavigatingPlanId] = useState<string | null>(null);
+  const router = useRouter();
 
   useEffect(() => {
     // Listen for sidebar collapse
@@ -282,6 +303,87 @@ export default function DashboardPage() {
     const interval = setInterval(fetchData, 10000);
     return () => clearInterval(interval);
   }, []);
+
+  useEffect(() => {
+    const fetchPlans = async () => {
+      try {
+        const res = await fetch(apiUrl("/api/plan/list"), {
+          credentials: "include",
+        });
+        const json = await res.json();
+
+        if (json.success) {
+          setPlans(json.data);
+        }
+      } catch (err) {
+        console.error("Failed to fetch plans", err);
+      } finally {
+        setLoadingPlans(false);
+      }
+    };
+
+    fetchPlans();
+  }, []);
+
+  // const handleSubscribe = (plan: PlanOption) => {
+  //   const planId = plan._id || plan.id;
+
+  //   if (!planId) {
+  //     alert("Invalid plan");
+  //     return;
+  //   }
+
+  //   const encodedPlanId = encodeURIComponent(String(planId));
+
+  //   setNavigatingPlanId(String(planId));
+  //   setShowUpgradeModal(false);
+  //   router.push(`/checkout?planId=${encodedPlanId}`);
+  // };
+
+  const handlePlanSelect = async (plan: PlanOption) => {
+    const planId = plan._id || plan.id;
+
+    if (!planId) {
+      alert("Invalid plan");
+      return;
+    }
+
+    const price = plan.price ?? 0;
+
+    try {
+      setNavigatingPlanId(String(planId));
+
+      // ✅ FREE PLAN FLOW
+      if (price === 0) {
+        const res = await fetch(apiUrl("/api/plan/free"), {
+          method: "POST",
+          credentials: "include",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({ planId }),
+        });
+
+        const data = await res.json();
+
+        if (!res.ok) {
+          throw new Error(data.error || "Failed to activate free plan");
+        }
+
+        // ✅ refresh UI
+        window.location.reload(); // or refetch plan API
+
+        return;
+      }
+
+      // ✅ PAID PLAN FLOW → REDIRECT
+      router.push(`/checkout?planId=${encodeURIComponent(String(planId))}`);
+    } catch (err: any) {
+      alert(err.message);
+    } finally {
+      setNavigatingPlanId(null);
+    }
+  };
 
   // Compute dynamic pipeline from real data
   const pipeline = apiStats
@@ -880,8 +982,8 @@ export default function DashboardPage() {
               </div>
 
               {/* Plans Grid */}
-              <div className="p-6 grid grid-cols-1 sm:grid-cols-2 gap-4">
-                {[
+              {/* <div className="p-6 grid grid-cols-1 sm:grid-cols-2 gap-4"> */}
+                {/* {[
                   {
                     key: "free",
                     name: "Free",
@@ -943,23 +1045,23 @@ export default function DashboardPage() {
                           ? "border-primary shadow-lg shadow-primary/10 ring-1 ring-primary/20"
                           : `${p.color} hover:shadow-md`
                       } ${p.gradient}`}
-                    >
+                    > */}
                       {/* Current plan badge */}
-                      {isCurrent && (
+                      {/* {isCurrent && (
                         <span className="absolute -top-2.5 left-4 px-3 py-0.5 text-[10px] font-bold text-white bg-gradient-to-r from-primary to-secondary rounded-full shadow-sm">
                           CURRENT PLAN
                         </span>
-                      )}
+                      )} */}
 
                       {/* Coming Soon badge for paid plans */}
-                      {isPaid && !isCurrent && (
+                      {/* {isPaid && !isCurrent && (
                         <span className="absolute -top-2.5 right-4 px-3 py-0.5 text-[10px] font-bold text-amber-700 bg-amber-100 border border-amber-200 rounded-full">
                           COMING SOON
                         </span>
-                      )}
+                      )} */}
 
                       {/* Plan header */}
-                      <div className="flex items-center gap-3 mb-3">
+                      {/* <div className="flex items-center gap-3 mb-3">
                         <div className={`p-2 rounded-lg ${p.iconBg}`}>
                           <Zap className={`w-4 h-4 ${p.iconColor}`} />
                         </div>
@@ -970,25 +1072,25 @@ export default function DashboardPage() {
                             {p.period && <span className="text-xs text-muted">{p.period}</span>}
                           </div>
                         </div>
-                      </div>
+                      </div> */}
 
                       {/* Docs limit */}
-                      <p className="text-xs font-medium text-slate-600 mb-3 pb-3 border-b border-slate-100">
+                      {/* <p className="text-xs font-medium text-slate-600 mb-3 pb-3 border-b border-slate-100">
                         {p.docs}
-                      </p>
+                      </p> */}
 
                       {/* Features */}
-                      <ul className="space-y-1.5 flex-1">
+                      {/* <ul className="space-y-1.5 flex-1">
                         {p.features.map((f) => (
                           <li key={f} className="flex items-center gap-2 text-xs text-slate-600">
                             <CheckCircle2 className={`w-3.5 h-3.5 flex-shrink-0 ${isCurrent ? "text-primary" : "text-success"}`} />
                             {f}
                           </li>
                         ))}
-                      </ul>
+                      </ul> */}
 
                       {/* Action button */}
-                      <div className="mt-4 pt-3 border-t border-slate-100">
+                      {/* <div className="mt-4 pt-3 border-t border-slate-100">
                         {isCurrent ? (
                           <div className="w-full py-2 text-center text-xs font-semibold text-primary bg-primary/5 rounded-lg">
                             ✓ Active Plan
@@ -1009,6 +1111,119 @@ export default function DashboardPage() {
                     </div>
                   );
                 })}
+              </div> */}
+
+              {/* Plans Grid */}
+              <div className="p-6 grid grid-cols-1 sm:grid-cols-3 gap-4">
+                {loadingPlans ? (
+                  <div className="col-span-full text-center text-sm text-muted py-10">
+                    Loading plans...
+                  </div>
+                ) : plans.length === 0 ? (
+                  <div className="col-span-full text-center text-sm text-muted py-10">
+                    No plans available
+                  </div>
+                ) : (
+                  plans.map((p) => {
+                    const currentPlan = planData?.plan || "free";
+                    const isCurrent = p.name === currentPlan;
+                    // const isCurrent = p._id === planData?.currentPlanId;
+                    const price = p.price ?? 0;
+                    const isPaid = price > 0;
+
+                    return (
+                      <div
+                        key={p._id}
+                        className={`relative flex flex-col p-5 rounded-xl border-2 bg-gradient-to-b transition-all ${
+                          isCurrent
+                            ? "border-primary shadow-lg shadow-primary/10 ring-1 ring-primary/20"
+                            : "border-slate-200 hover:shadow-md"
+                        }`}
+                      >
+                        {/* Current Plan Badge */}
+                        {isCurrent && (
+                          <span className="absolute -top-2.5 left-4 px-3 py-0.5 text-[10px] font-bold text-white bg-gradient-to-r from-primary to-secondary rounded-full shadow-sm">
+                            CURRENT PLAN
+                          </span>
+                        )}
+
+                        {/* Plan Header */}
+                        <div className="flex items-center gap-3 mb-3">
+                          <div className="p-2 rounded-lg bg-slate-100">
+                            <Zap className="w-4 h-4 text-primary" />
+                          </div>
+
+                          <div>
+                            <h3 className="text-sm font-bold text-slate-900">
+                              {p.label}
+                            </h3>
+
+                            <div className="flex items-baseline gap-0.5">
+                              <span className="text-lg font-extrabold text-slate-900">
+                                {price === 0 ? "Free" : usdFormatter.format(price)}
+                              </span>
+                              {p.interval && (
+                                <span className="text-xs text-muted">
+                                  /{p.interval}
+                                </span>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Documents Limit */}
+                        <p className="text-xs font-medium text-slate-600 mb-3 pb-3 border-b border-slate-100">
+                          {p.documentsPerMonth === "Unlimited"
+                            ? "Unlimited documents"
+                            : `${p.documentsPerMonth} documents/month`}
+                        </p>
+
+                        {/* Features */}
+                        <ul className="space-y-1.5 flex-1">
+                          {(p.features || [
+                            "AI processing",
+                            "Export to Excel",
+                          ]).map((f: string, i: number) => (
+                            <li
+                              key={i}
+                              className="flex items-center gap-2 text-xs text-slate-600"
+                            >
+                              <CheckCircle2 className="w-3.5 h-3.5 text-success flex-shrink-0" />
+                              {f}
+                            </li>
+                          ))}
+                        </ul>
+
+                        {/* Action Button */}
+                        <div className="mt-4 pt-3 border-t border-slate-100">
+                          {isCurrent ? (
+                            <div className="w-full py-2 text-center text-xs font-semibold text-primary bg-primary/5 rounded-lg">
+                              ✓ Active Plan
+                            </div>
+                          ) : isPaid ? (
+                            <button
+                              onClick={() => handlePlanSelect(p)}
+                              disabled={navigatingPlanId === String(p._id || p.id)}
+                              className="w-full py-2 text-xs font-semibold text-white bg-primary rounded-lg hover:opacity-90 transition"
+                            >
+                              {navigatingPlanId === String(p._id || p.id) ? "Opening..." : "Upgrade"}
+                            </button>
+                          ) : (
+                             <button
+                              onClick={() => handlePlanSelect(p)}
+                              disabled={navigatingPlanId === String(p._id || p.id)}
+                              className="w-full py-2 text-xs font-semibold text-slate-700 bg-slate-100 rounded-lg hover:bg-slate-200 transition"
+                            >
+                              {navigatingPlanId === String(p._id || p.id)
+                                ? "Switching..."
+                                : "Switch to Free"}
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })
+                )}
               </div>
 
               {/* Footer */}

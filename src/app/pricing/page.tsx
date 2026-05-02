@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   Check,
@@ -13,66 +13,81 @@ import {
 import Link from "next/link";
 import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
+import { features } from "process";
+import { apiUrl } from "@/lib/api";
+
+type PricingPlan = {
+  name: string;
+  description: string;
+  features: string[];
+  monthlyPrice: number;
+  yearlyPrice: number;
+  popular: boolean;
+  stripePriceIds: {
+    monthly?: string;
+    yearly?: string;
+  };
+};
 
 // ─── Pricing Data ───────────────────────────────────────────────
-const plans = [
-  {
-    name: "Starter",
-    monthlyPrice: 49,
-    yearlyPrice: 39,
-    description: "Perfect for small businesses getting started with automation",
-    features: [
-      "100 documents/month",
-      "PDF & image upload",
-      "AI OCR extraction",
-      "Excel & CSV export",
-      "Email support",
-      "1 user account",
-      "Basic dashboard",
-    ],
-    cta: "Start Free Trial",
-    popular: false,
-  },
-  {
-    name: "Professional",
-    monthlyPrice: 149,
-    yearlyPrice: 119,
-    description: "For growing teams with higher volume and advanced features",
-    features: [
-      "1,000 documents/month",
-      "Everything in Starter",
-      "WhatsApp integration",
-      "Bulk upload",
-      "Priority support",
-      "5 user accounts",
-      "Sub-admin roles",
-      "API access",
-      "Custom fields",
-    ],
-    cta: "Start Free Trial",
-    popular: true,
-  },
-  {
-    name: "Enterprise",
-    monthlyPrice: 0,
-    yearlyPrice: 0,
-    description: "For large organizations with custom needs and compliance",
-    features: [
-      "Unlimited documents",
-      "Everything in Professional",
-      "ERP integration",
-      "Custom workflows",
-      "Dedicated account manager",
-      "Unlimited users",
-      "SLA guarantee",
-      "On-premise option",
-      "Custom AI training",
-      "White-label option",
-    ],
-    cta: "Contact Sales",
-    popular: false,
-  },
-];
+// const plans = [
+//   {
+//     name: "Starter",
+//     monthlyPrice: 49,
+//     yearlyPrice: 39,
+//     description: "Perfect for small businesses getting started with automation",
+//     features: [
+//       "100 documents/month",
+//       "PDF & image upload",
+//       "AI OCR extraction",
+//       "Excel & CSV export",
+//       "Email support",
+//       "1 user account",
+//       "Basic dashboard",
+//     ],
+//     cta: "Start Free Trial",
+//     popular: false,
+//   },
+//   {
+//     name: "Professional",
+//     monthlyPrice: 149,
+//     yearlyPrice: 119,
+//     description: "For growing teams with higher volume and advanced features",
+//     features: [
+//       "1,000 documents/month",
+//       "Everything in Starter",
+//       "WhatsApp integration",
+//       "Bulk upload",
+//       "Priority support",
+//       "5 user accounts",
+//       "Sub-admin roles",
+//       "API access",
+//       "Custom fields",
+//     ],
+//     cta: "Start Free Trial",
+//     popular: true,
+//   },
+//   {
+//     name: "Enterprise",
+//     monthlyPrice: 0,
+//     yearlyPrice: 0,
+//     description: "For large organizations with custom needs and compliance",
+//     features: [
+//       "Unlimited documents",
+//       "Everything in Professional",
+//       "ERP integration",
+//       "Custom workflows",
+//       "Dedicated account manager",
+//       "Unlimited users",
+//       "SLA guarantee",
+//       "On-premise option",
+//       "Custom AI training",
+//       "White-label option",
+//     ],
+//     cta: "Contact Sales",
+//     popular: false,
+//   },
+// ];
 
 const comparisonFeatures = [
   {
@@ -323,9 +338,8 @@ function FAQItem({
           {question}
         </span>
         <ChevronDown
-          className={`w-5 h-5 text-slate-400 flex-shrink-0 transition-transform duration-200 ${
-            open ? "rotate-180" : ""
-          }`}
+          className={`w-5 h-5 text-slate-400 flex-shrink-0 transition-transform duration-200 ${open ? "rotate-180" : ""
+            }`}
         />
       </button>
       <AnimatePresence>
@@ -348,7 +362,66 @@ function FAQItem({
 // ─── Main Pricing Page ──────────────────────────────────────────
 export default function PricingPage() {
   const [annual, setAnnual] = useState(false);
+  const [plans, setPlans] = useState<PricingPlan[]>([]);
+  const [loading, setLoading] = useState(true);
 
+  useEffect(() => {
+    const fetchPlans = async () => {
+      try {
+        const res = await fetch(apiUrl("/api/plan/list"), {
+          method: "GET",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          credentials: "include", // ✅ important (same as your PATCH)
+        });
+
+        const json = await res.json();
+
+        if (json.success) {
+          setPlans(json.data);
+        } else {
+          console.error("API error:", json.error);
+        }
+      } catch (err) {
+        console.error("Failed to fetch plans", err);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchPlans();
+  }, []);
+
+  const groupedPlans: PricingPlan[] = Object.values(
+    plans.reduce((acc: any, plan: any) => {
+      const key = plan.label;
+
+      if (!acc[key]) {
+        acc[key] = {
+          name: plan.label,
+          description: plan.description,
+          features: plan.features,
+          monthlyPrice: 0,
+          yearlyPrice: 0,
+          popular: plan.label.toLowerCase().includes("professional"),
+          stripePriceIds: {}
+        };
+      }
+      if (plan.interval === "month") {
+        acc[key].monthlyPrice = plan.price;
+        acc[key].stripePriceIds.monthly = plan.stripePriceId;
+      }
+
+      if (plan.interval === "year") {
+        acc[key].yearlyPrice = Math.round(plan.price / 12); // convert yearly → monthly display
+        acc[key].stripePriceIds.yearly = plan.stripePriceId;
+      }
+
+      return acc;
+    }, {})
+  );
+  
   return (
     <div className="min-h-screen bg-white">
       {/* Navbar */}
@@ -381,28 +454,24 @@ export default function PricingPage() {
             {/* Billing toggle */}
             <div className="mt-10 flex items-center justify-center gap-4">
               <span
-                className={`text-sm font-medium ${
-                  !annual ? "text-slate-900" : "text-slate-400"
-                }`}
+                className={`text-sm font-medium ${!annual ? "text-slate-900" : "text-slate-400"
+                  }`}
               >
                 Monthly
               </span>
               <button
                 onClick={() => setAnnual(!annual)}
-                className={`relative w-14 h-7 rounded-full transition-colors ${
-                  annual ? "bg-primary" : "bg-slate-200"
-                }`}
+                className={`relative w-14 h-7 rounded-full transition-colors ${annual ? "bg-primary" : "bg-slate-200"
+                  }`}
               >
                 <div
-                  className={`absolute top-0.5 w-6 h-6 rounded-full bg-white shadow-md transition-transform ${
-                    annual ? "translate-x-7" : "translate-x-0.5"
-                  }`}
+                  className={`absolute top-0.5 w-6 h-6 rounded-full bg-white shadow-md transition-transform ${annual ? "translate-x-7" : "translate-x-0.5"
+                    }`}
                 />
               </button>
               <span
-                className={`text-sm font-medium ${
-                  annual ? "text-slate-900" : "text-slate-400"
-                }`}
+                className={`text-sm font-medium ${annual ? "text-slate-900" : "text-slate-400"
+                  }`}
               >
                 Annual
               </span>
@@ -424,17 +493,16 @@ export default function PricingPage() {
       <section className="relative pb-20">
         <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="grid md:grid-cols-3 gap-8 lg:gap-6">
-            {plans.map((plan, i) => (
+            {groupedPlans.map((plan: any, i: number) => (
               <motion.div
                 key={plan.name}
                 initial={{ opacity: 0, y: 30 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ duration: 0.5, delay: i * 0.1 }}
-                className={`relative rounded-3xl ${
-                  plan.popular
+                className={`relative rounded-3xl ${plan.popular
                     ? "bg-white shadow-2xl shadow-primary/10 border-2 border-primary/20 scale-105 z-10"
                     : "bg-white shadow-lg shadow-slate-100 border border-slate-100"
-                } p-8 flex flex-col`}
+                  } p-8 flex flex-col`}
               >
                 {plan.popular && (
                   <div className="absolute -top-4 left-1/2 -translate-x-1/2">
@@ -456,7 +524,11 @@ export default function PricingPage() {
                   {plan.monthlyPrice > 0 ? (
                     <>
                       <span className="text-5xl font-extrabold text-slate-900">
-                        ${annual ? plan.yearlyPrice : plan.monthlyPrice}
+                        {/* ${annual ? plan.yearlyPrice : plan.monthlyPrice} */}
+                        ${annual
+                          ? plan.yearlyPrice || plan.monthlyPrice
+                          : plan.monthlyPrice
+                        }
                       </span>
                       <span className="text-muted">/month</span>
                       {annual && (
@@ -483,7 +555,7 @@ export default function PricingPage() {
                 </div>
 
                 <ul className="space-y-3 mb-8 flex-1">
-                  {plan.features.map((feature) => (
+                  {plan.features.map((feature: string) => (
                     <li key={feature} className="flex items-start gap-3">
                       <Check className="w-5 h-5 text-success mt-0.5 flex-shrink-0" />
                       <span className="text-sm text-slate-600">{feature}</span>
@@ -493,11 +565,10 @@ export default function PricingPage() {
 
                 <Link
                   href={plan.name === "Enterprise" ? "#" : "/signup"}
-                  className={`btn-shine group w-full flex items-center justify-center gap-2 px-6 py-3.5 text-sm font-semibold rounded-2xl transition-all duration-200 ${
-                    plan.popular
+                  className={`btn-shine group w-full flex items-center justify-center gap-2 px-6 py-3.5 text-sm font-semibold rounded-2xl transition-all duration-200 ${plan.popular
                       ? "text-white bg-gradient-to-r from-primary to-primary-dark shadow-lg shadow-primary/25 hover:shadow-primary/40 hover:scale-105"
                       : "text-slate-700 bg-slate-50 border border-slate-200 hover:bg-primary/5 hover:text-primary hover:border-primary/20"
-                  }`}
+                    }`}
                 >
                   {plan.cta}
                   <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
