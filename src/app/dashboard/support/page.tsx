@@ -16,6 +16,9 @@ import {
   Users,
   Clock,
   ExternalLink,
+  Paperclip,
+  X,
+  FileText,
 } from "lucide-react";
 import { useFormik } from "formik";
 import * as Yup from "yup";
@@ -41,6 +44,13 @@ interface Guide {
   title: string;
   description: string;
   link: string;
+}
+
+interface Attachment {
+  id: string;
+  file: File;
+  name: string;
+  size: number;
 }
 
 // ─── Data ─────────────────────────────────────────────────────────────────────
@@ -215,36 +225,124 @@ function FaqAccordion() {
   );
 }
 
+// Attachment component
+function AttachmentUpload({ attachments, onAdd, onRemove }: {
+  attachments: Attachment[];
+  onAdd: (files: FileList) => void;
+  onRemove: (id: string) => void;
+}) {
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const formatFileSize = (bytes: number): string => {
+    if (bytes < 1024) return bytes + ' B';
+    if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
+    return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
+  };
+
+  return (
+    <div>
+      <label className="block text-xs font-medium text-slate-500 mb-1.5">Attachments (Optional)</label>
+      
+      {/* Upload Button */}
+      <button
+        type="button"
+        onClick={() => fileInputRef.current?.click()}
+        className="w-full rounded-lg border-2 border-dashed border-slate-200 text-sm px-3.5 py-3 text-slate-600 bg-slate-50 hover:bg-slate-100 hover:border-indigo-300 transition-all duration-200 flex items-center justify-center gap-2"
+      >
+        <Paperclip className="w-4 h-4" />
+        <span>Click to upload files</span>
+      </button>
+      <input
+        ref={fileInputRef}
+        type="file"
+        multiple
+        onChange={(e) => {
+          if (e.target.files && e.target.files.length > 0) {
+            onAdd(e.target.files);
+            e.target.value = '';
+          }
+        }}
+        className="hidden"
+        accept=".pdf,.jpg,.jpeg,.png,.doc,.docx,.txt"
+      />
+      <p className="text-xs text-slate-400 mt-1.5">Supports PDF, JPG, PNG, DOC, TXT (Max 10MB each)</p>
+
+      {/* Attachments List */}
+      {attachments.length > 0 && (
+        <div className="mt-3 space-y-2">
+          {attachments.map((attachment) => (
+            <div
+              key={attachment.id}
+              className="flex items-center justify-between p-2 bg-slate-50 rounded-lg border border-slate-200"
+            >
+              <div className="flex items-center gap-2 flex-1 min-w-0">
+                <FileText className="w-4 h-4 text-indigo-500 shrink-0" />
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-medium text-slate-700 truncate">{attachment.name}</p>
+                  <p className="text-xs text-slate-400">{formatFileSize(attachment.size)}</p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => onRemove(attachment.id)}
+                className="p-1 hover:bg-slate-200 rounded transition-colors"
+              >
+                <X className="w-4 h-4 text-slate-500" />
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ─── Main Page ─────────────────────────────────────────────────────────────────
 export default function SupportPage() {
   const [sidebarWidth, setSidebarWidth] = useState(260);
   const [searchQuery, setSearchQuery] = useState<string>("");
   const [submitState, setSubmitState] = useState<"idle" | "loading" | "success">("idle");
   const [mounted, setMounted] = useState(false);
+  const [attachments, setAttachments] = useState<Attachment[]>([]);
 
   // Handle sidebar width for margin animation - only run on client
- useEffect(() => {
-  setMounted(true);
-  
-  // Initial measurement
-  const sidebar = document.querySelector("aside");
-  if (sidebar) {
-    setSidebarWidth(sidebar.getBoundingClientRect().width);
+  useEffect(() => {
+    setMounted(true);
     
-    // Set up observer for sidebar width changes
-    const observer = new MutationObserver(() => {
-      if (sidebar) setSidebarWidth(sidebar.getBoundingClientRect().width);
-    });
-    
-    observer.observe(sidebar, { attributes: true, attributeFilter: ["style"] });
-    
-    return () => observer.disconnect();
-  }
-}, []);
+    // Initial measurement
+    const sidebar = document.querySelector("aside");
+    if (sidebar) {
+      setSidebarWidth(sidebar.getBoundingClientRect().width);
+      
+      // Set up observer for sidebar width changes
+      const observer = new MutationObserver(() => {
+        if (sidebar) setSidebarWidth(sidebar.getBoundingClientRect().width);
+      });
+      
+      observer.observe(sidebar, { attributes: true, attributeFilter: ["style"] });
+      
+      return () => observer.disconnect();
+    }
+  }, []);
+
   const handleSearchKeyDown = (e: KeyboardEvent<HTMLInputElement>) => {
     if (e.key === "Enter" && searchQuery.trim()) {
       document.getElementById("faq")?.scrollIntoView({ behavior: "smooth" });
     }
+  };
+
+  const handleAddAttachments = (files: FileList) => {
+    const newAttachments: Attachment[] = Array.from(files).map((file) => ({
+      id: Math.random().toString(36).substring(7),
+      file: file,
+      name: file.name,
+      size: file.size,
+    }));
+    setAttachments((prev) => [...prev, ...newAttachments]);
+  };
+
+  const handleRemoveAttachment = (id: string) => {
+    setAttachments((prev) => prev.filter((att) => att.id !== id));
   };
 
   const formik = useFormik({
@@ -266,15 +364,23 @@ export default function SupportPage() {
       try {
         setSubmitState("loading");
 
+        const formData = new FormData();
+        formData.append("name", values.name);
+        formData.append("email", values.email);
+        formData.append("issueType", values.issueType);
+        formData.append("message", values.message);
+        
+        // Append attachments
+        attachments.forEach((attachment) => {
+          formData.append("attachments", attachment.file);
+        });
+
         const res = await fetch(
           apiUrl("/api/support"),
           {
             method: "POST",
-            credentials: "include", // ✅ important
-            headers: {
-              "Content-Type": "application/json",
-            },
-            body: JSON.stringify(values),
+            credentials: "include",
+            body: formData, // Don't set Content-Type, browser will set it with boundary
           }
         );
 
@@ -286,6 +392,7 @@ export default function SupportPage() {
 
         setSubmitState("success");
         resetForm();
+        setAttachments([]); // Clear attachments after successful submission
 
         setTimeout(() => setSubmitState("idle"), 3000);
       } catch (err) {
@@ -394,7 +501,6 @@ export default function SupportPage() {
             />
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
               {guides.map((guide) => (
-                // Commented out Link as per original code
                 <div
                   key={guide.title}
                   className="bg-white rounded-xl border border-slate-200 shadow-sm p-5 flex flex-col gap-3 cursor-pointer group transition-all duration-200 hover:-translate-y-1 hover:shadow-md hover:border-indigo-200 no-underline"
@@ -431,156 +537,131 @@ export default function SupportPage() {
             </div>
           </div>
 
-          {/* Contact Section */}
+          {/* Contact Section - Updated with only the form */}
           <section className="bg-gradient-to-br from-indigo-50 to-violet-50 border-t border-slate-100 py-16 px-6">
-            <div className="max-w-5xl mx-auto">
+            <div className="max-w-3xl mx-auto">
               <SectionHeader
-                label="Contact"
+                label="Contact Us"
                 title="Still need help?"
                 subtitle="Our support team is here for you — usually responding within a few hours."
               />
-              <div className="grid grid-cols-1 lg:grid-cols-[1fr_1.6fr] gap-10 items-start">
-                {/* Contact Options */}
-                <div className="flex flex-col gap-4">
-                  {[
-                    { icon: Mail, bg: "bg-indigo-50", title: "Email Support", desc: "support@docuai.com — Response within 4–8 hours on business days.", badge: null },
-                    { icon: MessageCircle, bg: "bg-emerald-50", title: "Live Chat", desc: "Chat with our team in real time. Mon–Fri, 9 AM–6 PM IST.", badge: "Online" },
-                    { icon: Users, bg: "bg-amber-50", title: "Community Forum", desc: "Browse discussions, share tips, and get help from other DocuAI users.", badge: null },
-                  ].map((opt) => (
-                    <div key={opt.title} className="bg-white rounded-xl border border-slate-200 shadow-sm p-5 flex items-start gap-4 cursor-pointer group transition-all duration-200 hover:border-indigo-200 hover:shadow-md">
-                      <div className={`w-10 h-10 rounded-xl ${opt.bg} flex items-center justify-center text-indigo-600 shrink-0`}>
-                        <opt.icon className="w-5 h-5" />
-                      </div>
-                      <div className="flex-1">
-                        <div className="flex items-center gap-2 mb-1">
-                          <h4 className="text-sm font-semibold text-slate-800 group-hover:text-indigo-600 transition-colors">
-                            {opt.title}
-                          </h4>
-                          {opt.badge && (
-                            <span className="text-[10px] font-semibold bg-emerald-50 text-emerald-700 rounded-full px-2 py-0.5">
-                              {opt.badge}
-                            </span>
-                          )}
-                        </div>
-                        <p className="text-xs text-slate-500 leading-relaxed">{opt.desc}</p>
-                      </div>
-                    </div>
-                  ))}
-                </div>
 
-                {/* Contact Form */}
-                <div className="bg-white rounded-xl border border-slate-200 shadow-md p-7">
-                  <h3 className="font-bold text-slate-800 mb-6">Send us a message</h3>
-                  <form onSubmit={formik.handleSubmit} className="flex flex-col gap-5">
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                      <div>
-                        <label htmlFor="fname" className="block text-xs font-medium text-slate-500 mb-1.5">Name</label>
-                        <input
-                          id="fname"
-                          name="name"
-                          value={formik.values.name}
-                          onChange={formik.handleChange}
-                          onBlur={formik.handleBlur}
-                          type="text"
-                          placeholder="Your full name"
-                          required
-                          className="w-full rounded-lg border border-slate-200 text-sm px-3.5 py-2.5 text-slate-800 bg-white outline-none transition focus:ring-2 focus:ring-indigo-400/30 focus:border-indigo-300 placeholder:text-slate-400"
-                        />
-                        {formik.touched.name && formik.errors.name && (
-                          <p className="text-xs text-red-500 mt-1">{formik.errors.name}</p>
-                        )}
-                      </div>
-                      <div>
-                        <label htmlFor="femail" className="block text-xs font-medium text-slate-500 mb-1.5">Email address</label>
-                        <input
-                          id="femail"
-                          name="email"
-                          type="email"
-                          value={formik.values.email}
-                          onChange={formik.handleChange}
-                          placeholder="you@company.com"
-                          required
-                          className="w-full rounded-lg border border-slate-200 text-sm px-3.5 py-2.5 text-slate-800 bg-white outline-none transition focus:ring-2 focus:ring-indigo-400/30 focus:border-indigo-300 placeholder:text-slate-400"
-                        />
-                        {formik.touched.email && formik.errors.email && (
-                          <p className="text-xs text-red-500 mt-1">{formik.errors.email}</p>
-                        )}
-                      </div>
-                    </div>
-
+              {/* Contact Form - Centered */}
+              <div className="bg-white rounded-xl border border-slate-200 shadow-md p-8">
+                <h3 className="font-bold text-slate-800 mb-6 text-center">Send us a message</h3>
+                <form onSubmit={formik.handleSubmit} className="flex flex-col gap-5">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <div>
-                      <label htmlFor="fissue" className="block text-xs font-medium text-slate-500 mb-1.5">Issue type</label>
-                      <select
-                        id="fissue"
-                        name="issueType"
-                        value={formik.values.issueType}
+                      <label htmlFor="fname" className="block text-xs font-medium text-slate-500 mb-1.5">Name *</label>
+                      <input
+                        id="fname"
+                        name="name"
+                        value={formik.values.name}
                         onChange={formik.handleChange}
                         onBlur={formik.handleBlur}
-                        required
-                        className="w-full rounded-lg border border-slate-200 text-sm px-3.5 py-2.5 text-slate-800 bg-white outline-none transition focus:ring-2 focus:ring-indigo-400/30 focus:border-indigo-300"
-                      >
-                        <option value="" disabled>Select a category…</option>
-                        <option value="upload">Upload or extraction issue</option>
-                        <option value="billing">Billing or payment question</option>
-                        <option value="account">Account or login problem</option>
-                        <option value="subscription">Subscription change request</option>
-                        <option value="feature">Feature request or feedback</option>
-                        <option value="other">Other</option>
-                      </select>
-                      {formik.touched.issueType && formik.errors.issueType && (
-                        <p className="text-xs text-red-500 mt-1">{formik.errors.issueType}</p>
-                      )}
-                    </div>
-
-                    <div>
-                      <label htmlFor="fmsg" className="block text-xs font-medium text-slate-500 mb-1.5">Message</label>
-                      <textarea
-                        id="fmsg"
-                        name="message"
-                        value={formik.values.message}
-                        onChange={formik.handleChange}
-                        onBlur={formik.handleBlur}
-                        rows={4}
-                        required
-                        placeholder="Describe your issue or question in detail…"
-                        className="w-full rounded-lg border border-slate-200 text-sm px-3.5 py-2.5 text-slate-800 bg-white outline-none transition focus:ring-2 focus:ring-indigo-400/30 focus:border-indigo-300 resize-y placeholder:text-slate-400"
+                        type="text"
+                        placeholder="Your full name"
+                        className="w-full rounded-lg border border-slate-200 text-sm px-3.5 py-2.5 text-slate-800 bg-white outline-none transition focus:ring-2 focus:ring-indigo-400/30 focus:border-indigo-300 placeholder:text-slate-400"
                       />
-                      {formik.touched.message && formik.errors.message && (
-                        <p className="text-xs text-red-500 mt-1">{formik.errors.message}</p>
+                      {formik.touched.name && formik.errors.name && (
+                        <p className="text-xs text-red-500 mt-1">{formik.errors.name}</p>
                       )}
                     </div>
+                    <div>
+                      <label htmlFor="femail" className="block text-xs font-medium text-slate-500 mb-1.5">Email address *</label>
+                      <input
+                        id="femail"
+                        name="email"
+                        type="email"
+                        value={formik.values.email}
+                        onChange={formik.handleChange}
+                        placeholder="you@company.com"
+                        className="w-full rounded-lg border border-slate-200 text-sm px-3.5 py-2.5 text-slate-800 bg-white outline-none transition focus:ring-2 focus:ring-indigo-400/30 focus:border-indigo-300 placeholder:text-slate-400"
+                      />
+                      {formik.touched.email && formik.errors.email && (
+                        <p className="text-xs text-red-500 mt-1">{formik.errors.email}</p>
+                      )}
+                    </div>
+                  </div>
 
-                    <button
-                      type="submit"
-                      disabled={submitState === "loading" || !formik.isValid}
-                      className={`w-full py-3 rounded-lg text-sm font-semibold transition-all duration-300 ${submitState === "success"
+                  <div>
+                    <label htmlFor="fissue" className="block text-xs font-medium text-slate-500 mb-1.5">Issue type *</label>
+                    <select
+                      id="fissue"
+                      name="issueType"
+                      value={formik.values.issueType}
+                      onChange={formik.handleChange}
+                      onBlur={formik.handleBlur}
+                      className="w-full rounded-lg border border-slate-200 text-sm px-3.5 py-2.5 text-slate-800 bg-white outline-none transition focus:ring-2 focus:ring-indigo-400/30 focus:border-indigo-300"
+                    >
+                      <option value="" disabled>Select a category…</option>
+                      <option value="upload">Upload or extraction issue</option>
+                      <option value="billing">Billing or payment question</option>
+                      <option value="account">Account or login problem</option>
+                      <option value="subscription">Subscription change request</option>
+                      <option value="feature">Feature request or feedback</option>
+                      <option value="other">Other</option>
+                    </select>
+                    {formik.touched.issueType && formik.errors.issueType && (
+                      <p className="text-xs text-red-500 mt-1">{formik.errors.issueType}</p>
+                    )}
+                  </div>
+
+                  <div>
+                    <label htmlFor="fmsg" className="block text-xs font-medium text-slate-500 mb-1.5">Message *</label>
+                    <textarea
+                      id="fmsg"
+                      name="message"
+                      value={formik.values.message}
+                      onChange={formik.handleChange}
+                      onBlur={formik.handleBlur}
+                      rows={4}
+                      placeholder="Describe your issue or question in detail…"
+                      className="w-full rounded-lg border border-slate-200 text-sm px-3.5 py-2.5 text-slate-800 bg-white outline-none transition focus:ring-2 focus:ring-indigo-400/30 focus:border-indigo-300 resize-y placeholder:text-slate-400"
+                    />
+                    {formik.touched.message && formik.errors.message && (
+                      <p className="text-xs text-red-500 mt-1">{formik.errors.message}</p>
+                    )}
+                  </div>
+
+                  {/* Attachment Upload Component */}
+                  <AttachmentUpload
+                    attachments={attachments}
+                    onAdd={handleAddAttachments}
+                    onRemove={handleRemoveAttachment}
+                  />
+
+                  <button
+                    type="submit"
+                    disabled={submitState === "loading" || !formik.isValid}
+                    className={`w-full py-3 rounded-lg text-sm font-semibold transition-all duration-300 ${
+                      submitState === "success"
                         ? "bg-emerald-500 text-white"
                         : "bg-indigo-600 text-white hover:bg-indigo-700"
-                        } disabled:opacity-70 disabled:cursor-not-allowed`}
-                    >
-                      {submitState === "idle" && "Send Message"}
-                      {submitState === "loading" && (
-                        <span className="flex items-center justify-center gap-2">
-                          <svg className="animate-spin w-4 h-4" viewBox="0 0 24 24" fill="none">
-                            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z" />
-                          </svg>
-                          Sending…
-                        </span>
-                      )}
-                      {submitState === "success" && (
-                        <span className="flex items-center justify-center gap-2">
-                          <CheckCircle2 className="w-4 h-4" /> Message sent!
-                        </span>
-                      )}
-                    </button>
-                  </form>
-                </div>
+                    } disabled:opacity-70 disabled:cursor-not-allowed`}
+                  >
+                    {submitState === "idle" && "Send Message"}
+                    {submitState === "loading" && (
+                      <span className="flex items-center justify-center gap-2">
+                        <svg className="animate-spin w-4 h-4" viewBox="0 0 24 24" fill="none">
+                          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z" />
+                        </svg>
+                        Sending…
+                      </span>
+                    )}
+                    {submitState === "success" && (
+                      <span className="flex items-center justify-center gap-2">
+                        <CheckCircle2 className="w-4 h-4" /> Message sent!
+                      </span>
+                    )}
+                  </button>
+                </form>
               </div>
             </div>
           </section>
 
-          {/* Footer Note - in dashboard context, we don't need full footer */}
+          {/* Footer Note */}
           <div className="border-t border-slate-200 py-6 text-center text-xs text-slate-400">
             © 2025 DocuAI. All rights reserved.
           </div>

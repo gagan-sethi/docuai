@@ -170,32 +170,7 @@ export default function CheckoutClient() {
     </div>
   );
 }
-  if (loadingInit) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-900 via-primary to-slate-900">
-        <div className="bg-white/5 backdrop-blur-xl border border-white/10 rounded-2xl p-8 w-[320px] shadow-xl">
 
-          {/* Logo */}
-          <div className="flex justify-center mb-6">
-            <div className="w-12 h-12 rounded-xl bg-primary/20 flex items-center justify-center">
-              <div className="w-6 h-6 border-2 border-primary/30 border-t-primary rounded-full animate-spin" />
-            </div>
-          </div>
-
-          {/* Skeleton */}
-          <div className="space-y-3">
-            <div className="h-3 bg-white/10 rounded w-3/4 animate-pulse" />
-            <div className="h-3 bg-white/10 rounded w-full animate-pulse" />
-            <div className="h-3 bg-white/10 rounded w-2/3 animate-pulse" />
-          </div>
-
-          <p className="text-center text-xs text-white/60 mt-4">
-            Preparing secure checkout...
-          </p>
-        </div>
-      </div>
-    );
-  }
 
   if (!clientSecret) {
     return <p className="text-center mt-10">Unable to load payment</p>;
