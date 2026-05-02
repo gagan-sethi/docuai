@@ -13,6 +13,7 @@
     "@aws-sdk/client-textract": "^3.1017.0",
     "@aws-sdk/s3-request-presigner": "^3.1017.0",
     "bcryptjs": "^3.0.3",
+    "exceljs": "^4.4.0",
     "framer-motion": "^12.38.0",
     "jsonwebtoken": "^9.0.3",
     "lucide-react": "^1.7.0",

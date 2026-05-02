@@ -314,3 +314,449 @@ export function pickHeadlineTotal(
   entries.sort((a, b) => b[1] - a[1]);
   return { header: entries[0][0], value: entries[0][1] };
 }
+
+// ─── Accounting-ready transformation ────────────────────────────
+
+/**
+ * Canonical column order for the accountant-ready export.
+ * The Excel sheet and the preview table both render columns in this
+ * exact order — anything not mapped is dropped, keeping the output
+ * tight and predictable.
+ */
+export const ACCOUNTING_COLUMNS = [
+  "Invoice Date",
+  "Invoice Number",
+  "Supplier Name",
+  "TRN",
+  "Description",
+  "Subtotal",
+  "Tax %",
+  "VAT",
+  "Total",
+  "Currency",
+  "Category",
+] as const;
+
+export type AccountingColumn = (typeof ACCOUNTING_COLUMNS)[number];
+
+/** Columns that should be formatted as money in Excel. */
+const MONEY_COLUMNS: AccountingColumn[] = ["Subtotal", "VAT", "Total"];
+/** Columns that hold a parsed number (money + tax %). */
+const NUMERIC_COLUMNS: AccountingColumn[] = [
+  "Subtotal",
+  "Tax %",
+  "VAT",
+  "Total",
+];
+
+/**
+ * Header → canonical column matcher. The first regex that matches a
+ * source header wins, so order matters (more-specific patterns first).
+ */
+const HEADER_MAP: Array<{ col: AccountingColumn; rx: RegExp }> = [
+  // Invoice Number — must come before generic "number"
+  { col: "Invoice Number", rx: /\b(invoice|inv|bill|tax\s*invoice|document)[\s_-]*(no|num(ber)?|#|id)\b/i },
+  { col: "Invoice Number", rx: /^(invoice|inv|bill)[\s_-]*(no|num(ber)?|#|id)?$/i },
+  // Invoice Date
+  { col: "Invoice Date", rx: /\b(invoice|inv|bill|document|issue|issued)[\s_-]*date\b/i },
+  { col: "Invoice Date", rx: /^date$/i },
+  // Supplier
+  { col: "Supplier Name", rx: /\b(supplier|vendor|seller|from|company|merchant|payee|biller|issued[\s_-]*by)[\s_-]*(name)?\b/i },
+  // TRN / Tax registration / VAT number
+  { col: "TRN", rx: /\b(trn|tax[\s_-]*reg(istration)?|tax[\s_-]*id|vat[\s_-]*(no|num(ber)?|reg|id)|gstin|tin)\b/i },
+  // Description
+  { col: "Description", rx: /\b(description|particulars|item[\s_-]*description|service|details|narration|line[\s_-]*description|remarks?)\b/i },
+  // Tax %
+  { col: "Tax %", rx: /\b(tax|vat|gst)[\s_-]*(rate|%|percent(age)?|pct)\b/i },
+  { col: "Tax %", rx: /^(tax|vat|gst)\s*%$/i },
+  // VAT amount — prefer "VAT amount" over generic "VAT"
+  { col: "VAT", rx: /\b(vat|tax|gst)[\s_-]*amount\b/i },
+  { col: "VAT", rx: /^(vat|tax|gst)$/i },
+  // Subtotal — before "total"
+  { col: "Subtotal", rx: /\b(sub[\s_-]?total|net[\s_-]*amount|amount[\s_-]*before[\s_-]*tax|taxable[\s_-]*amount|net[\s_-]*total)\b/i },
+  // Total
+  { col: "Total", rx: /\b(grand[\s_-]*total|total[\s_-]*amount|invoice[\s_-]*total|amount[\s_-]*due|gross[\s_-]*total|total[\s_-]*due)\b/i },
+  { col: "Total", rx: /^(total|amount)$/i },
+  // Currency
+  { col: "Currency", rx: /\b(currency|curr|ccy)\b/i },
+];
+
+function matchAccountingColumn(header: string): AccountingColumn | null {
+  const h = header.trim();
+  if (!h) return null;
+  for (const { col, rx } of HEADER_MAP) {
+    if (rx.test(h)) return col;
+  }
+  return null;
+}
+
+/**
+ * Auto-detect a spending category from the description / supplier text.
+ * Used to populate the Category column. Order matters: the first rule
+ * that matches wins, so put more-specific keywords first.
+ */
+const CATEGORY_RULES: Array<{ name: string; rx: RegExp }> = [
+  { name: "Printing", rx: /print|stationery|paper|toner|cartridge|photocopy|copier/i },
+  { name: "Food & Beverage", rx: /restaurant|cafe|coffee|catering|food|meal|lunch|dinner|grocery|bakery|kitchen/i },
+  { name: "Transport", rx: /taxi|uber|careem|transport|fuel|petrol|diesel|parking|toll|salik|metro|bus|flight|airline|airport|car\s*rental/i },
+  { name: "Hotel & Travel", rx: /hotel|stay|accommodation|booking|airbnb|resort|lodge/i },
+  { name: "Telecom & Internet", rx: /etisalat|du\b|telecom|mobile|internet|broadband|wifi|sim|airtime/i },
+  { name: "Utilities", rx: /dewa|sewa|addc|fewa|electricity|water|gas\s*bill|utility/i },
+  { name: "Office Supplies", rx: /office\s*supplies|furniture|chair|desk|stapler|folder|file/i },
+  { name: "IT & Software", rx: /software|license|subscription|saas|cloud|aws|azure|google\s*workspace|microsoft|adobe|laptop|computer|hardware|server/i },
+  { name: "Marketing", rx: /marketing|advertis|google\s*ads|facebook\s*ads|seo|campaign|branding/i },
+  { name: "Professional Services", rx: /consult|legal|lawyer|accountant|audit|advisory|attorney/i },
+  { name: "Maintenance & Repair", rx: /maintenance|repair|service\s*fee|cleaning|pest/i },
+  { name: "Rent", rx: /rent|lease|tenancy/i },
+  { name: "Bank & Finance", rx: /bank\s*charge|finance\s*fee|interest|loan/i },
+  { name: "Medical", rx: /medical|clinic|hospital|pharmacy|doctor|health/i },
+  { name: "Courier & Shipping", rx: /courier|shipping|aramex|fedex|dhl|delivery|freight|logistics/i },
+];
+
+function detectCategory(text: string): string {
+  const t = (text || "").toLowerCase();
+  if (!t.trim()) return EMPTY_PLACEHOLDER;
+  for (const { name, rx } of CATEGORY_RULES) {
+    if (rx.test(t)) return name;
+  }
+  return "Other";
+}
+
+export interface AccountingTable {
+  /** Always equal to ACCOUNTING_COLUMNS. */
+  headers: AccountingColumn[];
+  /** String-formatted rows for display; numeric cols are pretty-printed. */
+  rows: string[][];
+  /** Parallel rows of raw numbers for numeric columns (null when missing). */
+  numericRows: Array<Partial<Record<AccountingColumn, number | null>>>;
+  /** Source CSV columns that did not map to any canonical column. */
+  unmappedHeaders: string[];
+  /** Headline summary used in the on-screen banner and Excel header. */
+  summary: {
+    totalInvoices: number;
+    totalAmount: number;
+    totalVat: number;
+    currency: string;
+  };
+}
+
+/**
+ * Convert a cleaned CSV table into the accountant-ready, fixed-schema
+ * table used for both preview and Excel export.
+ */
+export function buildAccountingTable(cleaned: CleanedCsv): AccountingTable {
+  // Build a map: canonical column → list of source header indices.
+  // We keep multiple matches because some sheets have e.g. both a
+  // "Tax %" and a "VAT Rate" column; we'll merge non-empty values.
+  const colToSrc: Partial<Record<AccountingColumn, number[]>> = {};
+  const unmapped: string[] = [];
+
+  for (let i = 0; i < cleaned.headers.length; i++) {
+    const canonical = matchAccountingColumn(cleaned.headers[i]);
+    if (!canonical) {
+      unmapped.push(cleaned.headers[i]);
+      continue;
+    }
+    (colToSrc[canonical] ||= []).push(i);
+  }
+
+  const rows: string[][] = [];
+  const numericRows: AccountingTable["numericRows"] = [];
+
+  let totalAmount = 0;
+  let totalVat = 0;
+  const currencyCounts: Record<string, number> = {};
+
+  for (const srcRow of cleaned.rows) {
+    const out: string[] = [];
+    const numeric: Partial<Record<AccountingColumn, number | null>> = {};
+
+    // First pass: gather raw values for each canonical column.
+    const rawByCol: Partial<Record<AccountingColumn, string>> = {};
+    for (const col of ACCOUNTING_COLUMNS) {
+      const idxs = colToSrc[col];
+      if (!idxs || idxs.length === 0) continue;
+      // Pick the first non-empty value across mapped source columns.
+      let picked = "";
+      for (const idx of idxs) {
+        const v = srcRow[idx];
+        if (v && v !== EMPTY_PLACEHOLDER && v.trim()) {
+          picked = v.trim();
+          break;
+        }
+      }
+      rawByCol[col] = picked;
+    }
+
+    // Auto-detect category if not already mapped.
+    if (!rawByCol["Category"]) {
+      const desc = rawByCol["Description"] || "";
+      const supplier = rawByCol["Supplier Name"] || "";
+      rawByCol["Category"] = detectCategory(`${desc} ${supplier}`);
+    }
+
+    // Second pass: format each canonical column for output.
+    for (const col of ACCOUNTING_COLUMNS) {
+      const raw = rawByCol[col] ?? "";
+      if (NUMERIC_COLUMNS.includes(col)) {
+        const n = parseAmount(raw);
+        numeric[col] = n;
+        if (n == null) {
+          out.push(EMPTY_PLACEHOLDER);
+        } else if (col === "Tax %") {
+          // Display tax % without forcing 2dp (e.g. 5 → "5%").
+          const isWhole = Math.abs(n - Math.round(n)) < 0.01;
+          out.push(isWhole ? `${Math.round(n)}%` : `${n.toFixed(2)}%`);
+        } else {
+          out.push(formatAmount(n));
+        }
+      } else {
+        out.push(raw && raw.trim() ? raw : EMPTY_PLACEHOLDER);
+      }
+    }
+
+    rows.push(out);
+    numericRows.push(numeric);
+
+    if (typeof numeric["Total"] === "number") totalAmount += numeric["Total"]!;
+    if (typeof numeric["VAT"] === "number") totalVat += numeric["VAT"]!;
+
+    const cur = (rawByCol["Currency"] || "").toUpperCase().trim();
+    if (cur && cur !== EMPTY_PLACEHOLDER) {
+      currencyCounts[cur] = (currencyCounts[cur] || 0) + 1;
+    }
+  }
+
+  // Most-common currency wins for the summary line.
+  const currency =
+    Object.entries(currencyCounts).sort((a, b) => b[1] - a[1])[0]?.[0] || "";
+
+  return {
+    headers: [...ACCOUNTING_COLUMNS],
+    rows,
+    numericRows,
+    unmappedHeaders: unmapped,
+    summary: {
+      totalInvoices: rows.length,
+      totalAmount,
+      totalVat,
+      currency,
+    },
+  };
+}
+
+// ─── Excel (XLSX) export ────────────────────────────────────────
+
+/**
+ * Generate a styled, accountant-ready `.xlsx` workbook from an
+ * AccountingTable and trigger a browser download.
+ *
+ * Formatting:
+ *  - Summary block at the top (Total invoices / Total amount / Total VAT)
+ *  - Bold, coloured header row
+ *  - Frozen header row
+ *  - Money columns formatted with thousands separator + 2 decimals
+ *  - Tax % column formatted as a percentage
+ *  - Auto-sized columns
+ *  - Bold "TOTAL" row at the bottom
+ */
+export async function downloadAccountingXlsx(
+  table: AccountingTable,
+  fileName: string
+): Promise<void> {
+  const ExcelJS = (await import("exceljs")).default;
+  const wb = new ExcelJS.Workbook();
+  wb.creator = "DocuAI";
+  wb.created = new Date();
+
+  const ws = wb.addWorksheet("Invoices", {
+    views: [{ state: "frozen", ySplit: 5 }], // freeze rows above the data
+  });
+
+  const moneyFmt = "#,##0.00";
+  const pctFmt = "0.00";
+
+  // ─── Summary block (rows 1–3) ──────────────────────────────────
+  const cur = table.summary.currency ? ` ${table.summary.currency}` : "";
+  const summaryItems: Array<[string, string | number, string?]> = [
+    ["Total Invoices", table.summary.totalInvoices],
+    ["Total Amount", table.summary.totalAmount, moneyFmt],
+    ["Total VAT", table.summary.totalVat, moneyFmt],
+  ];
+  for (let i = 0; i < summaryItems.length; i++) {
+    const [label, value, fmt] = summaryItems[i];
+    const row = ws.getRow(i + 1);
+    const labelCell = row.getCell(1);
+    labelCell.value = label;
+    labelCell.font = { bold: true, color: { argb: "FF0F766E" } };
+    labelCell.alignment = { vertical: "middle" };
+    const valueCell = row.getCell(2);
+    valueCell.value = value;
+    valueCell.font = { bold: true, size: 12 };
+    if (fmt) valueCell.numFmt = fmt;
+    if (label !== "Total Invoices" && cur) {
+      const curCell = row.getCell(3);
+      curCell.value = table.summary.currency;
+      curCell.font = { bold: true, color: { argb: "FF64748B" } };
+    }
+    row.height = 18;
+  }
+  // Empty spacer row 4
+  ws.getRow(4).height = 6;
+
+  // ─── Header row (row 5) ────────────────────────────────────────
+  const headerRowIdx = 5;
+  const headerRow = ws.getRow(headerRowIdx);
+  table.headers.forEach((h, i) => {
+    const cell = headerRow.getCell(i + 1);
+    cell.value = h;
+    cell.font = { bold: true, color: { argb: "FFFFFFFF" }, size: 11 };
+    cell.fill = {
+      type: "pattern",
+      pattern: "solid",
+      fgColor: { argb: "FF059669" }, // emerald-600
+    };
+    cell.alignment = { vertical: "middle", horizontal: "left" };
+    cell.border = {
+      top: { style: "thin", color: { argb: "FF047857" } },
+      bottom: { style: "thin", color: { argb: "FF047857" } },
+    };
+  });
+  headerRow.height = 22;
+
+  // Freeze rows above headerRow + 1 (so headers stay visible).
+  ws.views = [{ state: "frozen", ySplit: headerRowIdx }];
+
+  // ─── Data rows ─────────────────────────────────────────────────
+  for (let r = 0; r < table.rows.length; r++) {
+    const display = table.rows[r];
+    const numeric = table.numericRows[r];
+    const row = ws.getRow(headerRowIdx + 1 + r);
+    table.headers.forEach((col, i) => {
+      const cell = row.getCell(i + 1);
+      if (NUMERIC_COLUMNS.includes(col)) {
+        const n = numeric[col];
+        if (n == null) {
+          cell.value = null;
+        } else {
+          cell.value = n;
+          if (col === "Tax %") cell.numFmt = pctFmt;
+          else cell.numFmt = moneyFmt;
+        }
+      } else {
+        const v = display[i];
+        cell.value = v === EMPTY_PLACEHOLDER ? null : v;
+      }
+      cell.alignment = { vertical: "middle" };
+    });
+    // Zebra stripe on alternating rows.
+    if (r % 2 === 1) {
+      row.eachCell({ includeEmpty: true }, (cell) => {
+        cell.fill = {
+          type: "pattern",
+          pattern: "solid",
+          fgColor: { argb: "FFF8FAFC" },
+        };
+      });
+    }
+  }
+
+  // ─── TOTAL row at bottom ───────────────────────────────────────
+  const totalRowIdx = headerRowIdx + 1 + table.rows.length;
+  const totalRow = ws.getRow(totalRowIdx);
+  table.headers.forEach((col, i) => {
+    const cell = totalRow.getCell(i + 1);
+    if (i === 0) {
+      cell.value = "TOTAL";
+    } else if (col === "Subtotal" || col === "VAT" || col === "Total") {
+      let sum = 0;
+      for (const numeric of table.numericRows) {
+        const n = numeric[col];
+        if (typeof n === "number") sum += n;
+      }
+      cell.value = sum;
+      cell.numFmt = moneyFmt;
+    }
+    cell.font = { bold: true, color: { argb: "FF065F46" } };
+    cell.fill = {
+      type: "pattern",
+      pattern: "solid",
+      fgColor: { argb: "FFD1FAE5" }, // emerald-100
+    };
+    cell.border = {
+      top: { style: "medium", color: { argb: "FF059669" } },
+    };
+  });
+  totalRow.height = 20;
+
+  // ─── Column widths ─────────────────────────────────────────────
+  const widths: Record<AccountingColumn, number> = {
+    "Invoice Date": 14,
+    "Invoice Number": 18,
+    "Supplier Name": 28,
+    TRN: 18,
+    Description: 36,
+    Subtotal: 14,
+    "Tax %": 10,
+    VAT: 14,
+    Total: 14,
+    Currency: 10,
+    Category: 18,
+  };
+  table.headers.forEach((h, i) => {
+    ws.getColumn(i + 1).width = widths[h] ?? 16;
+  });
+
+  // ─── Trigger download ──────────────────────────────────────────
+  const buf = await wb.xlsx.writeBuffer();
+  const blob = new Blob([buf], {
+    type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+  });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  const base = fileName.replace(/\.(csv|xlsx)$/i, "");
+  a.download = `${base}.xlsx`;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(url);
+}
+
+/** Serialise an AccountingTable to plain CSV (still useful as fallback). */
+export function serializeAccountingCsv(table: AccountingTable): string {
+  const lines: string[] = [];
+  lines.push(
+    `Total Invoices,${table.summary.totalInvoices}`
+  );
+  lines.push(
+    `Total Amount,${formatAmount(table.summary.totalAmount)}${
+      table.summary.currency ? "," + table.summary.currency : ""
+    }`
+  );
+  lines.push(
+    `Total VAT,${formatAmount(table.summary.totalVat)}${
+      table.summary.currency ? "," + table.summary.currency : ""
+    }`
+  );
+  lines.push("");
+  lines.push(table.headers.map(escapeCell).join(","));
+  for (const row of table.rows) {
+    lines.push(row.map((c) => escapeCell(c === EMPTY_PLACEHOLDER ? "" : c)).join(","));
+  }
+  // TOTAL row
+  const totals: string[] = table.headers.map((col, i) => {
+    if (i === 0) return "TOTAL";
+    if (col === "Subtotal" || col === "VAT" || col === "Total") {
+      let s = 0;
+      for (const n of table.numericRows) {
+        const v = n[col];
+        if (typeof v === "number") s += v;
+      }
+      return formatAmount(s);
+    }
+    return "";
+  });
+  lines.push(totals.map(escapeCell).join(","));
+  return lines.join("\n") + "\n";
+}
