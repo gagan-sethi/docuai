@@ -24,11 +24,15 @@ import {
   ScanSearch,
   Keyboard,
   Zap,
+  Crown,
+  X,
 } from "lucide-react";
 import Link from "next/link";
 import Sidebar from "@/components/dashboard/Sidebar";
 import TopBar from "@/components/dashboard/TopBar";
 import MergeBar from "@/components/dashboard/MergeBar";
+import UpgradeModal from "@/components/dashboard/UpgradeModal";
+import ManagePlanModal from "@/components/dashboard/ManagePlanModal";
 import { apiUrl } from "@/lib/api";
 
 // ─── Types ──────────────────────────────────────────────────────
@@ -131,9 +135,14 @@ async function detectDocumentType(
 async function processFile(
   file: UploadFile,
   onUpdate: (updates: Partial<UploadFile>) => void,
-  isHandwritten: boolean = false
+  isHandwritten: boolean = false,
+  shouldCancel: () => boolean = () => false
 ): Promise<void> {
   try {
+    if (shouldCancel()) {
+      onUpdate({ status: "queued", progress: 0 });
+      return;
+    }
     onUpdate({ status: "uploading", progress: 20 });
 
     const formData = new FormData();
@@ -145,9 +154,9 @@ async function processFile(
     const uploadRes = await fetch(apiUrl("/api/upload"), { method: "POST", credentials: "include", body: formData });
 
     if (!uploadRes.ok) {
-      const err = await uploadRes.json();
-      if (err.upgradeRequired) {
-        throw new Error(`UPGRADE_REQUIRED:${err.message}`);
+      const err = await uploadRes.json().catch(() => ({}));
+      if (uploadRes.status === 403 && err.upgradeRequired) {
+        throw new Error(`UPGRADE_REQUIRED:${err.message || err.error || "Plan limit reached"}`);
       }
       throw new Error(err.error || "Upload failed");
     }
@@ -217,8 +226,60 @@ export default function UploadPage() {
   const [dragActive, setDragActive] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
   const [upgradeMessage, setUpgradeMessage] = useState("");
+  const [upgradeOpen, setUpgradeOpen] = useState(false);
+  const [managePlanOpen, setManagePlanOpen] = useState(false);
+  const [planInfo, setPlanInfo] = useState<{
+    plan: string;
+    label: string;
+    documentsPerMonth: number | "Unlimited";
+    documentsUsed: number;
+    documentsRemaining: number | "Unlimited";
+    pagesPerMonth: number | "Unlimited";
+    pagesUsed: number;
+    pagesRemaining: number | "Unlimited";
+  } | null>(null);
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const cancelUploadsRef = useRef(false);
+
+  // Fetch the user's current plan + usage so we can do a pre-flight check
+  // and avoid silently spamming the upload endpoint when the limit is hit.
+  const refreshPlan = useCallback(async () => {
+    try {
+      const res = await fetch(apiUrl("/api/plan"), { credentials: "include" });
+      if (!res.ok) return;
+      const data = await res.json();
+      setPlanInfo(data);
+    } catch {
+      /* ignore — plan UI is optional */
+    }
+  }, []);
+
+  useEffect(() => {
+    refreshPlan();
+  }, [refreshPlan]);
+
+  /**
+   * Show the upgrade modal with a tailored message and stop any further
+   * uploads from being kicked off in the current batch.
+   */
+  const triggerUpgradeModal = useCallback((message: string) => {
+    cancelUploadsRef.current = true;
+    setUpgradeMessage(message);
+    setUpgradeOpen(true);
+    setIsProcessing(false);
+    // Reset any already-queued files that hadn't started yet so the user
+    // can retry after upgrading.
+    setFiles((prev) =>
+      prev.map((f) =>
+        f.status === "uploading" || f.status === "processing" || f.status === "structuring"
+          ? f
+          : f.status === "queued" || f.status === "ready"
+          ? { ...f, status: "ready", progress: 0 }
+          : f
+      )
+    );
+  }, []);
 
   useEffect(() => {
     const observer = new MutationObserver(() => {
@@ -292,29 +353,59 @@ export default function UploadPage() {
     const readyFiles = files.filter((f) => f.status === "ready" || f.status === "queued");
     if (readyFiles.length === 0) return;
 
+    // ─── Pre-flight plan check ──────────────────────────────────
+    // The free plan caps documents and pages per month. If the user
+    // selects more than they're allowed, surface a clear upgrade modal
+    // BEFORE we start uploading anything (instead of silently spinning
+    // a loader and failing 5x in a row).
+    if (planInfo) {
+      const docLimit = planInfo.documentsPerMonth;
+      const docRemaining = planInfo.documentsRemaining;
+      if (typeof docRemaining === "number" && readyFiles.length > docRemaining) {
+        triggerUpgradeModal(
+          docRemaining === 0
+            ? `You've used all ${docLimit} documents on your ${planInfo.label} plan this month. Upgrade to process ${readyFiles.length} more.`
+            : `You're trying to process ${readyFiles.length} documents but only ${docRemaining} remain on your ${planInfo.label} plan this month. Upgrade for higher limits.`
+        );
+        return;
+      }
+    }
+
+    cancelUploadsRef.current = false;
     setIsProcessing(true);
     setUpgradeMessage("");
+    setUpgradeOpen(false);
 
     readyFiles.forEach((uploadFile, i) => {
       setTimeout(() => {
+        if (cancelUploadsRef.current) return;
         const isHandwritten = uploadFile.isHandwrittenOverride ?? (uploadFile.detectedType === "handwritten");
-        processFile(uploadFile, (updates) => {
-          setFiles((prev) => {
-            const updated = prev.map((f) => (f.id === uploadFile.id ? { ...f, ...updates } : f));
-            const anyActive = updated.some((f) => ["uploading", "processing", "structuring"].includes(f.status));
-            if (!anyActive) setIsProcessing(false);
+        processFile(
+          uploadFile,
+          (updates) => {
+            setFiles((prev) => {
+              const updated = prev.map((f) => (f.id === uploadFile.id ? { ...f, ...updates } : f));
+              const anyActive = updated.some((f) => ["uploading", "processing", "structuring"].includes(f.status));
+              if (!anyActive) setIsProcessing(false);
 
-            // Detect upgrade-required errors
-            if (updates.error?.startsWith("UPGRADE_REQUIRED:")) {
-              setUpgradeMessage(updates.error.replace("UPGRADE_REQUIRED:", ""));
-            }
+              // Detect upgrade-required errors → open the upgrade modal
+              // and cancel the rest of the queued uploads so we don't
+              // hammer the API with N more guaranteed-403 requests.
+              if (updates.error?.startsWith("UPGRADE_REQUIRED:")) {
+                const msg = updates.error.replace("UPGRADE_REQUIRED:", "");
+                triggerUpgradeModal(msg);
+                refreshPlan();
+              }
 
-            return updated;
-          });
-        }, isHandwritten);
+              return updated;
+            });
+          },
+          isHandwritten,
+          () => cancelUploadsRef.current
+        );
       }, i * 500);
     });
-  }, [files]);
+  }, [files, planInfo, refreshPlan, triggerUpgradeModal]);
 
   const retryFile = useCallback((file: UploadFile) => {
     const isHandwritten = file.isHandwrittenOverride ?? (file.detectedType === "handwritten");
@@ -396,21 +487,34 @@ export default function UploadPage() {
             </div>
           </motion.div>
 
-          {/* Upgrade Required Banner */}
-          {upgradeMessage && (
+          {/* Upgrade Required Banner — persistent inline summary while the
+              modal is dismissed but the limit still applies. */}
+          {upgradeMessage && !upgradeOpen && (
             <motion.div
               initial={{ opacity: 0, y: -10 }}
               animate={{ opacity: 1, y: 0 }}
-              className="flex items-center gap-4 px-5 py-4 bg-gradient-to-r from-red-50 to-amber-50 border border-red-100 rounded-2xl"
+              className="flex items-center gap-4 px-5 py-4 bg-gradient-to-r from-amber-50 to-orange-50 border border-amber-200 rounded-2xl"
             >
-              <div className="p-2.5 rounded-xl bg-red-100 flex-shrink-0">
-                <AlertTriangle className="w-5 h-5 text-red-500" />
+              <div className="p-2.5 rounded-xl bg-amber-100 flex-shrink-0">
+                <Crown className="w-5 h-5 text-amber-600" />
               </div>
-              <div className="flex-1">
-                <p className="text-sm font-semibold text-red-700">Document Limit Reached</p>
-                <p className="text-xs text-red-600/80 mt-0.5">{upgradeMessage}</p>
-                <p className="text-[10px] text-red-500/70 mt-1">Paid plans coming soon. Your limit resets at the start of next month.</p>
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-semibold text-amber-800">Plan limit reached</p>
+                <p className="text-xs text-amber-700/80 mt-0.5">{upgradeMessage}</p>
               </div>
+              <Link
+                href="/pricing"
+                className="flex items-center gap-1.5 px-3.5 py-2 text-xs font-bold text-white bg-gradient-to-r from-amber-500 to-orange-500 rounded-lg shadow-sm hover:shadow-md transition-all whitespace-nowrap"
+              >
+                <Crown className="w-3.5 h-3.5" />
+                Upgrade Plan
+              </Link>
+              <button
+                onClick={() => setUpgradeOpen(true)}
+                className="text-xs font-medium text-amber-700 hover:text-amber-900 px-2 py-1"
+              >
+                Details
+              </button>
             </motion.div>
           )}
 
@@ -791,6 +895,36 @@ export default function UploadPage() {
           </motion.div>
         </main>
       </motion.div>
+
+      {/* ─── Upgrade Required Modal ──────────────────────────────
+          Surfaced when the user tries to process more documents than
+          their current plan allows, OR when the API returns a 403 with
+          `upgradeRequired: true`. The "Upgrade Plan" CTA opens the
+          shared `ManagePlanModal` (the same dialog that opens from
+          "Manage Plan" on the dashboard) so users stay in-app instead
+          of being bounced to the public /pricing page. */}
+      <UpgradeModal
+        open={upgradeOpen}
+        message={upgradeMessage}
+        planInfo={planInfo}
+        onClose={() => setUpgradeOpen(false)}
+        onUpgrade={() => setManagePlanOpen(true)}
+      />
+
+      <ManagePlanModal
+        open={managePlanOpen}
+        onClose={() => setManagePlanOpen(false)}
+        planData={
+          planInfo
+            ? {
+                plan: planInfo.plan,
+                label: planInfo.label,
+                documentsPerMonth: planInfo.documentsPerMonth,
+                documentsUsed: planInfo.documentsUsed,
+              }
+            : null
+        }
+      />
     </div>
   );
 }

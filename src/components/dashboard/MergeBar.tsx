@@ -28,6 +28,8 @@ import {
 } from "lucide-react";
 import { apiUrl } from "@/lib/api";
 import MergePreviewModal from "./MergePreviewModal";
+import UpgradeModal, { UpgradeModalPlanInfo } from "./UpgradeModal";
+import ManagePlanModal from "./ManagePlanModal";
 
 type MergeMode = "fields" | "lineitems";
 
@@ -72,6 +74,40 @@ export default function MergeBar({
     documentCount: number;
     usedAI: boolean;
   }>({ open: false, csvText: "", fileName: "", documentCount: 0, usedAI: false });
+
+  // Upgrade modal — shown when the user tries to merge more documents
+  // than their plan allows (pre-flight or 403 from the backend).
+  const [planInfo, setPlanInfo] = useState<UpgradeModalPlanInfo | null>(null);
+  const [upgrade, setUpgrade] = useState<{ open: boolean; message: string }>({
+    open: false,
+    message: "",
+  });
+  const [managePlanOpen, setManagePlanOpen] = useState(false);
+  const FREE_PLAN_MERGE_CAP = 5;
+
+  // Fetch plan once on mount so we can do a pre-flight check before
+  // hitting the merge endpoint.
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch(apiUrl("/api/plan"), { credentials: "include" });
+        if (!res.ok) return;
+        const data = (await res.json()) as UpgradeModalPlanInfo;
+        if (!cancelled) setPlanInfo(data);
+      } catch {
+        /* optional */
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const isFreePlan =
+    !!planInfo &&
+    ((planInfo.plan || "").toLowerCase() === "free" ||
+      (planInfo.label || "").toLowerCase().includes("free"));
 
   const allSelected = totalSelectable > 0 && selectedIds.length === totalSelectable;
 
@@ -147,6 +183,19 @@ export default function MergeBar({
 
   const runMerge = useCallback(async () => {
     if (selectedIds.length === 0 || busy) return;
+
+    // ─── Pre-flight plan check ──────────────────────────────────
+    // Free-plan users can only merge up to FREE_PLAN_MERGE_CAP docs at
+    // once. Show the upgrade modal up front instead of starting an async
+    // job that the backend will reject.
+    if (isFreePlan && selectedIds.length > FREE_PLAN_MERGE_CAP) {
+      setUpgrade({
+        open: true,
+        message: `You're trying to merge ${selectedIds.length} documents, but the ${planInfo?.label || "Free"} plan allows only ${FREE_PLAN_MERGE_CAP} documents per merge. Upgrade to merge more in one go.`,
+      });
+      return;
+    }
+
     setBusy(true);
     setError(null);
     setJob(null);
@@ -172,6 +221,21 @@ export default function MergeBar({
           format: "csv",
         }),
       });
+
+      // Plan-limit response from the backend.
+      if (res.status === 403) {
+        const data = await res.json().catch(() => ({}));
+        if (data?.upgradeRequired) {
+          setUpgrade({
+            open: true,
+            message:
+              data.message ||
+              `This merge exceeds your ${planInfo?.label || "current"} plan limit. Upgrade to continue.`,
+          });
+          setBusy(false);
+          return;
+        }
+      }
 
       if (res.status === 202) {
         // async job
@@ -209,9 +273,9 @@ export default function MergeBar({
       setError(err instanceof Error ? err.message : "Merge failed");
       setBusy(false);
     }
-  }, [busy, mode, selectedIds, startPolling, useAI]);
+  }, [busy, isFreePlan, mode, planInfo, selectedIds, startPolling, useAI]);
 
-  if (selectedIds.length === 0 && !job && !error && !preview.open) {
+  if (selectedIds.length === 0 && !job && !error && !preview.open && !upgrade.open && !managePlanOpen) {
     return null;
   }
 
@@ -221,6 +285,7 @@ export default function MergeBar({
   return (
     <AnimatePresence>
       <motion.div
+        key="merge-bar"
         initial={{ opacity: 0, y: 16 }}
         animate={{ opacity: 1, y: 0 }}
         exit={{ opacity: 0, y: 16 }}
@@ -399,6 +464,29 @@ export default function MergeBar({
         documentCount={preview.documentCount}
         usedAI={preview.usedAI}
         onClose={() => setPreview((p) => ({ ...p, open: false }))}
+      />
+
+      <UpgradeModal
+        open={upgrade.open}
+        message={upgrade.message}
+        planInfo={planInfo}
+        onClose={() => setUpgrade({ open: false, message: "" })}
+        onUpgrade={() => setManagePlanOpen(true)}
+      />
+
+      <ManagePlanModal
+        open={managePlanOpen}
+        onClose={() => setManagePlanOpen(false)}
+        planData={
+          planInfo
+            ? {
+                plan: planInfo.plan,
+                label: planInfo.label,
+                documentsPerMonth: planInfo.documentsPerMonth,
+                documentsUsed: planInfo.documentsUsed,
+              }
+            : null
+        }
       />
     </AnimatePresence>
   );

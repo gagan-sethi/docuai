@@ -360,8 +360,13 @@ const HEADER_MAP: Array<{ col: AccountingColumn; rx: RegExp }> = [
   // Invoice Date
   { col: "Invoice Date", rx: /\b(invoice|inv|bill|document|issue|issued)[\s_-]*date\b/i },
   { col: "Invoice Date", rx: /^date$/i },
-  // Supplier
-  { col: "Supplier Name", rx: /\b(supplier|vendor|seller|from|company|merchant|payee|biller|issued[\s_-]*by)[\s_-]*(name)?\b/i },
+  // Supplier — order matters: prefer explicit "supplier name" / "vendor name"
+  // over generic "company"/"from" so address-ish fields don't win.
+  { col: "Supplier Name", rx: /\b(supplier|vendor|seller|merchant|payee|biller)[\s_-]*name\b/i },
+  { col: "Supplier Name", rx: /^(supplier|vendor|seller|merchant|payee|biller)$/i },
+  { col: "Supplier Name", rx: /\b(issued[\s_-]*by|billed[\s_-]*from|sold[\s_-]*by)\b/i },
+  { col: "Supplier Name", rx: /\b(company[\s_-]*name|business[\s_-]*name|trade[\s_-]*name|legal[\s_-]*name)\b/i },
+  { col: "Supplier Name", rx: /^(from|company|business|merchant)$/i },
   // TRN / Tax registration / VAT number
   { col: "TRN", rx: /\b(trn|tax[\s_-]*reg(istration)?|tax[\s_-]*id|vat[\s_-]*(no|num(ber)?|reg|id)|gstin|tin)\b/i },
   // Description
@@ -422,6 +427,40 @@ function detectCategory(text: string): string {
   return "Other";
 }
 
+/**
+ * Heuristic: does this string look like a postal address rather than a
+ * supplier/business name? Addresses commonly include things like
+ * "PO Box", "Street", "Road", "Floor", building numbers, postal codes,
+ * or contain commas separating address parts.
+ */
+const ADDRESS_HINTS_RX =
+  /\b(p\.?\s*o\.?\s*box|po\s*box|street|st\.?|road|rd\.?|avenue|ave\.?|boulevard|blvd|building|bldg|tower|floor|fl\.?|suite|ste\.?|warehouse|unit|behind|opposite|near|villa|apartment|apt|room|sector|district|zone|industrial\s*area|free\s*zone|al\s+\w+|sheikh|emirate|dubai|abu\s*dhabi|sharjah|ajman|fujairah|ras\s*al\s*khaimah|umm\s*al\s*quwain|uae|u\.a\.e\.|p\.box)\b/i;
+
+function looksLikeAddress(s: string): boolean {
+  if (!s) return false;
+  const v = s.trim();
+  if (!v) return false;
+  if (ADDRESS_HINTS_RX.test(v)) return true;
+  // Multiple comma-separated parts that include digits → likely an address.
+  const parts = v.split(",").map((p) => p.trim()).filter(Boolean);
+  if (parts.length >= 2 && /\d/.test(v) && v.length > 25) return true;
+  return false;
+}
+
+/**
+ * Pick the best supplier-name candidate from one or more raw values.
+ * Prefers values that don't look like addresses; falls back to the
+ * first non-empty value if every candidate is address-like.
+ */
+function pickSupplierName(candidates: string[]): string {
+  const cleaned = candidates
+    .map((v) => (v || "").trim())
+    .filter((v) => v && v !== EMPTY_PLACEHOLDER);
+  if (cleaned.length === 0) return "";
+  const nonAddress = cleaned.find((v) => !looksLikeAddress(v));
+  return nonAddress ?? cleaned[0];
+}
+
 export interface AccountingTable {
   /** Always equal to ACCOUNTING_COLUMNS. */
   headers: AccountingColumn[];
@@ -476,16 +515,100 @@ export function buildAccountingTable(cleaned: CleanedCsv): AccountingTable {
     for (const col of ACCOUNTING_COLUMNS) {
       const idxs = colToSrc[col];
       if (!idxs || idxs.length === 0) continue;
-      // Pick the first non-empty value across mapped source columns.
-      let picked = "";
+      // Collect every non-empty candidate across mapped source columns.
+      const candidates: string[] = [];
       for (const idx of idxs) {
         const v = srcRow[idx];
         if (v && v !== EMPTY_PLACEHOLDER && v.trim()) {
-          picked = v.trim();
+          candidates.push(v.trim());
+        }
+      }
+      if (candidates.length === 0) {
+        rawByCol[col] = "";
+      } else if (col === "Supplier Name") {
+        // Avoid picking an address when a real business name is also present.
+        rawByCol[col] = pickSupplierName(candidates);
+      } else {
+        rawByCol[col] = candidates[0];
+      }
+    }
+
+    // If the supplier slot ended up holding an address (e.g. backend
+    // mislabelled a column), try to recover from any unmapped source
+    // column that doesn't look like an address and isn't already used.
+    if (
+      (!rawByCol["Supplier Name"] || looksLikeAddress(rawByCol["Supplier Name"]!))
+    ) {
+      const usedIdxs = new Set<number>();
+      for (const idxs of Object.values(colToSrc)) {
+        if (idxs) for (const i of idxs) usedIdxs.add(i);
+      }
+      for (let i = 0; i < cleaned.headers.length; i++) {
+        if (usedIdxs.has(i)) continue;
+        const h = cleaned.headers[i].toLowerCase();
+        if (!/(name|company|business|supplier|vendor|seller|merchant|payee|biller)/i.test(h)) continue;
+        const v = (srcRow[i] || "").trim();
+        if (v && v !== EMPTY_PLACEHOLDER && !looksLikeAddress(v)) {
+          rawByCol["Supplier Name"] = v;
           break;
         }
       }
-      rawByCol[col] = picked;
+    }
+
+    // Derive Subtotal when missing but Total + (VAT or Tax %) are known.
+    // Many invoices only expose the Total + tax line, leaving Subtotal blank.
+    {
+      const subRaw = rawByCol["Subtotal"];
+      const hasSub = subRaw && subRaw !== EMPTY_PLACEHOLDER && parseAmount(subRaw) != null;
+      if (!hasSub) {
+        const totalN = parseAmount(rawByCol["Total"] || "");
+        const vatN = parseAmount(rawByCol["VAT"] || "");
+        const taxN = parseAmount(rawByCol["Tax %"] || "");
+        let derived: number | null = null;
+        if (totalN != null && vatN != null) {
+          derived = totalN - vatN;
+        } else if (totalN != null && taxN != null && taxN > -100) {
+          derived = totalN / (1 + taxN / 100);
+        } else if (vatN != null && taxN != null && taxN > 0) {
+          derived = vatN / (taxN / 100);
+        }
+        if (derived != null && Number.isFinite(derived)) {
+          rawByCol["Subtotal"] = formatAmount(derived);
+        }
+      }
+    }
+
+    // Derive VAT when missing but Subtotal + Tax % (or Total) are known.
+    {
+      const vatRaw = rawByCol["VAT"];
+      const hasVat = vatRaw && vatRaw !== EMPTY_PLACEHOLDER && parseAmount(vatRaw) != null;
+      if (!hasVat) {
+        const subN = parseAmount(rawByCol["Subtotal"] || "");
+        const totalN = parseAmount(rawByCol["Total"] || "");
+        const taxN = parseAmount(rawByCol["Tax %"] || "");
+        let derived: number | null = null;
+        if (subN != null && taxN != null && taxN >= 0) {
+          derived = subN * (taxN / 100);
+        } else if (totalN != null && subN != null) {
+          derived = totalN - subN;
+        }
+        if (derived != null && Number.isFinite(derived) && derived >= 0) {
+          rawByCol["VAT"] = formatAmount(derived);
+        }
+      }
+    }
+
+    // Derive Total when missing but Subtotal + VAT are known.
+    {
+      const totRaw = rawByCol["Total"];
+      const hasTot = totRaw && totRaw !== EMPTY_PLACEHOLDER && parseAmount(totRaw) != null;
+      if (!hasTot) {
+        const subN = parseAmount(rawByCol["Subtotal"] || "");
+        const vatN = parseAmount(rawByCol["VAT"] || "");
+        if (subN != null && vatN != null) {
+          rawByCol["Total"] = formatAmount(subN + vatN);
+        }
+      }
     }
 
     // Auto-detect category if not already mapped.
