@@ -15,7 +15,7 @@
  * `TOTAL` row appended).
  */
 
-import { useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   X,
@@ -26,8 +26,11 @@ import {
   Layers,
   CheckCircle2,
   Search,
+  Eye,
+  ExternalLink,
+  Loader2,
 } from "lucide-react";
-import { useState } from "react";
+import { apiUrl } from "@/lib/api";
 import {
   cleanMergedCsv,
   buildAccountingTable,
@@ -57,6 +60,9 @@ export default function MergePreviewModal({
 }: Props) {
   const [search, setSearch] = useState("");
   const [downloading, setDownloading] = useState(false);
+  // Per-row source-file viewer: holds the row index whose document is
+  // currently being previewed (null when closed).
+  const [previewRow, setPreviewRow] = useState<number | null>(null);
 
   const cleaned = useMemo(
     () => (csvText ? cleanMergedCsv(csvText) : null),
@@ -69,10 +75,11 @@ export default function MergePreviewModal({
   );
 
   const filteredRows = useMemo(() => {
-    if (!accounting) return [];
-    if (!search.trim()) return accounting.rows;
+    if (!accounting) return [] as Array<{ row: string[]; index: number }>;
+    const all = accounting.rows.map((row, index) => ({ row, index }));
+    if (!search.trim()) return all;
     const q = search.toLowerCase();
-    return accounting.rows.filter((row) =>
+    return all.filter(({ row }) =>
       row.some((c) => c.toLowerCase().includes(q))
     );
   }, [accounting, search]);
@@ -246,21 +253,27 @@ export default function MergePreviewModal({
                         {h}
                       </th>
                     ))}
+                    <th className="bg-slate-100 border-b border-slate-200 px-3 py-2 text-[10px] font-bold uppercase tracking-wider text-slate-500 text-center whitespace-nowrap w-16">
+                      Source
+                    </th>
                   </tr>
                 </thead>
                 <tbody>
                   {filteredRows.length === 0 && (
                     <tr>
                       <td
-                        colSpan={accounting.headers.length + 1}
+                        colSpan={accounting.headers.length + 2}
                         className="px-6 py-12 text-center text-sm text-slate-400"
                       >
                         No rows match your filter.
                       </td>
                     </tr>
                   )}
-                  {filteredRows.map((row, ri) => (
-                    <tr key={ri} className="hover:bg-emerald-50/40 group">
+                  {filteredRows.map(({ row, index }, ri) => {
+                    const source = accounting.rowSources[index];
+                    const canPreview = !!source?.documentId;
+                    return (
+                    <tr key={index} className="hover:bg-emerald-50/40 group">
                       <td className="sticky left-0 z-[5] bg-white group-hover:bg-emerald-50/40 border-b border-r border-slate-100 px-3 py-2 text-[10px] font-mono text-slate-400 text-left">
                         {ri + 1}
                       </td>
@@ -287,8 +300,24 @@ export default function MergePreviewModal({
                           </td>
                         );
                       })}
+                      <td className="border-b border-slate-100 px-2 py-2 text-center">
+                        {canPreview ? (
+                          <button
+                            type="button"
+                            onClick={() => setPreviewRow(index)}
+                            className="inline-flex items-center justify-center w-7 h-7 rounded-md text-slate-400 hover:text-emerald-700 hover:bg-emerald-50 transition"
+                            title={`Preview source: ${source?.fileName ?? "document"}`}
+                            aria-label="Preview source document"
+                          >
+                            <Eye className="w-4 h-4" />
+                          </button>
+                        ) : (
+                          <span className="text-slate-300">—</span>
+                        )}
+                      </td>
                     </tr>
-                  ))}
+                    );
+                  })}
                 </tbody>
                 <tfoot className="sticky bottom-0">
                   <tr>
@@ -323,6 +352,7 @@ export default function MergePreviewModal({
                         </td>
                       );
                     })}
+                    <td className="bg-emerald-50 border-t-2 border-emerald-300 px-3 py-3" />
                   </tr>
                 </tfoot>
               </table>
@@ -365,6 +395,15 @@ export default function MergePreviewModal({
               </button>
             </div>
           </motion.div>
+          {previewRow != null && accounting.rowSources[previewRow]?.documentId && (
+            <SourceDocViewer
+              key={`viewer-${previewRow}`}
+              documentId={accounting.rowSources[previewRow]!.documentId!}
+              fileName={accounting.rowSources[previewRow]!.fileName}
+              rowNumber={previewRow + 1}
+              onClose={() => setPreviewRow(null)}
+            />
+          )}
         </>
       )}
     </AnimatePresence>
@@ -406,5 +445,146 @@ function Stat({
         <span className="text-[10px] text-emerald-200/80 truncate">{hint}</span>
       )}
     </div>
+  );
+}
+
+/**
+ * Inline viewer for the source document behind a single accounting row.
+ * Streams the file from the existing `/api/documents/:id/download`
+ * endpoint via a same-origin object URL so PDFs and images render in an
+ * `<iframe>` without auth-cookie / cross-origin headaches.
+ */
+function SourceDocViewer({
+  documentId,
+  fileName,
+  rowNumber,
+  onClose,
+}: {
+  documentId: string;
+  fileName: string | null;
+  rowNumber: number;
+  onClose: () => void;
+}) {
+  const [objectUrl, setObjectUrl] = useState<string | null>(null);
+  const [contentType, setContentType] = useState<string>("");
+  const [error, setError] = useState<string | null>(null);
+
+  // Fetch the source file as a blob so we can render it inline
+  // regardless of whether the backend serves an S3 redirect or a
+  // direct stream. Same-origin object URL avoids cookie/CORS issues.
+  useEffect(() => {
+    let cancelled = false;
+    let createdUrl: string | null = null;
+    setObjectUrl(null);
+    setError(null);
+    setContentType("");
+
+    (async () => {
+      try {
+        const res = await fetch(apiUrl(`/api/documents/${documentId}/preview`), {
+          credentials: "include",
+        });
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const ct = res.headers.get("content-type") || "";
+        const blob = await res.blob();
+        if (cancelled) return;
+        createdUrl = URL.createObjectURL(blob);
+        setContentType(ct || blob.type || "");
+        setObjectUrl(createdUrl);
+      } catch (e) {
+        if (!cancelled) {
+          setError(e instanceof Error ? e.message : "Failed to load document");
+        }
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+      if (createdUrl) URL.revokeObjectURL(createdUrl);
+    };
+  }, [documentId]);
+
+  const isImage = contentType.startsWith("image/");
+  const downloadHref = apiUrl(`/api/documents/${documentId}/preview`);
+
+  return (
+    <>
+      <motion.div
+        key="source-viewer-backdrop"
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        exit={{ opacity: 0 }}
+        className="fixed inset-0 bg-slate-900/70 backdrop-blur-sm z-[80]"
+        onClick={onClose}
+      />
+      <motion.div
+        key="source-viewer-modal"
+        initial={{ opacity: 0, y: 24, scale: 0.98 }}
+        animate={{ opacity: 1, y: 0, scale: 1 }}
+        exit={{ opacity: 0, y: 24, scale: 0.98 }}
+        transition={{ type: "spring", bounce: 0.05, duration: 0.35 }}
+        className="fixed inset-6 sm:inset-10 lg:inset-16 z-[90] flex flex-col bg-white rounded-2xl shadow-2xl overflow-hidden"
+      >
+        <div className="flex-shrink-0 flex items-center justify-between gap-3 px-5 py-3 border-b border-slate-200 bg-slate-50">
+          <div className="flex items-center gap-3 min-w-0">
+            <div className="w-9 h-9 rounded-lg bg-emerald-100 text-emerald-700 flex items-center justify-center flex-shrink-0">
+              <Eye className="w-4 h-4" />
+            </div>
+            <div className="min-w-0">
+              <h4 className="text-sm font-bold text-slate-800 truncate">
+                Row {rowNumber} · {fileName ?? "Source document"}
+              </h4>
+              <p className="text-[11px] text-slate-500">
+                Verify column values against the original file
+              </p>
+            </div>
+          </div>
+          <div className="flex items-center gap-2">
+            <a
+              href={downloadHref}
+              target="_blank"
+              rel="noreferrer"
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-slate-700 bg-white border border-slate-200 rounded-lg hover:bg-slate-50 transition"
+            >
+              <ExternalLink className="w-3.5 h-3.5" />
+              Open in new tab
+            </a>
+            <button
+              onClick={onClose}
+              className="p-2 rounded-lg text-slate-500 hover:text-slate-900 hover:bg-slate-100 transition"
+              aria-label="Close source preview"
+            >
+              <X className="w-4 h-4" />
+            </button>
+          </div>
+        </div>
+
+        <div className="flex-1 overflow-auto bg-slate-100 flex items-center justify-center">
+          {error ? (
+            <div className="text-sm text-red-600 px-6 py-12 text-center">
+              Could not load source file: {error}
+            </div>
+          ) : !objectUrl ? (
+            <div className="flex items-center gap-2 text-sm text-slate-500">
+              <Loader2 className="w-4 h-4 animate-spin" />
+              Loading source document…
+            </div>
+          ) : isImage ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img
+              src={objectUrl}
+              alt={fileName ?? "Source document"}
+              className="max-w-full max-h-full object-contain bg-white shadow"
+            />
+          ) : (
+            <iframe
+              src={objectUrl}
+              title={fileName ?? "Source document"}
+              className="w-full h-full bg-white"
+            />
+          )}
+        </div>
+      </motion.div>
+    </>
   );
 }

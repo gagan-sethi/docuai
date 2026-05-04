@@ -354,8 +354,10 @@ const NUMERIC_COLUMNS: AccountingColumn[] = [
  * source header wins, so order matters (more-specific patterns first).
  */
 const HEADER_MAP: Array<{ col: AccountingColumn; rx: RegExp }> = [
-  // Invoice Number — must come before generic "number"
-  { col: "Invoice Number", rx: /\b(invoice|inv|bill|tax\s*invoice|document)[\s_-]*(no|num(ber)?|#|id)\b/i },
+  // Invoice Number — must come before generic "number".
+  // IMPORTANT: do NOT match "Document ID" — that's the merged CSV's
+  // traceability meta column (a UUID), not the human-facing invoice no.
+  { col: "Invoice Number", rx: /\b(invoice|inv|bill|tax\s*invoice)[\s_-]*(no|num(ber)?|#|id)\b/i },
   { col: "Invoice Number", rx: /^(invoice|inv|bill)[\s_-]*(no|num(ber)?|#|id)?$/i },
   // Invoice Date
   { col: "Invoice Date", rx: /\b(invoice|inv|bill|document|issue|issued)[\s_-]*date\b/i },
@@ -367,7 +369,9 @@ const HEADER_MAP: Array<{ col: AccountingColumn; rx: RegExp }> = [
   { col: "Supplier Name", rx: /\b(issued[\s_-]*by|billed[\s_-]*from|sold[\s_-]*by)\b/i },
   { col: "Supplier Name", rx: /\b(company[\s_-]*name|business[\s_-]*name|trade[\s_-]*name|legal[\s_-]*name)\b/i },
   { col: "Supplier Name", rx: /^(from|company|business|merchant)$/i },
-  // TRN / Tax registration / VAT number
+  // TRN / Tax registration / VAT number — prefer SUPPLIER variants
+  // over generic so a supplier+customer collision never picks the buyer.
+  { col: "TRN", rx: /\b(supplier|vendor|seller|company)[\s_-]*(trn|tax[\s_-]*reg(istration)?|tax[\s_-]*id|vat[\s_-]*(no|num(ber)?|reg|id))\b/i },
   { col: "TRN", rx: /\b(trn|tax[\s_-]*reg(istration)?|tax[\s_-]*id|vat[\s_-]*(no|num(ber)?|reg|id)|gstin|tin)\b/i },
   // Description
   { col: "Description", rx: /\b(description|particulars|item[\s_-]*description|service|details|narration|line[\s_-]*description|remarks?)\b/i },
@@ -389,6 +393,20 @@ const HEADER_MAP: Array<{ col: AccountingColumn; rx: RegExp }> = [
 function matchAccountingColumn(header: string): AccountingColumn | null {
   const h = header.trim();
   if (!h) return null;
+  // Hard-reject buyer-side identity columns so they don't accidentally
+  // match the generic Supplier Name / TRN patterns below.
+  if (
+    /\b(customer|buyer|consignee|recipient|bill[\s_-]*to|ship[\s_-]*to|delivered[\s_-]*to|sold[\s_-]*to|party)\b/i.test(h)
+  ) {
+    return null;
+  }
+  // Hard-reject bank-details headers (Bank Name, A/C Name, Branch,
+  // IBAN, etc.) — they're payment metadata, not accounting columns.
+  if (
+    /\b(bank|branch|swift|iban|a\/c|account|beneficiary)\b/i.test(h)
+  ) {
+    return null;
+  }
   for (const { col, rx } of HEADER_MAP) {
     if (rx.test(h)) return col;
   }
@@ -448,17 +466,65 @@ function looksLikeAddress(s: string): boolean {
 }
 
 /**
+ * Heuristic: does this string look like a source file name (e.g. the
+ * uploaded PDF/image name) rather than a real business name? The
+ * backend sometimes falls back to the file name when OCR/AI cannot
+ * extract a supplier, and we don't want that leaking into the sheet.
+ */
+const FILE_EXT_RX =
+  /\.(pdf|png|jpe?g|gif|tiff?|bmp|webp|heic|csv|xlsx?|docx?|txt|zip)$/i;
+
+function looksLikeFileName(s: string): boolean {
+  if (!s) return false;
+  const v = s.trim();
+  if (!v) return false;
+  // Obvious: ends in a known document/image extension.
+  if (FILE_EXT_RX.test(v)) return true;
+  // All-digit "names" like "20250326092724" (timestamp-style upload IDs).
+  if (/^\d{8,}$/.test(v)) return true;
+  // UUID-like tokens used as object keys.
+  if (/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(v)) return true;
+  return false;
+}
+
+/**
+ * Heuristic: does this string look like a bank / account / branch name
+ * leaked from the BANK DETAILS block of an invoice (e.g. "ADCB Islamic
+ * Banking", "HSBC Bank Middle East") rather than the actual supplier?
+ */
+const BANK_HINTS_RX =
+  /\b(bank|banking|branch|swift|iban|a\/c|account|beneficiary|adcb|enbd|fab|hsbc|citibank|mashreq|rakbank|cbd|noor\s*bank|emirates\s*nbd|standard\s*chartered)\b/i;
+
+function looksLikeBank(s: string): boolean {
+  if (!s) return false;
+  return BANK_HINTS_RX.test(s.trim());
+}
+
+/**
  * Pick the best supplier-name candidate from one or more raw values.
- * Prefers values that don't look like addresses; falls back to the
- * first non-empty value if every candidate is address-like.
+ * Prefers values that don't look like addresses, file names, or bank
+ * details; falls back to the first non-empty value if every candidate
+ * is unusable.
  */
 function pickSupplierName(candidates: string[]): string {
   const cleaned = candidates
     .map((v) => (v || "").trim())
     .filter((v) => v && v !== EMPTY_PLACEHOLDER);
   if (cleaned.length === 0) return "";
-  const nonAddress = cleaned.find((v) => !looksLikeAddress(v));
-  return nonAddress ?? cleaned[0];
+  const good = cleaned.find(
+    (v) => !looksLikeAddress(v) && !looksLikeFileName(v) && !looksLikeBank(v)
+  );
+  if (good) return good;
+  // Prefer non-filename, non-bank values even if they're address-like.
+  const nonFileBank = cleaned.find((v) => !looksLikeFileName(v) && !looksLikeBank(v));
+  return nonFileBank ?? cleaned[0];
+}
+
+export interface AccountingRowSource {
+  /** Original document id (when present in the merged CSV's meta cols). */
+  documentId: string | null;
+  /** Original uploaded file name (for display in the preview viewer). */
+  fileName: string | null;
 }
 
 export interface AccountingTable {
@@ -468,6 +534,8 @@ export interface AccountingTable {
   rows: string[][];
   /** Parallel rows of raw numbers for numeric columns (null when missing). */
   numericRows: Array<Partial<Record<AccountingColumn, number | null>>>;
+  /** Parallel array linking each row back to its source document. */
+  rowSources: AccountingRowSource[];
   /** Source CSV columns that did not map to any canonical column. */
   unmappedHeaders: string[];
   /** Headline summary used in the on-screen banner and Excel header. */
@@ -490,6 +558,16 @@ export function buildAccountingTable(cleaned: CleanedCsv): AccountingTable {
   const colToSrc: Partial<Record<AccountingColumn, number[]>> = {};
   const unmapped: string[] = [];
 
+  // Locate the merged CSV's traceability meta columns so each accounting
+  // row can link back to its source document for inline preview.
+  let docIdIdx = -1;
+  let fileNameIdx = -1;
+  for (let i = 0; i < cleaned.headers.length; i++) {
+    const h = cleaned.headers[i].trim().toLowerCase();
+    if (docIdIdx < 0 && /^document\s*id$/.test(h)) docIdIdx = i;
+    if (fileNameIdx < 0 && /^file\s*name$/.test(h)) fileNameIdx = i;
+  }
+
   for (let i = 0; i < cleaned.headers.length; i++) {
     const canonical = matchAccountingColumn(cleaned.headers[i]);
     if (!canonical) {
@@ -501,6 +579,7 @@ export function buildAccountingTable(cleaned: CleanedCsv): AccountingTable {
 
   const rows: string[][] = [];
   const numericRows: AccountingTable["numericRows"] = [];
+  const rowSources: AccountingRowSource[] = [];
 
   let totalAmount = 0;
   let totalVat = 0;
@@ -528,16 +607,30 @@ export function buildAccountingTable(cleaned: CleanedCsv): AccountingTable {
       } else if (col === "Supplier Name") {
         // Avoid picking an address when a real business name is also present.
         rawByCol[col] = pickSupplierName(candidates);
+      } else if (col === "TRN") {
+        // The backend's column-unification step sometimes merges
+        // "Supplier TRN" and "Customer TRN" into a single canonical
+        // "TRN" column whose cell becomes "<supplier> | <customer>".
+        // Pick the first segment (Supplier TRN is extracted first).
+        const flat = candidates
+          .flatMap((c) => c.split(/\s*\|\s*/))
+          .map((s) => s.trim())
+          .filter(Boolean);
+        rawByCol[col] = flat[0] || "";
       } else {
         rawByCol[col] = candidates[0];
       }
     }
 
-    // If the supplier slot ended up holding an address (e.g. backend
-    // mislabelled a column), try to recover from any unmapped source
-    // column that doesn't look like an address and isn't already used.
+    // If the supplier slot ended up holding an address, file name, or
+    // bank-details leakage (e.g. backend extracted "Bank Name: ADCB
+    // Islamic Banking"), try to recover from any unmapped source
+    // column that looks more like a real supplier name.
     if (
-      (!rawByCol["Supplier Name"] || looksLikeAddress(rawByCol["Supplier Name"]!))
+      !rawByCol["Supplier Name"] ||
+      looksLikeAddress(rawByCol["Supplier Name"]!) ||
+      looksLikeFileName(rawByCol["Supplier Name"]!) ||
+      looksLikeBank(rawByCol["Supplier Name"]!)
     ) {
       const usedIdxs = new Set<number>();
       for (const idxs of Object.values(colToSrc)) {
@@ -546,12 +639,43 @@ export function buildAccountingTable(cleaned: CleanedCsv): AccountingTable {
       for (let i = 0; i < cleaned.headers.length; i++) {
         if (usedIdxs.has(i)) continue;
         const h = cleaned.headers[i].toLowerCase();
-        if (!/(name|company|business|supplier|vendor|seller|merchant|payee|biller)/i.test(h)) continue;
+        // Reject anything that clearly belongs to the BUYER, BANK, or
+        // any customer/account block — those are not the supplier even
+        // though their headers may contain the word "name".
+        if (
+          /(bank|branch|swift|iban|account|a\/c|a\.?c|holder|beneficiary)/i.test(h) ||
+          /(buyer|customer|client|consignee|recipient|bill[\s_-]*to|ship[\s_-]*to|delivered[\s_-]*to|sold[\s_-]*to|party)/i.test(h) ||
+          /(file[\s_-]*name|document[\s_-]*name|attachment)/i.test(h) ||
+          /(authori[sz]ed|signatory|contact[\s_-]*name|user[\s_-]*name|first[\s_-]*name|last[\s_-]*name|full[\s_-]*name)/i.test(h)
+        ) {
+          continue;
+        }
+        // Only accept positively supplier-like headers.
+        if (
+          !/(supplier|vendor|seller|merchant|payee|biller|issued[\s_-]*by|sold[\s_-]*by|billed[\s_-]*from|company[\s_-]*name|business[\s_-]*name|trade[\s_-]*name|legal[\s_-]*name|^from$|^company$|^business$)/i.test(h)
+        ) {
+          continue;
+        }
         const v = (srcRow[i] || "").trim();
-        if (v && v !== EMPTY_PLACEHOLDER && !looksLikeAddress(v)) {
+        if (
+          v &&
+          v !== EMPTY_PLACEHOLDER &&
+          !looksLikeAddress(v) &&
+          !looksLikeFileName(v)
+        ) {
           rawByCol["Supplier Name"] = v;
           break;
         }
+      }
+      // Still a file name or bank name? Drop it so the cell renders
+      // as empty rather than showing something like "ADCB Islamic
+      // Banking" or "20250326092724.pdf" in the sheet.
+      if (
+        rawByCol["Supplier Name"] &&
+        (looksLikeFileName(rawByCol["Supplier Name"]!) ||
+          looksLikeBank(rawByCol["Supplier Name"]!))
+      ) {
+        rawByCol["Supplier Name"] = "";
       }
     }
 
@@ -641,6 +765,13 @@ export function buildAccountingTable(cleaned: CleanedCsv): AccountingTable {
     rows.push(out);
     numericRows.push(numeric);
 
+    const docIdRaw = docIdIdx >= 0 ? (srcRow[docIdIdx] || "").trim() : "";
+    const fileNameRaw = fileNameIdx >= 0 ? (srcRow[fileNameIdx] || "").trim() : "";
+    rowSources.push({
+      documentId: docIdRaw && docIdRaw !== EMPTY_PLACEHOLDER ? docIdRaw : null,
+      fileName: fileNameRaw && fileNameRaw !== EMPTY_PLACEHOLDER ? fileNameRaw : null,
+    });
+
     if (typeof numeric["Total"] === "number") totalAmount += numeric["Total"]!;
     if (typeof numeric["VAT"] === "number") totalVat += numeric["VAT"]!;
 
@@ -658,6 +789,7 @@ export function buildAccountingTable(cleaned: CleanedCsv): AccountingTable {
     headers: [...ACCOUNTING_COLUMNS],
     rows,
     numericRows,
+    rowSources,
     unmappedHeaders: unmapped,
     summary: {
       totalInvoices: rows.length,
