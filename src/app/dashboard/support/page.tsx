@@ -3,6 +3,7 @@
 import { useState, type KeyboardEvent, type FormEvent, useEffect, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import Sidebar from "@/components/dashboard/Sidebar";
 import TopBar from "@/components/dashboard/TopBar";
 import MergeBar from "@/components/dashboard/MergeBar";
@@ -19,39 +20,13 @@ import {
   Paperclip,
   X,
   FileText,
+  Eye,
 } from "lucide-react";
 import { useFormik } from "formik";
 import * as Yup from "yup";
 import { apiUrl } from "@/lib/api";
+import { FaqItem, Category, Guide, Attachment, IssueType, SupportTicket } from "@/lib/types";
 
-
-// ─── Types ────────────────────────────────────────────────────────────────────
-interface FaqItem {
-  question: string;
-  answer: string;
-}
-
-interface Category {
-  icon: string;
-  title: string;
-  description: string;
-  iconBg: string;
-}
-
-interface Guide {
-  tag: string;
-  tagClass: string;
-  title: string;
-  description: string;
-  link: string;
-}
-
-interface Attachment {
-  id: string;
-  file: File;
-  name: string;
-  size: number;
-}
 
 // ─── Data ─────────────────────────────────────────────────────────────────────
 const categories: Category[] = [
@@ -242,7 +217,7 @@ function AttachmentUpload({ attachments, onAdd, onRemove }: {
   return (
     <div>
       <label className="block text-xs font-medium text-slate-500 mb-1.5">Attachments (Optional)</label>
-      
+
       {/* Upload Button */}
       <button
         type="button"
@@ -304,25 +279,96 @@ export default function SupportPage() {
   const [submitState, setSubmitState] = useState<"idle" | "loading" | "success">("idle");
   const [mounted, setMounted] = useState(false);
   const [attachments, setAttachments] = useState<Attachment[]>([]);
+  const [issueTypes, setIssueTypes] = useState<IssueType[]>([]);
+  const [loadingIssueTypes, setLoadingIssueTypes] = useState(true);
+  const [tickets, setTickets] = useState<SupportTicket[]>([]);
+  const [loadingTickets, setLoadingTickets] = useState(true);
+  const [status, setStatus] = useState("all");
+  const [page, setPage] = useState(1);
+
+  const limit = 10;
+  const router = useRouter();
 
   // Handle sidebar width for margin animation - only run on client
   useEffect(() => {
     setMounted(true);
-    
+
     // Initial measurement
     const sidebar = document.querySelector("aside");
     if (sidebar) {
       setSidebarWidth(sidebar.getBoundingClientRect().width);
-      
+
       // Set up observer for sidebar width changes
       const observer = new MutationObserver(() => {
         if (sidebar) setSidebarWidth(sidebar.getBoundingClientRect().width);
       });
-      
+
       observer.observe(sidebar, { attributes: true, attributeFilter: ["style"] });
-      
+
       return () => observer.disconnect();
     }
+  }, []);
+
+  useEffect(() => {
+    const fetchTickets = async () => {
+      try {
+        setLoadingTickets(true);
+
+        const params = new URLSearchParams({
+          limit: String(limit),
+          offset: String((page - 1) * limit),
+        });
+
+        if (status !== "all") {
+          params.append("status", status);
+        }
+
+        if (searchQuery.trim()) {
+          params.append("search", searchQuery);
+        }
+
+        const res = await fetch(apiUrl(`/api/support?${params.toString()}`), {
+          method: "GET",
+          credentials: "include",
+        });
+
+        const data = await res.json();
+
+        if (res.ok) {
+          setTickets(data.data || []);
+        }
+      } catch (err) {
+        console.error("Failed to fetch tickets", err);
+      } finally {
+        setLoadingTickets(false);
+      }
+    };
+    fetchTickets();
+  }, [status, searchQuery, page]);
+
+  useEffect(() => {
+    const fetchIssueTypes = async () => {
+      try {
+        const res = await fetch(apiUrl("/api/support/issue-types/active"),
+          {
+            method: "GET",
+            credentials: "include", // IMPORTANT for cookie
+          }
+        );
+
+        const data = await res.json();
+
+        if (data.success) {
+          setIssueTypes(data.data);
+        }
+      } catch (err) {
+        console.error("Failed to fetch issue types", err);
+      } finally {
+        setLoadingIssueTypes(false);
+      }
+    };
+
+    fetchIssueTypes();
   }, []);
 
   const handleSearchKeyDown = (e: KeyboardEvent<HTMLInputElement>) => {
@@ -369,7 +415,7 @@ export default function SupportPage() {
         formData.append("email", values.email);
         formData.append("issueType", values.issueType);
         formData.append("message", values.message);
-        
+
         // Append attachments
         attachments.forEach((attachment) => {
           formData.append("attachments", attachment.file);
@@ -427,7 +473,7 @@ export default function SupportPage() {
               </p>
 
               {/* Search Bar */}
-              <div className="relative max-w-2xl mx-auto">
+              {/* <div className="relative max-w-2xl mx-auto">
                 <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 w-5 h-5" />
                 <input
                   type="text"
@@ -443,7 +489,7 @@ export default function SupportPage() {
                 >
                   Search
                 </button>
-              </div>
+              </div> */}
             </div>
             {/* Background Blobs */}
             <div className="absolute inset-0 pointer-events-none">
@@ -594,13 +640,14 @@ export default function SupportPage() {
                       onBlur={formik.handleBlur}
                       className="w-full rounded-lg border border-slate-200 text-sm px-3.5 py-2.5 text-slate-800 bg-white outline-none transition focus:ring-2 focus:ring-indigo-400/30 focus:border-indigo-300"
                     >
-                      <option value="" disabled>Select a category…</option>
-                      <option value="upload">Upload or extraction issue</option>
-                      <option value="billing">Billing or payment question</option>
-                      <option value="account">Account or login problem</option>
-                      <option value="subscription">Subscription change request</option>
-                      <option value="feature">Feature request or feedback</option>
-                      <option value="other">Other</option>
+                      <option value="" disabled>
+                        {loadingIssueTypes ? "Loading..." : "Select a category…"}
+                      </option>
+                      {issueTypes.map((issue) => (
+                        <option key={issue._id} value={issue.name}>
+                          {issue.description}
+                        </option>
+                      ))}
                     </select>
                     {formik.touched.issueType && formik.errors.issueType && (
                       <p className="text-xs text-red-500 mt-1">{formik.errors.issueType}</p>
@@ -634,11 +681,10 @@ export default function SupportPage() {
                   <button
                     type="submit"
                     disabled={submitState === "loading" || !formik.isValid}
-                    className={`w-full py-3 rounded-lg text-sm font-semibold transition-all duration-300 ${
-                      submitState === "success"
-                        ? "bg-emerald-500 text-white"
-                        : "bg-indigo-600 text-white hover:bg-indigo-700"
-                    } disabled:opacity-70 disabled:cursor-not-allowed`}
+                    className={`w-full py-3 rounded-lg text-sm font-semibold transition-all duration-300 ${submitState === "success"
+                      ? "bg-emerald-500 text-white"
+                      : "bg-indigo-600 text-white hover:bg-indigo-700"
+                      } disabled:opacity-70 disabled:cursor-not-allowed`}
                   >
                     {submitState === "idle" && "Send Message"}
                     {submitState === "loading" && (
@@ -659,6 +705,165 @@ export default function SupportPage() {
                 </form>
               </div>
             </div>
+          </section>
+
+          {/* User Tickets Section */}
+          <section className="max-w-6xl mx-auto px-6 py-16">
+            <SectionHeader
+              label="Your Requests"
+              title="My Support Tickets"
+              subtitle="Track your submitted issues and their current status."
+            />
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-6">
+
+              {/* 🔍 Search */}
+              <div className="relative w-full sm:max-w-xs  " >
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+                <input
+                  type="text"
+                  placeholder="Search tickets..."
+                  value={searchQuery}
+                  onChange={(e) => {
+                    setSearchQuery(e.target.value);
+                    setPage(1);
+                  }}
+                  className="w-full pl-9 pr-3 py-2.5 rounded-lg border border-slate-200 text-sm text-slate-700 bg-white outline-none transition focus:ring-2 focus:ring-indigo-400/30 focus:border-indigo-300 placeholder:text-slate-400"
+                  style={{borderRadius:"15px",  borderColor:"grey"}}
+                />
+              </div>
+
+              {/* 📊 Status Filter */}
+              <div className="relative w-full sm:w-48">
+                <select
+                  value={status}
+                  onChange={(e) => {
+                    setStatus(e.target.value);
+                    setPage(1);
+                  }}
+                  className="w-full appearance-none px-3 py-2.5 pr-8 rounded-lg border border-slate-200 text-sm text-slate-700 bg-white outline-none transition focus:ring-2 focus:ring-indigo-400/30 focus:border-indigo-300"
+                >
+                  <option value="all">All Status</option>
+                  <option value="open">Open</option>
+                  <option value="in_progress">In Progress</option>
+                  <option value="resolved">Resolved</option>
+                </select>
+
+                {/* Dropdown Icon */}
+                <svg
+                  className="absolute right-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                >
+                  <path d="m6 9 6 6 6-6" />
+                </svg>
+              </div>
+
+            </div>
+
+            {/* {loadingTickets ? (
+              <div className="text-center text-sm text-slate-500">Loading tickets...</div>
+            ) : */}
+            {tickets.length === 0 ? (
+              <div className="text-center text-sm text-slate-400">
+                You haven’t created any support tickets yet.
+              </div>
+            ) : (
+              <div className="grid gap-4">
+                {tickets.map((ticket) => (
+                  <div
+                    // onClick={() => router.push(`/dashboard/support/detail/${ticket._id}`)}
+                    key={ticket._id}
+                    className="bg-white border border-slate-200 rounded-xl p-5 shadow-sm flex flex-col sm:flex-row sm:items-center justify-between gap-4"
+                  >
+                    {/* Left */}
+                    <div className="flex-1">
+                      <div className="flex items-center gap-2 mb-1">
+                        <MessageCircle className="w-4 h-4 text-indigo-500" />
+                        <span className="text-sm font-semibold text-slate-800">
+                          {ticket.issueType}
+                        </span>
+                      </div>
+
+                      <p className="text-sm text-slate-500 line-clamp-2">
+                        {ticket.message}
+                      </p>
+
+                      <div className="text-xs text-slate-400 mt-2 flex items-center gap-2">
+                        <Clock className="w-3.5 h-3.5" />
+                        {new Date(ticket.createdAt).toLocaleString()}
+                      </div>
+                    </div>
+
+                    {/* Right - Status */}
+                    <div className="flex items-center gap-3">
+                      {/* Status Badge */}
+                      <span
+                        className={`text-xs font-medium px-3 py-1 rounded-full border ${ticket.status === "resolved"
+                          ? "bg-emerald-50 text-emerald-600 border-emerald-200"
+                          : ticket.status === "in_progress"
+                            ? "bg-yellow-50 text-yellow-700 border-yellow-200"
+                            : "bg-red-50 text-red-600 border-red-200"
+                          }`}
+                      >
+                        {ticket.status.replace("_", " ")}
+                      </span>
+
+                      {/* Divider */}
+                      <div className="h-5 w-px bg-slate-200" />
+
+                      {/* View Button */}
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          router.push(`/dashboard/support/detail/${ticket._id}`);
+                        }}
+                        className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-indigo-600 bg-indigo-50 hover:bg-indigo-100 rounded-lg transition-all duration-200 hover:shadow-sm"
+                      >
+                        <Eye className="w-4 h-4" />
+                        <span className="hidden sm:inline">View</span>
+                      </button>
+                    </div>
+                  </div>
+                ))}
+                <div className="flex items-center justify-between mt-8">
+
+                  {/* Left: Page Info */}
+                  <span className="text-sm text-slate-500">
+                    Page <span className="font-semibold text-slate-700">{page}</span>
+                  </span>
+
+                  {/* Right: Controls */}
+                  <div className="flex items-center gap-2">
+
+                    {/* Prev */}
+                    <button
+                      disabled={page === 1}
+                      onClick={() => setPage((p) => p - 1)}
+                      className="px-3.5 py-1.5 text-sm font-medium rounded-lg border border-slate-200 bg-white text-slate-600 hover:bg-slate-50 hover:border-slate-300 transition disabled:opacity-40 disabled:cursor-not-allowed"
+                    >
+                      ← Prev
+                    </button>
+
+                    {/* Current Page */}
+                    <div className="px-3.5 py-1.5 text-sm font-semibold rounded-lg bg-indigo-50 text-indigo-600 border border-indigo-100">
+                      {page}
+                    </div>
+
+                    {/* Next */}
+                    <button
+                      disabled={tickets.length < limit}
+                      onClick={() => setPage((p) => p + 1)}
+                      className="px-3.5 py-1.5 text-sm font-medium rounded-lg border border-slate-200 bg-white text-slate-600 hover:bg-slate-50 hover:border-slate-300 transition disabled:opacity-40 disabled:cursor-not-allowed"
+                    >
+                      Next →
+                    </button>
+
+                  </div>
+                </div>
+              </div>
+            )}
           </section>
 
           {/* Footer Note */}

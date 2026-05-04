@@ -79,3 +79,45 @@ export interface DocumentListResponse {
   documents: ProcessedDocument[];
   total: number;
 }
+
+export interface FaqItem {
+  question: string;
+  answer: string;
+}
+
+export interface Category {
+  icon: string;
+  title: string;
+  description: string;
+  iconBg: string;
+}
+
+export interface Guide {
+  tag: string;
+  tagClass: string;
+  title: string;
+  description: string;
+  link: string;
+}
+
+export interface Attachment {
+  id: string;
+  file: File;
+  name: string;
+  size: number;
+}
+
+export interface IssueType {
+  _id: string;
+  name: string,
+  description: string,
+}
+
+export interface SupportTicket {
+  _id: string;
+  issueType: string;
+  message: string;
+  status: "open" | "in_progress" | "resolved";
+  createdAt: string;
+}
+
