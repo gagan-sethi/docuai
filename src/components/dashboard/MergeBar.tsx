@@ -137,7 +137,9 @@ export default function MergeBar({
 
   /** Fetch the finished merged CSV text (does NOT trigger a download). */
   const fetchJobCsv = useCallback(async (jobId: string): Promise<string> => {
-    const res = await fetch(`/api/merge-csv/${jobId}?download=1`);
+    const res = await fetch(apiUrl(`/api/merge-csv/${jobId}/download`), {
+      credentials: "include",
+    });
     if (!res.ok) throw new Error("Could not fetch merged CSV");
     return await res.text();
   }, []);
@@ -147,7 +149,9 @@ export default function MergeBar({
       stopPolling();
       pollRef.current = setInterval(async () => {
         try {
-          const res = await fetch(`/api/merge-csv/${jobId}`);
+          const res = await fetch(apiUrl(`/api/merge-csv/${jobId}`), {
+            credentials: "include",
+          });
           if (!res.ok) return;
           const data = (await res.json()) as JobState;
           setJob(data);
