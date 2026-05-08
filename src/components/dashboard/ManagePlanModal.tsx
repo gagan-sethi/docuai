@@ -30,6 +30,12 @@ export type PlanOption = {
   name?: string;
   label?: string;
   price?: number;
+
+  discountedPrice?: number;
+  discountApplied?: boolean;
+  appliedDiscountPercent?: number;
+  discountPercent?: number;
+
   interval?: string;
   documentsPerMonth?: number | string;
   features?: string[];
@@ -211,11 +217,10 @@ export default function ManagePlanModal({ open, onClose, planData }: Props) {
                   return (
                     <div
                       key={planKey}
-                      className={`relative flex flex-col p-5 rounded-xl border-2 bg-gradient-to-b transition-all ${
-                        isCurrent
+                      className={`relative flex flex-col p-5 rounded-xl border-2 bg-gradient-to-b transition-all ${isCurrent
                           ? "border-primary shadow-lg shadow-primary/10 ring-1 ring-primary/20"
                           : "border-slate-200 hover:shadow-md"
-                      }`}
+                        }`}
                     >
                       {isCurrent && (
                         <span className="absolute -top-2.5 left-4 px-3 py-0.5 text-[10px] font-bold text-white bg-gradient-to-r from-primary to-secondary rounded-full shadow-sm">
@@ -227,23 +232,48 @@ export default function ManagePlanModal({ open, onClose, planData }: Props) {
                         <div className="p-2 rounded-lg bg-slate-100">
                           <Zap className="w-4 h-4 text-primary" />
                         </div>
-                        <div>
-                          <h3 className="text-sm font-bold text-slate-900">
-                            {p.label}
-                          </h3>
-                          <div className="flex items-baseline gap-0.5">
-                            <span className="text-lg font-extrabold text-slate-900">
-                              {price === 0
-                                ? "Free"
-                                : usdFormatter.format(price)}
-                            </span>
-                            {p.interval && (
-                              <span className="text-xs text-muted">
-                                /{p.interval}
-                              </span>
-                            )}
+                           <div>
+                            <h3 className="text-sm font-bold text-slate-900">
+                              {p.label}
+                            </h3>
+
+                           <div className="flex items-end gap-1.5 flex-wrap">
+                              {price === 0 ? (
+                                <span className="text-lg font-extrabold text-slate-900">
+                                  Free
+                                </span>
+                              ) : p.discountApplied &&
+                                p.discountedPrice !== undefined &&
+                                p.discountedPrice < price ? (
+                                <>
+                                  {/* Original Price */}
+                                  <span className="text-sm font-semibold text-slate-400 line-through">
+                                    {usdFormatter.format(price)}
+                                  </span>
+
+                                  {/* Discounted Price */}
+                                  <span className="text-lg font-extrabold text-slate-900">
+                                    {usdFormatter.format(p.discountedPrice)}
+                                  </span>
+
+                                  {/* Discount Badge */}
+                                  <span className="px-1.5 py-0.5 text-[10px] font-bold bg-green-100 text-green-700 rounded-full">
+                                    {p.appliedDiscountPercent || p.discountPercent}% OFF
+                                  </span>
+                                </>
+                              ) : (
+                                <span className="text-lg font-extrabold text-slate-900">
+                                  {usdFormatter.format(price)}
+                                </span>
+                              )}
+
+                              {p.interval && price > 0 && (
+                                <span className="text-xs text-muted mb-0.5">
+                                  /{p.interval}
+                                </span>
+                              )}
+                            </div>
                           </div>
-                        </div>
                       </div>
 
                       <p className="text-xs font-medium text-slate-600 mb-3 pb-3 border-b border-slate-100">

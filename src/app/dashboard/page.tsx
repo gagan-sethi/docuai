@@ -34,6 +34,7 @@ import Sidebar from "@/components/dashboard/Sidebar";
 import TopBar from "@/components/dashboard/TopBar";
 import { apiUrl } from "@/lib/api";
 import { useRouter } from "next/navigation";
+import ManagePlanModal from "@/components/dashboard/ManagePlanModal";
 
 // ─── Animated Counter ───────────────────────────────────────────
 function AnimatedNumber({ target, suffix = "" }: { target: number; suffix?: string }) {
@@ -187,27 +188,27 @@ const quickActions = [
   },
 ];
 
-const usdFormatter = new Intl.NumberFormat("en-US", {
-  style: "currency",
-  currency: "USD",
-});
+// const usdFormatter = new Intl.NumberFormat("en-US", {
+//   style: "currency",
+//   currency: "USD",
+// });
 
-type PlanOption = {
-  _id?: string;
-  id?: string;
-  name?: string;
-  label?: string;
-  price?: number;
+// type PlanOption = {
+//   _id?: string;
+//   id?: string;
+//   name?: string;
+//   label?: string;
+//   price?: number;
 
-  discountedPrice?:number;
-  discountApplied?: boolean;
-  appliedDiscountPercent?: number;
-  discountPercent?: number;
+//   discountedPrice?:number;
+//   discountApplied?: boolean;
+//   appliedDiscountPercent?: number;
+//   discountPercent?: number;
 
-  interval?: string;
-  documentsPerMonth?: number | string;
-  features?: string[];
-};
+//   interval?: string;
+//   documentsPerMonth?: number | string;
+//   features?: string[];
+// };
 
 // ─── Main Dashboard ─────────────────────────────────────────────
 export default function DashboardPage() {
@@ -245,9 +246,9 @@ export default function DashboardPage() {
     resetsAt: string;
   } | null>(null);
   const [showUpgradeModal, setShowUpgradeModal] = useState(false);
-  const [plans, setPlans] = useState<PlanOption[]>([]);
-  const [loadingPlans, setLoadingPlans] = useState(true);
-  const [navigatingPlanId, setNavigatingPlanId] = useState<string | null>(null);
+  // const [plans, setPlans] = useState<PlanOption[]>([]);
+  // const [loadingPlans, setLoadingPlans] = useState(true);
+  // const [navigatingPlanId, setNavigatingPlanId] = useState<string | null>(null);
   const router = useRouter();
 
   useEffect(() => {
@@ -275,7 +276,7 @@ export default function DashboardPage() {
           setUserName(data.user.fullName.split(" ")[0]);
         }
       })
-      .catch(() => {});
+      .catch(() => { });
   }, []);
 
   // Fetch real data from API
@@ -310,26 +311,26 @@ export default function DashboardPage() {
     return () => clearInterval(interval);
   }, []);
 
-  useEffect(() => {
-    const fetchPlans = async () => {
-      try {
-        const res = await fetch(apiUrl("/api/plan/list"), {
-          credentials: "include",
-        });
-        const json = await res.json();
+  // useEffect(() => {
+  //   const fetchPlans = async () => {
+  //     try {
+  //       const res = await fetch(apiUrl("/api/plan/list"), {
+  //         credentials: "include",
+  //       });
+  //       const json = await res.json();
 
-        if (json.success) {
-          setPlans(json.data);
-        }
-      } catch (err) {
-        console.error("Failed to fetch plans", err);
-      } finally {
-        setLoadingPlans(false);
-      }
-    };
+  //       if (json.success) {
+  //         setPlans(json.data);
+  //       }
+  //     } catch (err) {
+  //       console.error("Failed to fetch plans", err);
+  //     } finally {
+  //       setLoadingPlans(false);
+  //     }
+  //   };
 
-    fetchPlans();
-  }, []);
+  //   fetchPlans();
+  // }, []);
 
   // const handleSubscribe = (plan: PlanOption) => {
   //   const planId = plan._id || plan.id;
@@ -346,60 +347,60 @@ export default function DashboardPage() {
   //   router.push(`/checkout?planId=${encodedPlanId}`);
   // };
 
-  const handlePlanSelect = async (plan: PlanOption) => {
-    const planId = plan._id || plan.id;
+  // const handlePlanSelect = async (plan: PlanOption) => {
+  //   const planId = plan._id || plan.id;
 
-    if (!planId) {
-      alert("Invalid plan");
-      return;
-    }
+  //   if (!planId) {
+  //     alert("Invalid plan");
+  //     return;
+  //   }
 
-    const price = plan.price ?? 0;
+  //   const price = plan.price ?? 0;
 
-    try {
-      setNavigatingPlanId(String(planId));
+  //   try {
+  //     setNavigatingPlanId(String(planId));
 
-      // ✅ FREE PLAN FLOW
-      if (price === 0) {
-        const res = await fetch(apiUrl("/api/plan/free"), {
-          method: "POST",
-          credentials: "include",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({ planId }),
-        });
+  //     // ✅ FREE PLAN FLOW
+  //     if (price === 0) {
+  //       const res = await fetch(apiUrl("/api/plan/free"), {
+  //         method: "POST",
+  //         credentials: "include",
+  //         headers: {
+  //           "Content-Type": "application/json",
+  //         },
+  //         body: JSON.stringify({ planId }),
+  //       });
 
-        const data = await res.json();
+  //       const data = await res.json();
 
-        if (!res.ok) {
-          throw new Error(data.error || "Failed to activate free plan");
-        }
+  //       if (!res.ok) {
+  //         throw new Error(data.error || "Failed to activate free plan");
+  //       }
 
-        // ✅ refresh UI
-        window.location.reload(); // or refetch plan API
+  //       // ✅ refresh UI
+  //       window.location.reload(); // or refetch plan API
 
-        return;
-      }
+  //       return;
+  //     }
 
-      // ✅ PAID PLAN FLOW → REDIRECT
-      router.push(`/checkout?planId=${encodeURIComponent(String(planId))}`);
-    } catch (err: any) {
-      alert(err.message);
-    } finally {
-      setNavigatingPlanId(null);
-    }
-  };
+  //     // ✅ PAID PLAN FLOW → REDIRECT
+  //     router.push(`/checkout?planId=${encodeURIComponent(String(planId))}`);
+  //   } catch (err: any) {
+  //     alert(err.message);
+  //   } finally {
+  //     setNavigatingPlanId(null);
+  //   }
+  // };
 
   // Compute dynamic pipeline from real data
   const pipeline = apiStats
     ? [
-        { stage: "Uploaded", count: apiStats.total - apiStats.processing - apiStats.review - apiStats.approved - apiStats.errors, color: "bg-slate-400" },
-        { stage: "OCR Running", count: apiStats.processing, color: "bg-primary" },
-        { stage: "AI Extraction", count: 0, color: "bg-secondary" },
-        { stage: "Pending Review", count: apiStats.review, color: "bg-amber-500" },
-        { stage: "Completed Today", count: apiStats.approved, color: "bg-success" },
-      ].map(p => ({ ...p, count: Math.max(0, p.count) }))
+      { stage: "Uploaded", count: apiStats.total - apiStats.processing - apiStats.review - apiStats.approved - apiStats.errors, color: "bg-slate-400" },
+      { stage: "OCR Running", count: apiStats.processing, color: "bg-primary" },
+      { stage: "AI Extraction", count: 0, color: "bg-secondary" },
+      { stage: "Pending Review", count: apiStats.review, color: "bg-amber-500" },
+      { stage: "Completed Today", count: apiStats.approved, color: "bg-success" },
+    ].map(p => ({ ...p, count: Math.max(0, p.count) }))
     : pipelineDefaults;
 
   // Compute dynamic quick actions descriptions
@@ -485,9 +486,8 @@ export default function DashboardPage() {
                   </div>
                   {stat.change && (
                     <span
-                      className={`flex items-center gap-0.5 text-xs font-semibold ${
-                        stat.trend === "up" ? "text-success" : "text-amber-500"
-                      }`}
+                      className={`flex items-center gap-0.5 text-xs font-semibold ${stat.trend === "up" ? "text-success" : "text-amber-500"
+                        }`}
                     >
                       {stat.trend === "up" ? (
                         <ArrowUpRight className="w-3.5 h-3.5" />
@@ -694,13 +694,12 @@ export default function DashboardPage() {
                           <div className="flex items-center gap-1.5">
                             <div className="w-16 h-1.5 bg-slate-100 rounded-full overflow-hidden">
                               <div
-                                className={`h-full rounded-full ${
-                                  doc.confidence >= 90
+                                className={`h-full rounded-full ${doc.confidence >= 90
                                     ? "bg-success"
                                     : doc.confidence >= 80
-                                    ? "bg-amber-400"
-                                    : "bg-red-400"
-                                }`}
+                                      ? "bg-amber-400"
+                                      : "bg-red-400"
+                                  }`}
                                 style={{ width: `${doc.confidence}%` }}
                               />
                             </div>
@@ -785,25 +784,25 @@ export default function DashboardPage() {
               <div className="divide-y divide-slate-50">
                 {apiActivities.length > 0
                   ? apiActivities.map((a, i) => {
-                      const cfg = activityActionConfig[a.action] || { label: a.action, color: "text-slate-500", Icon: FileText };
-                      const ActivityIcon = cfg.Icon;
-                      return (
-                        <div key={i} className="flex items-start gap-3 px-5 py-3.5 hover:bg-slate-50/50 transition-colors">
-                          <div className="p-1.5 rounded-lg bg-slate-50 flex-shrink-0 mt-0.5">
-                            <ActivityIcon className={`w-3.5 h-3.5 ${cfg.color}`} />
-                          </div>
-                          <div className="flex-1 min-w-0">
-                            <p className="text-xs text-slate-800">
-                              <span className="font-semibold">{cfg.label}</span>{" "}
-                              <span className="text-muted">{a.description}</span>
-                            </p>
-                          </div>
-                          <span className="text-[10px] text-slate-400 whitespace-nowrap mt-0.5">
-                            {getRelativeTime(a.createdAt)}
-                          </span>
+                    const cfg = activityActionConfig[a.action] || { label: a.action, color: "text-slate-500", Icon: FileText };
+                    const ActivityIcon = cfg.Icon;
+                    return (
+                      <div key={i} className="flex items-start gap-3 px-5 py-3.5 hover:bg-slate-50/50 transition-colors">
+                        <div className="p-1.5 rounded-lg bg-slate-50 flex-shrink-0 mt-0.5">
+                          <ActivityIcon className={`w-3.5 h-3.5 ${cfg.color}`} />
                         </div>
-                      );
-                    })
+                        <div className="flex-1 min-w-0">
+                          <p className="text-xs text-slate-800">
+                            <span className="font-semibold">{cfg.label}</span>{" "}
+                            <span className="text-muted">{a.description}</span>
+                          </p>
+                        </div>
+                        <span className="text-[10px] text-slate-400 whitespace-nowrap mt-0.5">
+                          {getRelativeTime(a.createdAt)}
+                        </span>
+                      </div>
+                    );
+                  })
                   : (
                     <div className="flex flex-col items-center justify-center py-10 px-5">
                       <div className="w-10 h-10 rounded-full bg-slate-50 flex items-center justify-center mb-3">
@@ -881,24 +880,22 @@ export default function DashboardPage() {
                         </div>
                         <div className="h-2 bg-slate-100 rounded-full overflow-hidden">
                           <div
-                            className={`h-full rounded-full transition-all duration-500 ${
-                              isAtLimit
+                            className={`h-full rounded-full transition-all duration-500 ${isAtLimit
                                 ? "bg-gradient-to-r from-red-400 to-red-500"
                                 : isNearLimit
-                                ? "bg-gradient-to-r from-amber-400 to-amber-500"
-                                : "bg-gradient-to-r from-primary to-secondary"
-                            }`}
+                                  ? "bg-gradient-to-r from-amber-400 to-amber-500"
+                                  : "bg-gradient-to-r from-primary to-secondary"
+                              }`}
                             style={{ width: `${isUnlimited ? 0 : usagePct}%` }}
                           />
                         </div>
                       </div>
                       <button
                         onClick={() => setShowUpgradeModal(true)}
-                        className={`px-4 py-2 text-xs font-semibold rounded-xl hover:scale-105 transition-transform shadow-md ${
-                          plan === "free"
+                        className={`px-4 py-2 text-xs font-semibold rounded-xl hover:scale-105 transition-transform shadow-md ${plan === "free"
                             ? "text-white bg-gradient-to-r from-primary to-primary-dark"
                             : "text-primary border border-primary/20 hover:bg-primary/5 shadow-none"
-                        }`}
+                          }`}
                       >
                         {plan === "free" ? "Manage Plan" : "Manage Plan"}
                       </button>
@@ -943,336 +940,11 @@ export default function DashboardPage() {
 
       {/* Plan Management Modal */}
       <AnimatePresence>
-        {showUpgradeModal && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4"
-            onClick={() => setShowUpgradeModal(false)}
-          >
-            <motion.div
-              initial={{ opacity: 0, scale: 0.95, y: 20 }}
-              animate={{ opacity: 1, scale: 1, y: 0 }}
-              exit={{ opacity: 0, scale: 0.95, y: 20 }}
-              transition={{ type: "spring", damping: 25, stiffness: 300 }}
-              className="bg-white rounded-2xl shadow-2xl max-w-3xl w-full overflow-hidden"
-              onClick={(e) => e.stopPropagation()}
-            >
-              {/* Header */}
-              <div className="relative bg-gradient-to-r from-primary via-primary-dark to-slate-900 px-6 py-5 text-white">
-                <div className="absolute inset-0 opacity-10">
-                  <div className="absolute top-0 right-0 w-40 h-40 bg-secondary rounded-full blur-3xl" />
-                </div>
-                <div className="relative flex items-start justify-between">
-                  <div>
-                    <div className="flex items-center gap-2 mb-1">
-                      <Sparkles className="w-5 h-5 text-amber-300" />
-                      <h2 className="text-lg font-bold">Manage Your Plan</h2>
-                    </div>
-                    <p className="text-sm text-slate-300">
-                      You&apos;re currently on the <strong className="text-white">{planData?.label || "Free"}</strong> plan.
-                      {planData?.documentsUsed !== undefined && (
-                        <> You&apos;ve used <strong className="text-amber-300">{planData.documentsUsed}</strong> of{" "}
-                        <strong className="text-white">{typeof planData?.documentsPerMonth === "number" ? planData.documentsPerMonth : planData?.documentsPerMonth || 5}</strong> documents this month.</>
-                      )}
-                    </p>
-                  </div>
-                  <button
-                    onClick={() => setShowUpgradeModal(false)}
-                    className="p-1.5 rounded-lg hover:bg-white/10 transition-colors text-slate-300 hover:text-white"
-                  >
-                    <svg xmlns="http://www.w3.org/2000/svg" className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
-                  </button>
-                </div>
-              </div>
-
-              {/* Plans Grid */}
-              {/* <div className="p-6 grid grid-cols-1 sm:grid-cols-2 gap-4"> */}
-                {/* {[
-                  {
-                    key: "free",
-                    name: "Free",
-                    price: "$0",
-                    period: "/mo",
-                    docs: "5 documents/month",
-                    features: ["PDF & image upload", "AI OCR extraction", "Excel export", "1 user account"],
-                    color: "border-slate-200",
-                    gradient: "from-slate-50 to-white",
-                    iconBg: "bg-slate-100",
-                    iconColor: "text-slate-500",
-                  },
-                  {
-                    key: "starter",
-                    name: "Starter",
-                    price: "$49",
-                    period: "/mo",
-                    docs: "100 documents/month",
-                    features: ["Everything in Free", "Priority processing", "Email support", "1 user account"],
-                    color: "border-blue-200",
-                    gradient: "from-blue-50/50 to-white",
-                    iconBg: "bg-blue-100",
-                    iconColor: "text-blue-500",
-                  },
-                  {
-                    key: "professional",
-                    name: "Professional",
-                    price: "$149",
-                    period: "/mo",
-                    docs: "1,000 documents/month",
-                    features: ["Everything in Starter", "WhatsApp integration", "Bulk upload", "5 user accounts", "API access"],
-                    color: "border-primary/30",
-                    gradient: "from-primary/5 to-white",
-                    iconBg: "bg-primary/10",
-                    iconColor: "text-primary",
-                  },
-                  {
-                    key: "enterprise",
-                    name: "Enterprise",
-                    price: "Custom",
-                    period: "",
-                    docs: "Unlimited documents",
-                    features: ["Everything in Professional", "ERP integration", "Unlimited users", "Dedicated support", "Custom SLA"],
-                    color: "border-slate-200",
-                    gradient: "from-slate-50/50 to-white",
-                    iconBg: "bg-slate-100",
-                    iconColor: "text-slate-600",
-                  },
-                ].map((p) => {
-                  const currentPlan = planData?.plan || "free";
-                  const isCurrent = p.key === currentPlan;
-                  const isPaid = p.key !== "free";
-
-                  return (
-                    <div
-                      key={p.key}
-                      className={`relative flex flex-col p-5 rounded-xl border-2 bg-gradient-to-b transition-all ${
-                        isCurrent
-                          ? "border-primary shadow-lg shadow-primary/10 ring-1 ring-primary/20"
-                          : `${p.color} hover:shadow-md`
-                      } ${p.gradient}`}
-                    > */}
-                      {/* Current plan badge */}
-                      {/* {isCurrent && (
-                        <span className="absolute -top-2.5 left-4 px-3 py-0.5 text-[10px] font-bold text-white bg-gradient-to-r from-primary to-secondary rounded-full shadow-sm">
-                          CURRENT PLAN
-                        </span>
-                      )} */}
-
-                      {/* Coming Soon badge for paid plans */}
-                      {/* {isPaid && !isCurrent && (
-                        <span className="absolute -top-2.5 right-4 px-3 py-0.5 text-[10px] font-bold text-amber-700 bg-amber-100 border border-amber-200 rounded-full">
-                          COMING SOON
-                        </span>
-                      )} */}
-
-                      {/* Plan header */}
-                      {/* <div className="flex items-center gap-3 mb-3">
-                        <div className={`p-2 rounded-lg ${p.iconBg}`}>
-                          <Zap className={`w-4 h-4 ${p.iconColor}`} />
-                        </div>
-                        <div>
-                          <h3 className="text-sm font-bold text-slate-900">{p.name}</h3>
-                          <div className="flex items-baseline gap-0.5">
-                            <span className="text-lg font-extrabold text-slate-900">{p.price}</span>
-                            {p.period && <span className="text-xs text-muted">{p.period}</span>}
-                          </div>
-                        </div>
-                      </div> */}
-
-                      {/* Docs limit */}
-                      {/* <p className="text-xs font-medium text-slate-600 mb-3 pb-3 border-b border-slate-100">
-                        {p.docs}
-                      </p> */}
-
-                      {/* Features */}
-                      {/* <ul className="space-y-1.5 flex-1">
-                        {p.features.map((f) => (
-                          <li key={f} className="flex items-center gap-2 text-xs text-slate-600">
-                            <CheckCircle2 className={`w-3.5 h-3.5 flex-shrink-0 ${isCurrent ? "text-primary" : "text-success"}`} />
-                            {f}
-                          </li>
-                        ))}
-                      </ul> */}
-
-                      {/* Action button */}
-                      {/* <div className="mt-4 pt-3 border-t border-slate-100">
-                        {isCurrent ? (
-                          <div className="w-full py-2 text-center text-xs font-semibold text-primary bg-primary/5 rounded-lg">
-                            ✓ Active Plan
-                          </div>
-                        ) : isPaid ? (
-                          <button
-                            disabled
-                            className="w-full py-2 text-xs font-semibold text-slate-400 bg-slate-100 rounded-lg cursor-not-allowed"
-                          >
-                            Coming Soon
-                          </button>
-                        ) : (
-                          <div className="w-full py-2 text-center text-xs font-medium text-slate-400 bg-slate-50 rounded-lg">
-                            Free Forever
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                  );
-                })}
-              </div> */}
-
-              {/* Plans Grid */}
-              <div className="p-6 grid grid-cols-1 sm:grid-cols-3 gap-4">
-                {loadingPlans ? (
-                  <div className="col-span-full text-center text-sm text-muted py-10">
-                    Loading plans...
-                  </div>
-                ) : plans.length === 0 ? (
-                  <div className="col-span-full text-center text-sm text-muted py-10">
-                    No plans available
-                  </div>
-                ) : (
-                  plans.map((p) => {
-                    const currentPlan = planData?.plan || "free";
-                    const isCurrent = p.name === currentPlan;
-                    // const isCurrent = p._id === planData?.currentPlanId;
-                    const price = p.price ?? 0;
-                    const isPaid = price > 0;
-
-                    return (
-                      <div
-                        key={p._id}
-                        className={`relative flex flex-col p-5 rounded-xl border-2 bg-gradient-to-b transition-all ${
-                          isCurrent
-                            ? "border-primary shadow-lg shadow-primary/10 ring-1 ring-primary/20"
-                            : "border-slate-200 hover:shadow-md"
-                        }`}
-                      >
-                        {/* Current Plan Badge */}
-                        {isCurrent && (
-                          <span className="absolute -top-2.5 left-4 px-3 py-0.5 text-[10px] font-bold text-white bg-gradient-to-r from-primary to-secondary rounded-full shadow-sm">
-                            CURRENT PLAN
-                          </span>
-                        )}
-
-                        {/* Plan Header */}
-                        <div className="flex items-center gap-3 mb-3">
-                          <div className="p-2 rounded-lg bg-slate-100">
-                            <Zap className="w-4 h-4 text-primary" />
-                          </div>
-
-                          <div>
-                            <h3 className="text-sm font-bold text-slate-900">
-                              {p.label}
-                            </h3>
-
-                           <div className="flex items-end gap-1.5 flex-wrap">
-                              {price === 0 ? (
-                                <span className="text-lg font-extrabold text-slate-900">
-                                  Free
-                                </span>
-                              ) : p.discountApplied &&
-                                p.discountedPrice !== undefined &&
-                                p.discountedPrice < price ? (
-                                <>
-                                  {/* Original Price */}
-                                  <span className="text-sm font-semibold text-slate-400 line-through">
-                                    {usdFormatter.format(price)}
-                                  </span>
-
-                                  {/* Discounted Price */}
-                                  <span className="text-lg font-extrabold text-slate-900">
-                                    {usdFormatter.format(p.discountedPrice)}
-                                  </span>
-
-                                  {/* Discount Badge */}
-                                  <span className="px-1.5 py-0.5 text-[10px] font-bold bg-green-100 text-green-700 rounded-full">
-                                    {p.appliedDiscountPercent || p.discountPercent}% OFF
-                                  </span>
-                                </>
-                              ) : (
-                                <span className="text-lg font-extrabold text-slate-900">
-                                  {usdFormatter.format(price)}
-                                </span>
-                              )}
-
-                              {p.interval && price > 0 && (
-                                <span className="text-xs text-muted mb-0.5">
-                                  /{p.interval}
-                                </span>
-                              )}
-                            </div>
-                          </div>
-                        </div>
-
-                        {/* Documents Limit */}
-                        <p className="text-xs font-medium text-slate-600 mb-3 pb-3 border-b border-slate-100">
-                          {p.documentsPerMonth === "Unlimited"
-                            ? "Unlimited documents"
-                            : `${p.documentsPerMonth} documents/month`}
-                        </p>
-
-                        {/* Features */}
-                        <ul className="space-y-1.5 flex-1">
-                          {(p.features || [
-                            "AI processing",
-                            "Export to Excel",
-                          ]).map((f: string, i: number) => (
-                            <li
-                              key={i}
-                              className="flex items-center gap-2 text-xs text-slate-600"
-                            >
-                              <CheckCircle2 className="w-3.5 h-3.5 text-success flex-shrink-0" />
-                              {f}
-                            </li>
-                          ))}
-                        </ul>
-
-                        {/* Action Button */}
-                        <div className="mt-4 pt-3 border-t border-slate-100">
-                          {isCurrent ? (
-                            <div className="w-full py-2 text-center text-xs font-semibold text-primary bg-primary/5 rounded-lg">
-                              ✓ Active Plan
-                            </div>
-                          ) : isPaid ? (
-                            <button
-                              onClick={() => handlePlanSelect(p)}
-                              disabled={navigatingPlanId === String(p._id || p.id)}
-                              className="w-full py-2 text-xs font-semibold text-white bg-primary rounded-lg hover:opacity-90 transition"
-                            >
-                              {navigatingPlanId === String(p._id || p.id) ? "Opening..." : "Upgrade"}
-                            </button>
-                          ) : (
-                             <button
-                              onClick={() => handlePlanSelect(p)}
-                              disabled={navigatingPlanId === String(p._id || p.id)}
-                              className="w-full py-2 text-xs font-semibold text-slate-700 bg-slate-100 rounded-lg hover:bg-slate-200 transition"
-                            >
-                              {navigatingPlanId === String(p._id || p.id)
-                                ? "Switching..."
-                                : "Switch to Free"}
-                            </button>
-                          )}
-                        </div>
-                      </div>
-                    );
-                  })
-                )}
-              </div>
-
-              {/* Footer */}
-              <div className="flex items-center justify-between px-6 py-4 bg-slate-50 border-t border-slate-100">
-                <p className="text-[10px] text-muted">
-                  Paid plans coming soon. We&apos;ll notify you when they&apos;re available.
-                </p>
-                <button
-                  onClick={() => setShowUpgradeModal(false)}
-                  className="text-xs font-medium text-slate-500 hover:text-slate-700 transition-colors"
-                >
-                  Close
-                </button>
-              </div>
-            </motion.div>
-          </motion.div>
-        )}
+        <ManagePlanModal
+          open={showUpgradeModal}
+          onClose={() => setShowUpgradeModal(false)}
+          planData={planData}
+        />
       </AnimatePresence>
     </div>
   );
