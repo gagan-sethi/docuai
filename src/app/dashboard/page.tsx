@@ -198,6 +198,12 @@ type PlanOption = {
   name?: string;
   label?: string;
   price?: number;
+
+  discountedPrice?:number;
+  discountApplied?: boolean;
+  appliedDiscountPercent?: number;
+  discountPercent?: number;
+
   interval?: string;
   documentsPerMonth?: number | string;
   features?: string[];
@@ -1158,12 +1164,38 @@ export default function DashboardPage() {
                               {p.label}
                             </h3>
 
-                            <div className="flex items-baseline gap-0.5">
-                              <span className="text-lg font-extrabold text-slate-900">
-                                {price === 0 ? "Free" : usdFormatter.format(price)}
-                              </span>
-                              {p.interval && (
-                                <span className="text-xs text-muted">
+                           <div className="flex items-end gap-1.5 flex-wrap">
+                              {price === 0 ? (
+                                <span className="text-lg font-extrabold text-slate-900">
+                                  Free
+                                </span>
+                              ) : p.discountApplied &&
+                                p.discountedPrice !== undefined &&
+                                p.discountedPrice < price ? (
+                                <>
+                                  {/* Original Price */}
+                                  <span className="text-sm font-semibold text-slate-400 line-through">
+                                    {usdFormatter.format(price)}
+                                  </span>
+
+                                  {/* Discounted Price */}
+                                  <span className="text-lg font-extrabold text-slate-900">
+                                    {usdFormatter.format(p.discountedPrice)}
+                                  </span>
+
+                                  {/* Discount Badge */}
+                                  <span className="px-1.5 py-0.5 text-[10px] font-bold bg-green-100 text-green-700 rounded-full">
+                                    {p.appliedDiscountPercent || p.discountPercent}% OFF
+                                  </span>
+                                </>
+                              ) : (
+                                <span className="text-lg font-extrabold text-slate-900">
+                                  {usdFormatter.format(price)}
+                                </span>
+                              )}
+
+                              {p.interval && price > 0 && (
+                                <span className="text-xs text-muted mb-0.5">
                                   /{p.interval}
                                 </span>
                               )}
