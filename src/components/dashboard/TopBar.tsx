@@ -232,7 +232,10 @@ export default function TopBar({ title }: { title: string }) {
                         );
                       })}
                     </div>
-                    <div className="px-5 py-3 bg-slate-50 border-t border-slate-100">
+                    <div onClick={() => {
+                      setShowNotif(false),
+                      router.push('/dashboard/notifications')
+                      }} className="px-5 py-3 bg-slate-50 border-t border-slate-100">
                       <button className="w-full text-center text-xs font-medium text-primary hover:underline">
                         View all notifications
                       </button>

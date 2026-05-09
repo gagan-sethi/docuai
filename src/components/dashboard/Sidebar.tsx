@@ -78,6 +78,11 @@ const bottomNav = [
     icon: CreditCard,
   },
   {
+    name: "Notification",
+    href: "/dashboard/notifications",
+    icon: Bell,
+  },
+  {
     name: "Settings",
     href: "/dashboard/settings",
     icon: Settings,
