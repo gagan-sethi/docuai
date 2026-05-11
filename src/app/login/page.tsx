@@ -17,6 +17,8 @@ import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import AuthLayout from "@/components/auth/AuthLayout";
 import { apiUrl } from "@/lib/api";
+// import { GoogleLogin } from "@react-oauth/google";
+import { useGoogleLogin } from "@react-oauth/google";
 
 function LoginPageContent() {
   const router = useRouter();
@@ -71,6 +73,45 @@ function LoginPageContent() {
       setIsLoading(false);
     }
   };
+
+  const googleLogin = useGoogleLogin({
+    flow: "auth-code",
+
+    onSuccess: async (codeResponse) => {
+      try {
+        setIsLoading(true);
+        setError("");
+
+        const res = await fetch(apiUrl("/api/auth/google-login"), {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          credentials: "include",
+          body: JSON.stringify({
+            code: codeResponse.code,
+          }),
+        });
+
+        const data = await res.json();
+
+        if (!res.ok) {
+          setError(data.error || "Google login failed");
+          setIsLoading(false);
+          return;
+        }
+
+        router.push("/dashboard");
+      } catch {
+        setError("Google login failed");
+        setIsLoading(false);
+      }
+    },
+
+    onError: () => {
+      setError("Google Sign-In failed");
+    },
+  });
 
   return (
     <AuthLayout>
@@ -243,14 +284,17 @@ function LoginPageContent() {
           </div>
           <div className="relative flex justify-center">
             <span className="px-3 bg-white text-xs text-slate-400 uppercase tracking-wider">
-              Or continue with
+              Or 
             </span>
           </div>
         </div>
 
         {/* Social Logins */}
-        <div className="grid grid-cols-2 gap-3">
-          <button className="flex items-center justify-center gap-2 px-4 py-3 text-sm font-medium text-slate-700 bg-slate-50 border border-slate-200 rounded-xl hover:bg-slate-100 hover:border-slate-300 transition-all">
+        <div className="grid grid-cols-1 gap-3">
+          <button 
+          onClick={() => googleLogin()}
+          disabled={isLoading}
+          className="flex items-center justify-center gap-2 px-4 py-3 text-sm font-medium text-slate-700 bg-slate-50 border border-slate-200 rounded-xl hover:bg-slate-100 hover:border-slate-300 transition-all">
             <svg className="w-5 h-5" viewBox="0 0 24 24">
               <path
                 d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92a5.06 5.06 0 0 1-2.2 3.32v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.1z"
@@ -269,15 +313,56 @@ function LoginPageContent() {
                 fill="#EA4335"
               />
             </svg>
-            Google
+            Sign in with Google
           </button>
-          <button className="flex items-center justify-center gap-2 px-4 py-3 text-sm font-medium text-slate-700 bg-slate-50 border border-slate-200 rounded-xl hover:bg-slate-100 hover:border-slate-300 transition-all">
+          {/* <button className="flex items-center justify-center gap-2 px-4 py-3 text-sm font-medium text-slate-700 bg-slate-50 border border-slate-200 rounded-xl hover:bg-slate-100 hover:border-slate-300 transition-all">
             <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
               <path d="M12.152 6.896c-.948 0-2.415-1.078-3.96-1.04-2.04.027-3.91 1.183-4.961 3.014-2.117 3.675-.546 9.103 1.519 12.09 1.013 1.454 2.208 3.09 3.792 3.039 1.52-.065 2.09-.987 3.935-.987 1.831 0 2.35.987 3.96.948 1.637-.026 2.676-1.48 3.676-2.948 1.156-1.688 1.636-3.325 1.662-3.415-.039-.013-3.182-1.221-3.22-4.857-.026-3.04 2.48-4.494 2.597-4.559-1.429-2.09-3.623-2.324-4.39-2.376-2-.156-3.675 1.09-4.61 1.09zM15.53 3.83c.843-1.012 1.4-2.427 1.245-3.83-1.207.052-2.662.805-3.532 1.818-.78.896-1.454 2.338-1.273 3.714 1.338.104 2.715-.688 3.559-1.701" />
             </svg>
             Apple
-          </button>
+          </button> */}
         </div>
+
+        {/* Social Logins */}
+        {/* <div className="grid grid-cols-1 gap-3">
+          <div className="flex justify-center">
+            <GoogleLogin
+              onSuccess={async (credentialResponse) => {
+                try {
+                  setIsLoading(true);
+                  setError("");
+
+                  const res = await fetch(apiUrl("/api/auth/google-login"), {
+                    method: "POST",
+                    headers: {
+                      "Content-Type": "application/json",
+                    },
+                    credentials: "include",
+                    body: JSON.stringify({
+                      credential: credentialResponse.credential,
+                    }),
+                  });
+
+                  const data = await res.json();
+
+                  if (!res.ok) {
+                    setError(data.error || "Google login failed");
+                    setIsLoading(false);
+                    return;
+                  }
+
+                  router.push("/dashboard");
+                } catch {
+                  setError("Google login failed");
+                  setIsLoading(false);
+                }
+              }}
+              onError={() => {
+                setError("Google Sign-In failed");
+              }}
+            />
+          </div>
+        </div> */}
 
         {/* Footer */}
         <p className="mt-8 text-center text-sm text-muted">
