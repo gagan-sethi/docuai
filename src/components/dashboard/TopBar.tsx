@@ -64,6 +64,10 @@ export default function TopBar({ title }: { title: string }) {
   const [unreadCount, setUnreadCount] = useState(0);
   const [user, setUser] = useState<{ fullName: string; email?: string; role?: string } | null>(null);
 
+  const [companies, setCompanies] = useState<any[]>([]);
+  const [selectedCompany, setSelectedCompany] = useState<any | null>(null);
+  const [showCompanyMenu, setShowCompanyMenu] = useState(false);
+
   const fetchNotifications = useCallback(async () => {
     try {
       const res = await fetch(apiUrl("/api/notifications?limit=10"), { credentials: "include" });
@@ -72,10 +76,38 @@ export default function TopBar({ title }: { title: string }) {
         setNotifications(data.notifications || []);
         setUnreadCount(data.unreadCount || 0);
       }
-    } catch {}
+    } catch { }
   }, []);
 
   useEffect(() => {
+    fetch(apiUrl("/api/company/switch"), {
+      credentials: "include",
+    })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((data) => {
+        if (!data?.companies) return;
+
+        setCompanies(data.companies);
+
+        const stored = localStorage.getItem("selectedCompany");
+
+        if (stored) {
+          try {
+            const parsed = JSON.parse(stored);
+            const exists = data.companies.find((c: any) => c._id === parsed._id);
+
+            if (exists) {
+              setSelectedCompany(exists);
+            } else {
+              localStorage.removeItem("selectedCompany");
+            }
+          } catch {
+            localStorage.removeItem("selectedCompany");
+          }
+        }
+      })
+      .catch(() => { });
+
     fetchNotifications();
     // Fetch user
     fetch(apiUrl("/api/auth/me"), { credentials: "include" })
@@ -83,7 +115,7 @@ export default function TopBar({ title }: { title: string }) {
       .then((data) => {
         if (data?.user) setUser(data.user);
       })
-      .catch(() => {});
+      .catch(() => { });
 
     // Refresh notifications every 30s
     const interval = setInterval(fetchNotifications, 30000);
@@ -102,17 +134,19 @@ export default function TopBar({ title }: { title: string }) {
   };
 
   const handleLogout = async () => {
+    localStorage.removeItem("selectedCompany");
+
     await fetch(apiUrl("/api/auth/me"), { method: "POST", credentials: "include" });
     router.push("/login");
   };
 
   const initials = user?.fullName
     ? user.fullName
-        .split(" ")
-        .map((n) => n[0])
-        .join("")
-        .toUpperCase()
-        .slice(0, 2)
+      .split(" ")
+      .map((n) => n[0])
+      .join("")
+      .toUpperCase()
+      .slice(0, 2)
     : "U";
 
   return (
@@ -208,9 +242,8 @@ export default function TopBar({ title }: { title: string }) {
                         return (
                           <div
                             key={n._id}
-                            className={`flex items-start gap-3 px-5 py-3.5 hover:bg-slate-50 cursor-pointer transition-colors ${
-                              !n.isRead ? "bg-primary/[0.02]" : ""
-                            }`}
+                            className={`flex items-start gap-3 px-5 py-3.5 hover:bg-slate-50 cursor-pointer transition-colors ${!n.isRead ? "bg-primary/[0.02]" : ""
+                              }`}
                           >
                             <div
                               className={`p-2 rounded-lg ${cfg.bg} flex-shrink-0 mt-0.5`}
@@ -234,11 +267,80 @@ export default function TopBar({ title }: { title: string }) {
                     </div>
                     <div onClick={() => {
                       setShowNotif(false),
-                      router.push('/dashboard/notifications')
-                      }} className="px-5 py-3 bg-slate-50 border-t border-slate-100">
+                        router.push('/dashboard/notifications')
+                    }} className="px-5 py-3 bg-slate-50 border-t border-slate-100">
                       <button className="w-full text-center text-xs font-medium text-primary hover:underline">
                         View all notifications
                       </button>
+                    </div>
+                  </motion.div>
+                </>
+              )}
+            </AnimatePresence>
+          </div>
+
+          <div className="relative">
+            <button
+              onClick={() => {
+                setShowCompanyMenu(!showCompanyMenu);
+                setShowProfile(false);
+                setShowNotif(false);
+              }}
+              className="hidden md:flex items-center gap-2 px-3 py-2 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 transition"
+            >
+              <span className="text-sm font-medium text-slate-700 max-w-[140px] truncate">
+                {selectedCompany?.name || "All Companies"}
+              </span>
+              <ChevronDown className="w-4 h-4 text-slate-400" />
+            </button>
+
+            <AnimatePresence>
+              {showCompanyMenu && (
+                <>
+                  <div
+                    className="fixed inset-0 z-40"
+                    onClick={() => setShowCompanyMenu(false)}
+                  />
+
+                  <motion.div
+                    initial={{ opacity: 0, y: 10, scale: 0.95 }}
+                    animate={{ opacity: 1, y: 0, scale: 1 }}
+                    exit={{ opacity: 0, y: 10, scale: 0.95 }}
+                    className="absolute right-0 top-full mt-2 w-64 bg-white rounded-2xl shadow-xl border border-slate-100 overflow-hidden z-50"
+                  >
+                    <button
+                      onClick={() => {
+                        localStorage.removeItem("selectedCompany");
+                        setSelectedCompany(null);
+                        setShowCompanyMenu(false);
+                        window.location.reload();
+                      }}
+                      className="w-full text-left px-4 py-3 text-sm hover:bg-slate-50 border-b"
+                    >
+                      All Companies
+                    </button>
+
+                    <div className="max-h-72 overflow-y-auto">
+                      {companies.map((company) => (
+                        <button
+                          key={company._id}
+                          onClick={() => {
+                            localStorage.setItem(
+                              "selectedCompany",
+                              JSON.stringify(company)
+                            );
+                            setSelectedCompany(company);
+                            setShowCompanyMenu(false);
+                            window.location.reload();
+                          }}
+                          className={`w-full text-left px-4 py-3 text-sm hover:bg-slate-50 ${selectedCompany?._id === company._id
+                              ? "bg-primary/5 text-primary font-semibold"
+                              : "text-slate-700"
+                            }`}
+                        >
+                          {company.name}
+                        </button>
+                      ))}
                     </div>
                   </motion.div>
                 </>

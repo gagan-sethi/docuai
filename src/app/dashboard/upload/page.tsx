@@ -150,8 +150,16 @@ async function processFile(
     if (isHandwritten) {
       formData.append("isHandwritten", "true");
     }
-
-    const uploadRes = await fetch(apiUrl("/api/upload"), { method: "POST", credentials: "include", body: formData });
+    
+    const companyId = localStorage.getItem("selected");
+    const uploadRes = await fetch(apiUrl("/api/upload"), {
+       method: "POST", 
+       credentials: "include", 
+       headers: companyId 
+        ? {"x-company-id": companyId}
+        : {},
+       body: formData 
+      });
 
     if (!uploadRes.ok) {
       const err = await uploadRes.json().catch(() => ({}));

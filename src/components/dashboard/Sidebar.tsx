@@ -94,11 +94,17 @@ const bottomNav = [
   },
 ];
 
+const companyNav = {
+  name: "Companies",
+  href: "/dashboard/company",
+  icon: FileText,
+};
+
 export default function Sidebar() {
   const pathname = usePathname();
   const router = useRouter();
   const [collapsed, setCollapsed] = useState(false);
-  const [user, setUser] = useState<{ fullName: string; email: string; role?: string } | null>(null);
+  const [user, setUser] = useState<{ fullName: string; email: string; role?: string, teamRole?:string; } | null>(null);
   const [reviewCount, setReviewCount] = useState(0);
   const [waUnprocessed, setWaUnprocessed] = useState(0);
 
@@ -128,6 +134,8 @@ export default function Sidebar() {
   }, []);
 
   const handleLogout = useCallback(async () => {
+    localStorage.removeItem("selectedCompany");
+
     await fetch(apiUrl("/api/auth/me"), { method: "POST", credentials: "include" });
     router.push("/login");
   }, [router]);
@@ -186,7 +194,7 @@ export default function Sidebar() {
               Main
             </p>
           )}
-          {[...mainNav, ...(user?.role === "accounting" ? [referralsNav] : [])].map((item) => {
+          {[...mainNav, ...(user?.teamRole === "owner" ? [companyNav] : []), ...(user?.role === "accounting" ? [referralsNav] : []), ].map((item) => {
             const isActive =
               pathname === item.href ||
               (item.href !== "/dashboard" &&
