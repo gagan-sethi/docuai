@@ -21,6 +21,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import AuthLayout from "@/components/auth/AuthLayout";
 import { apiUrl } from "@/lib/api";
+import { useSearchParams } from "next/navigation";
 
 // ─── Step indicator ─────────────────────────────────────────────
 function StepIndicator({ current }: { current: number }) {
@@ -141,6 +142,27 @@ function ForgotPasswordContent() {
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
   const [resendCooldown, setResendCooldown] = useState(0);
+  const searchParams = useSearchParams();
+
+  useEffect(() => {
+  const emailParam = searchParams.get("email");
+  const stepParam = searchParams.get("step");
+  const codeParam = searchParams.get("code");
+
+  if (emailParam) {
+    setEmail(emailParam);
+  }
+
+  if (codeParam && /^\d{6}$/.test(codeParam)) {
+    setCode(codeParam);
+    setStep(2);
+    return;
+  }
+
+  if (stepParam === "1") {
+    setStep(1);
+  }
+}, [searchParams]);
 
   // Resend countdown timer
   useEffect(() => {
