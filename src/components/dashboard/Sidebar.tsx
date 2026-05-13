@@ -100,6 +100,13 @@ const companyNav = {
   icon: FileText,
 };
 
+async function deleteCookie() {
+  await fetch(apiUrl("/api/company/switch/clear"), {
+    method: "POST",
+    credentials: "include",
+  });
+}
+
 export default function Sidebar() {
   const pathname = usePathname();
   const router = useRouter();
@@ -134,8 +141,7 @@ export default function Sidebar() {
   }, []);
 
   const handleLogout = useCallback(async () => {
-    // localStorage.removeItem("selectedCompany");
-    document.cookie = `selectedCompanyId =; Max-Age=0; path=/`;
+    await deleteCookie();
 
     await fetch(apiUrl("/api/auth/me"), { method: "POST", credentials: "include" });
     router.push("/login");

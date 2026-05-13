@@ -55,9 +55,21 @@ function timeAgo(dateStr: string): string {
   return `${days}d ago`;
 }
 
-function setCookie(name: string, value: string, days = 30) {
-  const expires = new Date(Date.now() + days * 864e5).toUTCString();
-  document.cookie = `${name}=${value}; expires=${expires}; path=/`;
+
+
+async function setCookie(companyId: string) {
+  await fetch(apiUrl("/api/company/switch/select"), {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    credentials: "include",
+    body: JSON.stringify({
+      companyId: companyId,
+    }),
+  });
+
+  window.location.reload();
 }
 
 function getCookie(name: string) {
@@ -67,8 +79,11 @@ function getCookie(name: string) {
     ?.split("=")[1];
 }
 
-function deleteCookie(name: string) {
-  document.cookie = `${name}=; Max-Age=0; path=/`;
+async function deleteCookie() {
+  await fetch(apiUrl("/api/company/switch/clear"), {
+    method: "POST",
+    credentials: "include",
+  });
 }
 
 export default function TopBar({ title }: { title: string }) {
@@ -105,17 +120,15 @@ export default function TopBar({ title }: { title: string }) {
 
         setCompanies(data.companies);
 
-       const storedCompanyId = getCookie("selectedCompanyId");
+        if (data.selectedCompanyId) {
+          const exists = data.companies.find(
+            (c: any) => c._id === data.selectedCompanyId
+          );
 
-if (storedCompanyId) {
-  const exists = data.companies.find((c: any) => c._id === storedCompanyId);
-
-  if (exists) {
-    setSelectedCompany(exists);
-  } else {
-    deleteCookie("selectedCompanyId");
-  }
-}
+          if (exists) {
+            setSelectedCompany(exists);
+          }
+        }
       })
       .catch(() => { });
 
@@ -145,7 +158,7 @@ if (storedCompanyId) {
   };
 
   const handleLogout = async () => {
-    deleteCookie("selectedCompanyId");
+    await deleteCookie();
 
     await fetch(apiUrl("/api/auth/me"), { method: "POST", credentials: "include" });
     router.push("/login");
@@ -320,8 +333,8 @@ if (storedCompanyId) {
                     className="absolute right-0 top-full mt-2 w-64 bg-white rounded-2xl shadow-xl border border-slate-100 overflow-hidden z-50"
                   >
                     <button
-                      onClick={() => {
-                        deleteCookie("selectedCompanyId");
+                      onClick={async () => {
+                        await deleteCookie();
                         setSelectedCompany(null);
                         setShowCompanyMenu(false);
                         window.location.reload();
@@ -336,14 +349,14 @@ if (storedCompanyId) {
                         <button
                           key={company._id}
                           onClick={() => {
-                            setCookie("selectedCompanyId", company._id);
+                            setCookie(company._id);
                             setSelectedCompany(company);
                             setShowCompanyMenu(false);
-                            window.location.reload();
+                            // window.location.reload();
                           }}
                           className={`w-full text-left px-4 py-3 text-sm hover:bg-slate-50 ${selectedCompany?._id === company._id
-                              ? "bg-primary/5 text-primary font-semibold"
-                              : "text-slate-700"
+                            ? "bg-primary/5 text-primary font-semibold"
+                            : "text-slate-700"
                             }`}
                         >
                           {company.name}
