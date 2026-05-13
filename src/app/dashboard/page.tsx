@@ -695,10 +695,10 @@ export default function DashboardPage() {
                             <div className="w-16 h-1.5 bg-slate-100 rounded-full overflow-hidden">
                               <div
                                 className={`h-full rounded-full ${doc.confidence >= 90
-                                    ? "bg-success"
-                                    : doc.confidence >= 80
-                                      ? "bg-amber-400"
-                                      : "bg-red-400"
+                                  ? "bg-success"
+                                  : doc.confidence >= 80
+                                    ? "bg-amber-400"
+                                    : "bg-red-400"
                                   }`}
                                 style={{ width: `${doc.confidence}%` }}
                               />
@@ -816,7 +816,9 @@ export default function DashboardPage() {
               </div>
 
               <div className="px-5 py-3 bg-slate-50 border-t border-slate-100">
-                <button className="w-full text-center text-xs font-medium text-primary hover:underline">
+                <button onClick={() => {
+                  router.push("/dashboard/activities")
+                }} className="w-full text-center text-xs font-medium text-primary hover:underline">
                   View full history
                 </button>
               </div>
@@ -881,10 +883,10 @@ export default function DashboardPage() {
                         <div className="h-2 bg-slate-100 rounded-full overflow-hidden">
                           <div
                             className={`h-full rounded-full transition-all duration-500 ${isAtLimit
-                                ? "bg-gradient-to-r from-red-400 to-red-500"
-                                : isNearLimit
-                                  ? "bg-gradient-to-r from-amber-400 to-amber-500"
-                                  : "bg-gradient-to-r from-primary to-secondary"
+                              ? "bg-gradient-to-r from-red-400 to-red-500"
+                              : isNearLimit
+                                ? "bg-gradient-to-r from-amber-400 to-amber-500"
+                                : "bg-gradient-to-r from-primary to-secondary"
                               }`}
                             style={{ width: `${isUnlimited ? 0 : usagePct}%` }}
                           />
@@ -893,8 +895,8 @@ export default function DashboardPage() {
                       <button
                         onClick={() => setShowUpgradeModal(true)}
                         className={`px-4 py-2 text-xs font-semibold rounded-xl hover:scale-105 transition-transform shadow-md ${plan === "free"
-                            ? "text-white bg-gradient-to-r from-primary to-primary-dark"
-                            : "text-primary border border-primary/20 hover:bg-primary/5 shadow-none"
+                          ? "text-white bg-gradient-to-r from-primary to-primary-dark"
+                          : "text-primary border border-primary/20 hover:bg-primary/5 shadow-none"
                           }`}
                       >
                         {plan === "free" ? "Manage Plan" : "Manage Plan"}

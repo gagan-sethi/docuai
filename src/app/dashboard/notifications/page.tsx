@@ -161,7 +161,7 @@ export default function NotificationsPage() {
   const [loading, setLoading] = useState(true);
   const [pagination, setPagination] = useState<PaginationInfo>({
     page: 1,
-    limit: 5,
+    limit: 10,
     total: 0,
     pages: 0,
   });

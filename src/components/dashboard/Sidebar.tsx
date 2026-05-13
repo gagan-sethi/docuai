@@ -21,6 +21,7 @@ import {
   BarChart3,
   Bell,
   Gift,
+  Activity
 } from "lucide-react";
 
 const mainNav = [
@@ -91,6 +92,11 @@ const bottomNav = [
     name: "Help & Support",
     href: "/dashboard/support",
     icon: HelpCircle,
+  },
+  {
+    name: "Activity",
+    href: "/dashboard/activities",
+    icon: Activity,
   },
 ];
 
