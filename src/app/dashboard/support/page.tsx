@@ -87,7 +87,7 @@ const faqs: FaqItem[] = [
   {
     question: "Where can I download invoices?",
     answer:
-      "Your invoices are available under Settings → Billing → Invoice History. You can download individual invoices as PDF files, or export your full billing history as a CSV for accounting purposes.",
+      "Your invoices are available under Settings → Billing → Invoice History. You can download individual invoices as PDF files.",
   },
   {
     question: "What happens if I exceed my usage limit?",
@@ -97,7 +97,7 @@ const faqs: FaqItem[] = [
   {
     question: "Can I cancel anytime?",
     answer:
-      "Yes, absolutely. You can cancel your subscription at any time from Settings → Billing. Your plan stays active until the end of the current billing period. We don't charge cancellation fees, and you can reactivate at any time.",
+      "Yes, absolutely. You can cancel your subscription at any time from Settings → Billing. Your plan stays active until the end of the current billing period. We don't charge cancellation fees.",
   },
 ];
 
@@ -567,7 +567,7 @@ export default function SupportPage() {
           </section>
 
           {/* System Status */}
-          <div className="max-w-6xl mx-auto px-6 pb-8">
+          {/* <div className="max-w-6xl mx-auto px-6 pb-8">
             <div className="bg-white rounded-xl border border-emerald-100 shadow-sm flex items-center gap-4 px-5 py-3.5 flex-wrap">
               <div className="flex items-center gap-2">
                 <span className="relative flex h-2.5 w-2.5">
@@ -581,7 +581,7 @@ export default function SupportPage() {
                 View status page <ExternalLink className="w-3 h-3" />
               </Link>
             </div>
-          </div>
+          </div> */}
 
           {/* Contact Section - Updated with only the form */}
           <section className="bg-gradient-to-br from-indigo-50 to-violet-50 border-t border-slate-100 py-16 px-6">

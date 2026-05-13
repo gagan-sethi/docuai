@@ -134,7 +134,8 @@ export default function Sidebar() {
   }, []);
 
   const handleLogout = useCallback(async () => {
-    localStorage.removeItem("selectedCompany");
+    // localStorage.removeItem("selectedCompany");
+    document.cookie = `selectedCompanyId =; Max-Age=0; path=/`;
 
     await fetch(apiUrl("/api/auth/me"), { method: "POST", credentials: "include" });
     router.push("/login");

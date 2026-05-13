@@ -141,7 +141,7 @@ export default function ManagePlanModal({ open, onClose, planData }: Props) {
             onClick={(e) => e.stopPropagation()}
           >
             {/* Header */}
-            <div className="relative bg-gradient-to-r from-primary via-primary-dark to-slate-900 px-6 py-5 text-white">
+            <div className="relative bg-gradient-to-r from-primary via-primary-dark to-slate-900 px-6 py-5 text-white sticky top-0 z-50">
               <div className="absolute inset-0 opacity-10 pointer-events-none">
                 <div className="absolute top-0 right-0 w-40 h-40 bg-secondary rounded-full blur-3xl" />
               </div>
@@ -330,7 +330,7 @@ export default function ManagePlanModal({ open, onClose, planData }: Props) {
             </div>
 
             {/* Footer */}
-            <div className="flex items-center justify-between px-6 py-4 bg-slate-50 border-t border-slate-100">
+            <div className="flex items-center justify-between px-6 py-4 bg-slate-50 border-t border-slate-100 sticky bottom-0 z-50">
               <p className="text-[10px] text-muted">
                 Paid plans coming soon. We&apos;ll notify you when they&apos;re available.
               </p>

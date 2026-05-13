@@ -55,6 +55,22 @@ function timeAgo(dateStr: string): string {
   return `${days}d ago`;
 }
 
+function setCookie(name: string, value: string, days = 30) {
+  const expires = new Date(Date.now() + days * 864e5).toUTCString();
+  document.cookie = `${name}=${value}; expires=${expires}; path=/`;
+}
+
+function getCookie(name: string) {
+  return document.cookie
+    .split("; ")
+    .find((row) => row.startsWith(name + "="))
+    ?.split("=")[1];
+}
+
+function deleteCookie(name: string) {
+  document.cookie = `${name}=; Max-Age=0; path=/`;
+}
+
 export default function TopBar({ title }: { title: string }) {
   const router = useRouter();
   const [showNotif, setShowNotif] = useState(false);
@@ -89,22 +105,17 @@ export default function TopBar({ title }: { title: string }) {
 
         setCompanies(data.companies);
 
-        const stored = localStorage.getItem("selectedCompany");
+       const storedCompanyId = getCookie("selectedCompanyId");
 
-        if (stored) {
-          try {
-            const parsed = JSON.parse(stored);
-            const exists = data.companies.find((c: any) => c._id === parsed._id);
+if (storedCompanyId) {
+  const exists = data.companies.find((c: any) => c._id === storedCompanyId);
 
-            if (exists) {
-              setSelectedCompany(exists);
-            } else {
-              localStorage.removeItem("selectedCompany");
-            }
-          } catch {
-            localStorage.removeItem("selectedCompany");
-          }
-        }
+  if (exists) {
+    setSelectedCompany(exists);
+  } else {
+    deleteCookie("selectedCompanyId");
+  }
+}
       })
       .catch(() => { });
 
@@ -134,7 +145,7 @@ export default function TopBar({ title }: { title: string }) {
   };
 
   const handleLogout = async () => {
-    localStorage.removeItem("selectedCompany");
+    deleteCookie("selectedCompanyId");
 
     await fetch(apiUrl("/api/auth/me"), { method: "POST", credentials: "include" });
     router.push("/login");
@@ -289,7 +300,7 @@ export default function TopBar({ title }: { title: string }) {
               className="hidden md:flex items-center gap-2 px-3 py-2 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 transition"
             >
               <span className="text-sm font-medium text-slate-700 max-w-[140px] truncate">
-                {selectedCompany?.name || "All Companies"}
+                {selectedCompany?.name || "Select Company"}
               </span>
               <ChevronDown className="w-4 h-4 text-slate-400" />
             </button>
@@ -310,14 +321,14 @@ export default function TopBar({ title }: { title: string }) {
                   >
                     <button
                       onClick={() => {
-                        localStorage.removeItem("selectedCompany");
+                        deleteCookie("selectedCompanyId");
                         setSelectedCompany(null);
                         setShowCompanyMenu(false);
                         window.location.reload();
                       }}
                       className="w-full text-left px-4 py-3 text-sm hover:bg-slate-50 border-b"
                     >
-                      All Companies
+                      Unselect Company
                     </button>
 
                     <div className="max-h-72 overflow-y-auto">
@@ -325,10 +336,7 @@ export default function TopBar({ title }: { title: string }) {
                         <button
                           key={company._id}
                           onClick={() => {
-                            localStorage.setItem(
-                              "selectedCompany",
-                              JSON.stringify(company)
-                            );
+                            setCookie("selectedCompanyId", company._id);
                             setSelectedCompany(company);
                             setShowCompanyMenu(false);
                             window.location.reload();
