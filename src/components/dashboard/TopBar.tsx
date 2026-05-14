@@ -234,62 +234,77 @@ export default function TopBar({ title }: { title: string }) {
         <div className="flex items-center gap-2">
           {/* Search */}
           <div className="relative">
-            <input
-              autoFocus
-              value={searchText}
-              onChange={(e) => setSearchText(e.target.value)}
-              type="text"
-              placeholder="Search documents, team..."
-              className="w-full pl-10 pr-4 py-2 text-sm bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary"
-            />
+            <AnimatePresence>
+              {showSearch && (
+                <motion.div
+                  initial={{ width: 0, opacity: 0 }}
+                  animate={{ width: 280, opacity: 1 }}
+                  exit={{ width: 0, opacity: 0 }}
+                  className="absolute right-12 top-1/2 -translate-y-1/2 overflow-visible z-50"
+                >
+                  <div className="relative w-[280px]">
+                    <input
+                      autoFocus
+                      value={searchText}
+                      onChange={(e) => setSearchText(e.target.value)}
+                      type="text"
+                      placeholder="Search documents, team..."
+                      className="w-full pl-10 pr-4 py-2 text-sm bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary"
+                    />
 
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
 
-            {searchText && (
-              <div className="absolute top-full mt-2 w-full bg-white rounded-2xl border border-slate-200 shadow-xl overflow-hidden z-50">
-                {searchLoading ? (
-                  <div className="px-4 py-3 text-sm text-slate-500">
-                    Searching...
+                    {searchText && (
+                      <div className="absolute top-full mt-2 left-0 w-full bg-white rounded-2xl border border-slate-200 shadow-xl overflow-hidden">
+                        {searchLoading ? (
+                          <div className="px-4 py-3 text-sm text-slate-500">
+                            Searching...
+                          </div>
+                        ) : searchResults.length === 0 ? (
+                          <div className="px-4 py-3 text-sm text-slate-500">
+                            No results
+                          </div>
+                        ) : (
+                          <div className="max-h-80 overflow-y-auto">
+                            {searchResults.map((item) => (
+                              <button
+                                key={`${item.type}-${item.id}`}
+                                onClick={() => handleSearchSelect(item)}
+                                className="w-full flex items-start gap-3 px-4 py-3 text-left hover:bg-slate-50 border-b last:border-b-0 transition"
+                              >
+                                <div className="mt-0.5">
+                                  {item.type === "document" ? (
+                                    <FileText className="w-4 h-4 text-primary" />
+                                  ) : (
+                                    <User className="w-4 h-4 text-primary" />
+                                  )}
+                                </div>
+
+                                <div className="min-w-0 flex-1">
+                                  <p className="text-sm font-medium text-slate-900 truncate">
+                                    {item.title}
+                                  </p>
+                                  <p className="text-xs text-slate-500 truncate">
+                                    {item.subtitle}
+                                  </p>
+                                </div>
+                              </button>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    )}
                   </div>
-                ) : searchResults.length === 0 ? (
-                  <div className="px-4 py-3 text-sm text-slate-500">
-                    No results
-                  </div>
-                ) : (
-                  <div className="max-h-80 overflow-y-auto">
-                    {searchResults.map((item) => (
-                      <button
-                        key={`${item.type}-${item.id}`}
-                        onClick={() => handleSearchSelect(item)}
-                        className="w-full flex items-start gap-3 px-4 py-3 text-left hover:bg-slate-50 border-b last:border-b-0 transition"
-                      >
-                        <div className="mt-0.5">
-                          {item.type === "document" ? (
-                            <FileText className="w-4 h-4 text-primary" />
-                          ) : (
-                            <User className="w-4 h-4 text-primary" />
-                          )}
-                        </div>
+                </motion.div>
+              )}
+            </AnimatePresence>
 
-                        <div className="min-w-0 flex-1">
-                          <p className="text-sm font-medium text-slate-900 truncate">
-                            {item.title}
-                          </p>
-
-                          <p className="text-xs text-slate-500 truncate">
-                            {item.subtitle}
-                          </p>
-
-                          <p className="text-[10px] mt-1 uppercase tracking-wide text-primary font-semibold">
-                            {item.type}
-                          </p>
-                        </div>
-                      </button>
-                    ))}
-                  </div>
-                )}
-              </div>
-            )}
+            <button
+              onClick={() => setShowSearch(!showSearch)}
+              className="p-2.5 rounded-xl text-slate-500 hover:text-primary hover:bg-primary/5 transition-colors"
+            >
+              {showSearch ? <X className="w-5 h-5" /> : <Search className="w-5 h-5" />}
+            </button>
           </div>
 
           {/* Upload button */}
