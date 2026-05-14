@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { Suspense, useState, useEffect, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   FileText,
@@ -33,6 +33,8 @@ import TopBar from "@/components/dashboard/TopBar";
 import MergeBar from "@/components/dashboard/MergeBar";
 import { apiUrl } from "@/lib/api";
 import type { ProcessedDocument, DocumentStatus } from "@/lib/types";
+// import { useSearchParams } from "next/navigation";
+
 
 // ─── Helpers ────────────────────────────────────────────────────
 function timeAgo(dateStr: string): string {
@@ -101,6 +103,8 @@ type SourceFilter = (typeof SOURCE_FILTERS)[number];
 type SortValue = (typeof SORT_OPTIONS)[number]["value"];
 type ViewMode = "list" | "grid";
 
+
+
 // ─── Page ────────────────────────────────────────────────────────
 export default function DocumentsPage() {
   const [sidebarWidth, setSidebarWidth] = useState(260);
@@ -128,6 +132,18 @@ export default function DocumentsPage() {
     );
 
   useEffect(() => {
+  if (docs.length === 0) return;
+
+  const params = new URLSearchParams(window.location.search);
+  const docId = params.get("doc");
+
+  if (!docId) return;
+
+  const found = docs.find((d) => d.id === docId);
+  if (found) setSelectedDoc(found);
+}, [docs]);
+
+  useEffect(() => {
     const sidebar = document.querySelector("aside");
     if (!sidebar) return;
     const observer = new ResizeObserver(() => setSidebarWidth(sidebar.offsetWidth));
@@ -144,7 +160,7 @@ export default function DocumentsPage() {
         const data = await res.json();
         setDocs(data.documents || []);
       }
-    } catch {}
+    } catch { }
     setLoading(false);
     setRefreshing(false);
   }, []);
@@ -675,9 +691,8 @@ function GridCard({
       initial={{ opacity: 0, scale: 0.97 }}
       animate={{ opacity: 1, scale: 1 }}
       transition={{ delay: Math.min(index * 0.03, 0.4) }}
-      className={`relative bg-white rounded-2xl border p-4 hover:shadow-md transition-all group cursor-pointer ${
-        selected ? "border-primary shadow-md" : "border-slate-100 hover:border-slate-200"
-      }`}
+      className={`relative bg-white rounded-2xl border p-4 hover:shadow-md transition-all group cursor-pointer ${selected ? "border-primary shadow-md" : "border-slate-100 hover:border-slate-200"
+        }`}
       onClick={onPreview}
     >
       {selectable && (
