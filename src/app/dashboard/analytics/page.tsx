@@ -87,11 +87,20 @@ function fmtNumber(n: number): string {
   return n.toLocaleString();
 }
 
+// function fmtMoney(n: number): string {
+//   return n.toLocaleString("en-AE", {
+//     style: "currency",
+//     currency: "AED",
+//     maximumFractionDigits: 0,
+//   });
+// }
+
 function fmtMoney(n: number): string {
-  return n.toLocaleString("en-AE", {
+  return n.toLocaleString("en-US", {
     style: "currency",
-    currency: "AED",
-    maximumFractionDigits: 0,
+    currency: "USD",
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
   });
 }
 
@@ -122,16 +131,35 @@ export default function AnalyticsPage() {
   const [refreshing, setRefreshing] = useState(false);
   const [range, setRange] = useState<RangeKey>("30d");
   const [error, setError] = useState<string | null>(null);
+  const [spendData, setSpendData] = useState<{
+    summary: {
+      totalSpend: number;
+      thisMonthSpend: number;
+      lastMonthSpend: number;
+      growthPercent: number;
+      totalTransactions: number;
+    };
+    monthlySpend: Array<{ month: string; amount: number }>;
+  } | null>(null);
 
   const load = async () => {
     try {
       setError(null);
-      const res = await fetch(apiUrl("/api/documents?limit=500"), {
-        credentials: "include",
-      });
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      const data = await res.json();
-      setDocs(Array.isArray(data?.documents) ? data.documents : []);
+      const [docsRes, spendRes] = await Promise.all([
+        fetch(apiUrl("/api/documents?limit=500"), { credentials: "include" }),
+        fetch(apiUrl("/api/plan/spend"), { credentials: "include" }),
+      ]);
+
+      if (!docsRes.ok) throw new Error(`HTTP ${docsRes.status}`);
+      const docsData = await docsRes.json();
+      setDocs(Array.isArray(docsData?.documents) ? docsData.documents : []);
+
+      if (spendRes.ok) {
+        const spendDataJson = await spendRes.json();
+        if (spendDataJson.success && spendDataJson.data) {
+          setSpendData(spendDataJson.data);
+        }
+      }
     } catch (e) {
       setError(e instanceof Error ? e.message : "Failed to load analytics");
     } finally {
@@ -323,11 +351,10 @@ export default function AnalyticsPage() {
                   <button
                     key={r}
                     onClick={() => setRange(r)}
-                    className={`px-3 py-1.5 text-xs font-semibold rounded-lg transition ${
-                      range === r
-                        ? "bg-slate-900 text-white shadow-sm"
-                        : "text-slate-600 hover:bg-slate-100"
-                    }`}
+                    className={`px-3 py-1.5 text-xs font-semibold rounded-lg transition ${range === r
+                      ? "bg-slate-900 text-white shadow-sm"
+                      : "text-slate-600 hover:bg-slate-100"
+                      }`}
                   >
                     {r === "all" ? "All" : r.toUpperCase()}
                   </button>
@@ -364,7 +391,8 @@ export default function AnalyticsPage() {
           ) : (
             <>
               {/* ─── KPI cards ───────────────────────────────── */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+              {/* ─── KPI cards ───────────────────────────────── */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4 mb-6">
                 <KpiCard
                   label="Total Documents"
                   value={fmtNumber(kpis.total)}
@@ -396,6 +424,17 @@ export default function AnalyticsPage() {
                     kpis.amountCount > 0
                       ? `from ${fmtNumber(kpis.amountCount)} invoice${kpis.amountCount === 1 ? "" : "s"}`
                       : "no totals extracted"
+                  }
+                />
+                <KpiCard
+                  label="Total Spend"
+                  value={spendData ? fmtMoney(spendData.summary.totalSpend) : "—"}
+                  icon={<TrendingUp className="w-4 h-4" />}
+                  tone="emerald"
+                  hint={
+                    spendData
+                      ? `${fmtMoney(spendData.summary.thisMonthSpend)} this month · ${spendData.summary.growthPercent >= 0 ? '↑' : '↓'} ${Math.abs(spendData.summary.growthPercent).toFixed(1)}%`
+                      : "Loading..."
                   }
                 />
               </div>
@@ -501,7 +540,7 @@ function KpiCard({
   value: string;
   hint?: string;
   icon: React.ReactNode;
-  tone: "primary" | "success" | "warn" | "danger" | "indigo";
+  tone: "primary" | "success" | "warn" | "danger" | "indigo" | "emerald";
   trend?: "up" | "down";
 }) {
   const toneCls = {
@@ -510,6 +549,7 @@ function KpiCard({
     warn: "from-amber-100 to-amber-50 text-amber-600",
     danger: "from-red-100 to-red-50 text-red-600",
     indigo: "from-indigo-100 to-indigo-50 text-indigo-600",
+    emerald: "from-emerald-100 to-emerald-50 text-emerald-600",
   }[tone];
   return (
     <motion.div
