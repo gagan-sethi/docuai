@@ -72,13 +72,6 @@ async function setCookie(companyId: string) {
   window.location.reload();
 }
 
-function getCookie(name: string) {
-  return document.cookie
-    .split("; ")
-    .find((row) => row.startsWith(name + "="))
-    ?.split("=")[1];
-}
-
 async function deleteCookie() {
   await fetch(apiUrl("/api/company/switch/clear"), {
     method: "POST",
