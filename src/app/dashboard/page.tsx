@@ -243,6 +243,12 @@ export default function DashboardPage() {
     documentsUsed: number;
     documentsRemaining: number | string;
     usagePercent: number;
+
+    pagesPerMonth: number | string;
+    pagesUsed: number;
+    pagesRemaining: number | string;
+    pagesUsagePercent: number;
+
     resetsAt: string;
   } | null>(null);
   const [showUpgradeModal, setShowUpgradeModal] = useState(false);
@@ -835,13 +841,28 @@ export default function DashboardPage() {
             {(() => {
               const plan = planData?.plan || "free";
               const label = planData?.label || "Free";
-              const used = planData?.documentsUsed || 0;
-              const limit = typeof planData?.documentsPerMonth === "number" ? planData.documentsPerMonth : 5;
-              const isUnlimited = planData?.documentsPerMonth === "Unlimited";
-              const usagePct = isUnlimited ? 0 : Math.min((used / limit) * 100, 100);
+              const docsUsed = planData?.documentsUsed || 0;
+              const docsLimit =
+                typeof planData?.documentsPerMonth === "number"
+                  ? planData.documentsPerMonth
+                  : 5;
+
+              const pagesUsed = planData?.pagesUsed || 0;
+              const pagesLimit =
+                typeof planData?.pagesPerMonth === "number"
+                  ? planData.pagesPerMonth
+                  : 5;
+
+              const isUnlimited = planData?.pagesPerMonth === "Unlimited";
+
+              const usagePct = planData?.pagesUsagePercent || 0;
+
               const isNearLimit = !isUnlimited && usagePct >= 80;
-              const isAtLimit = !isUnlimited && used >= limit;
-              const remaining = isUnlimited ? "∞" : Math.max(0, limit - used);
+              const isAtLimit = !isUnlimited && pagesUsed >= pagesLimit;
+
+              const remaining = isUnlimited
+                ? "∞"
+                : Math.max(0, pagesLimit - pagesUsed);
               const resetsAt = planData?.resetsAt ? new Date(planData.resetsAt).toLocaleDateString("en-US", { month: "short", day: "numeric" }) : "";
 
               return (
@@ -854,7 +875,7 @@ export default function DashboardPage() {
                       <div>
                         <div className="flex items-center gap-2">
                           <h3 className="text-sm font-bold text-slate-900">
-                            {label} Plan
+                            {label} 
                           </h3>
                           {plan === "free" && (
                             <span className="px-2 py-0.5 text-[10px] font-bold bg-amber-50 text-amber-600 rounded-full border border-amber-200">
@@ -864,8 +885,8 @@ export default function DashboardPage() {
                         </div>
                         <p className="text-xs text-muted mt-0.5">
                           {isUnlimited
-                            ? `${used.toLocaleString()} documents used this month · Unlimited`
-                            : `${used} of ${limit} documents used this month`}
+                            ? `${pagesUsed.toLocaleString()} pages used · ${docsUsed} documents`
+                            : `${pagesUsed} of ${pagesLimit} pages used · ${docsUsed} documents`}
                           {resetsAt && <span className="text-slate-400"> · Resets {resetsAt}</span>}
                         </p>
                       </div>
