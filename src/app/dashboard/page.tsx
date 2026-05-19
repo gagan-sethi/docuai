@@ -737,7 +737,7 @@ export default function DashboardPage() {
                         )}
                         {(doc.status === "approved" || doc.status === "completed") && (
                           <Link
-                            href={`/api/documents/${doc.id}/excel`}
+                            href={apiUrl(`/api/documents/${doc.id}/excel`)}
                             className="p-1.5 rounded-lg text-slate-400 hover:text-primary hover:bg-primary/10 transition-colors"
                             title="Download Excel"
                           >

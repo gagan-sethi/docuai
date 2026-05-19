@@ -656,7 +656,7 @@ function ListRow({
             <FileText className="w-4 h-4" />
           </Link>
           <a
-            href={apiUrl(`/api/documents/${doc.id}/download`)}
+            href={apiUrl(`/api/documents/${doc.id}/excel`)}
             className="p-1.5 rounded-lg text-slate-400 hover:text-green-600 hover:bg-green-50 transition-colors"
             title="Download"
           >
@@ -736,7 +736,7 @@ function GridCard({
             <Eye className="w-3.5 h-3.5" />
           </Link>
           <a
-            href={apiUrl(`/api/documents/${doc.id}/download`)}
+            href={apiUrl(`/api/documents/${doc.id}/excel`)}
             onClick={(e) => e.stopPropagation()}
             className="p-1.5 rounded-lg text-slate-400 hover:text-green-600 hover:bg-green-50 transition-colors"
           >
@@ -866,7 +866,7 @@ function DocDetailDrawer({ doc, onClose }: { doc: ProcessedDocument; onClose: ()
           Review & Edit
         </Link>
         <a
-          href={apiUrl(`/api/documents/${doc.id}/download`)}
+          href={apiUrl(`/api/documents/${doc.id}/excel`)}
           className="flex items-center justify-center gap-2 px-4 py-2.5 text-sm font-medium text-slate-600 bg-white border border-slate-200 rounded-xl hover:bg-slate-50 transition"
         >
           <Download className="w-4 h-4" />

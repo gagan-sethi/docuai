@@ -613,7 +613,7 @@ function DocRow({
             <Eye className="w-4 h-4" />
           </Link>
           <a
-            href={apiUrl(`/api/documents/${doc.id}/download`)}
+            href={apiUrl(`/api/documents/${doc.id}/excel`)}
             className="p-1.5 rounded-lg text-slate-400 hover:text-green-600 hover:bg-green-50 transition-colors"
             title="Download"
           >
