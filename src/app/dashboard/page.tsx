@@ -608,9 +608,12 @@ export default function DashboardPage() {
               <h3 className="text-sm font-bold text-slate-900">
                 Processing Pipeline
               </h3>
-              <button className="text-xs text-primary font-medium hover:underline">
+              <Link
+                href="/dashboard/analytics"
+                className="text-xs text-primary font-medium hover:underline"
+              >
                 View details
-              </button>
+              </Link>
             </div>
             <div className="flex items-center gap-2">
               {pipeline.map((stage, i) => (
@@ -650,10 +653,10 @@ export default function DashboardPage() {
                   Recent Documents
                 </h3>
                 <div className="flex items-center gap-2">
-                  <button className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-slate-600 bg-slate-50 rounded-lg hover:bg-slate-100 transition-colors">
+                  {/* <button className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-slate-600 bg-slate-50 rounded-lg hover:bg-slate-100 transition-colors">
                     <Filter className="w-3.5 h-3.5" />
                     Filter
-                  </button>
+                  </button> */}
                   <Link
                     href="/dashboard/documents"
                     className="text-xs text-primary font-medium hover:underline"
@@ -744,9 +747,9 @@ export default function DashboardPage() {
                             <Download className="w-4 h-4" />
                           </Link>
                         )}
-                        <button className="p-1.5 rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition-colors">
+                        {/* <button className="p-1.5 rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition-colors">
                           <MoreHorizontal className="w-4 h-4" />
-                        </button>
+                        </button> */}
                       </div>
                     </div>
                   );

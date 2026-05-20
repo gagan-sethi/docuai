@@ -48,24 +48,24 @@ const categories: Category[] = [
     description: "Upgrade, downgrade, or cancel your plan. Understand billing cycles and pricing.",
     iconBg: "bg-green-50",
   },
-  {
-    icon: "📊",
-    title: "Usage & Limits",
-    description: "Track document usage, understand processing limits, and monitor your consumption.",
-    iconBg: "bg-orange-50",
-  },
+  // {
+  //   icon: "📊",
+  //   title: "Usage & Limits",
+  //   description: "Track document usage, understand processing limits, and monitor your consumption.",
+  //   iconBg: "bg-orange-50",
+  // },
   {
     icon: "🧾",
     title: "Invoices & Payments",
     description: "Download invoices, update payment methods, and review transaction history.",
     iconBg: "bg-sky-50",
   },
-  {
-    icon: "🔧",
-    title: "Troubleshooting",
-    description: "Resolve upload failures, extraction errors, and common technical issues quickly.",
-    iconBg: "bg-red-50",
-  },
+  // {
+  //   icon: "🔧",
+  //   title: "Troubleshooting",
+  //   description: "Resolve upload failures, extraction errors, and common technical issues quickly.",
+  //   iconBg: "bg-red-50",
+  // },
 ];
 
 const faqs: FaqItem[] = [
@@ -499,13 +499,13 @@ export default function SupportPage() {
           </section>
 
           {/* Categories */}
-          <section className="max-w-6xl mx-auto px-6 py-16">
+          {/* <section className="max-w-6xl mx-auto px-6 py-16">
             <SectionHeader
               label="Browse Topics"
               title="Help Categories"
               subtitle="Choose a topic to browse relevant guides and articles."
             />
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-2 gap-6">
               {categories.map((cat) => (
                 <button
                   key={cat.title}
@@ -524,7 +524,7 @@ export default function SupportPage() {
                 </button>
               ))}
             </div>
-          </section>
+          </section> */}
 
           {/* FAQ Section */}
           <section id="faq" className="bg-white border-y border-slate-100 py-16 px-6">
@@ -539,7 +539,7 @@ export default function SupportPage() {
           </section>
 
           {/* Guides Section */}
-          <section className="max-w-6xl mx-auto px-6 py-16">
+          {/* <section className="max-w-6xl mx-auto px-6 py-16">
             <SectionHeader
               label="Documentation"
               title="Guides & Articles"
@@ -564,7 +564,7 @@ export default function SupportPage() {
                 </div>
               ))}
             </div>
-          </section>
+          </section> */}
 
           {/* System Status */}
           {/* <div className="max-w-6xl mx-auto px-6 pb-8">
@@ -867,9 +867,9 @@ export default function SupportPage() {
           </section>
 
           {/* Footer Note */}
-          <div className="border-t border-slate-200 py-6 text-center text-xs text-slate-400">
+          {/* <div className="border-t border-slate-200 py-6 text-center text-xs text-slate-400">
             © 2025 DocuAI. All rights reserved.
-          </div>
+          </div> */}
         </main>
       </motion.div>
     </div>
