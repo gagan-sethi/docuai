@@ -3,11 +3,13 @@
 import { useEffect, useState, useCallback, useMemo, useRef, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
+import Link from "next/link";
 import {
   FileText, CheckCircle2, XCircle, Clock, Edit3, Download, Copy,
   AlertTriangle, ChevronRight, Save, Loader2, Upload, Search,
   RefreshCw, Filter, Eye, ShieldCheck, ShieldX, ZoomIn, ZoomOut,
   RotateCw, Maximize2, PanelLeftClose, PanelLeftOpen, Image as ImageIcon,
+  ArrowLeft, LayoutDashboard,
 } from "lucide-react";
 import type { ProcessedDocument, ExtractedField, LineItem } from "@/lib/types";
 import { apiUrl } from "@/lib/api";
@@ -242,6 +244,15 @@ function ReviewPageContent() {
       <div className="flex h-screen overflow-hidden">
         <aside className="w-72 flex-shrink-0 border-r border-gray-200 bg-white flex flex-col">
           <div className="border-b border-gray-200 p-3">
+            <Link
+              href="/dashboard"
+              className="group mb-3 flex w-full items-center justify-center gap-2 rounded-lg bg-gradient-to-r from-indigo-600 to-purple-600 px-3 py-2 text-xs font-bold text-white shadow-md ring-1 ring-indigo-500/30 transition-all hover:from-indigo-700 hover:to-purple-700 hover:shadow-lg hover:shadow-indigo-500/30 active:scale-[0.98]"
+              title="Back to dashboard"
+            >
+              <ArrowLeft className="h-4 w-4 transition-transform group-hover:-translate-x-1" />
+              <LayoutDashboard className="h-4 w-4" />
+              <span className="tracking-wide">Back to Dashboard</span>
+            </Link>
             <h2 className="text-base font-bold text-gray-900">Documents</h2>
             <p className="text-[10px] text-gray-500 mt-0.5">{documents.length} total &middot; {statusCounts.review || 0} need review</p>
             <div className="relative mt-2"><Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-gray-400" /><input type="text" placeholder="Search..." value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} className="w-full rounded-lg border border-gray-200 bg-gray-50 py-1.5 pl-8 pr-3 text-xs placeholder:text-gray-400 focus:border-indigo-300 focus:outline-none focus:ring-2 focus:ring-indigo-100" /></div>
