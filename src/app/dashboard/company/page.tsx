@@ -26,6 +26,7 @@ import Sidebar from "@/components/dashboard/Sidebar";
 import TopBar from "@/components/dashboard/TopBar";
 import { apiUrl } from "@/lib/api";
 import { toast } from "react-toastify";
+import ManagePlanModal from "@/components/dashboard/ManagePlanModal";
 
 interface Company {
   _id: string;
@@ -69,6 +70,30 @@ interface PaginationInfo {
   hasMore: boolean;
 }
 
+interface PlanData {
+  plan: string;
+  label: string;
+
+  documentsPerMonth: number | "Unlimited";
+  documentsUsed: number;
+  documentsRemaining: number | "Unlimited";
+
+  pagesPerMonth: number | "Unlimited";
+  pagesUsed: number;
+  pagesRemaining: number | "Unlimited";
+
+  maxUsers: number;
+
+  viewerIsOwner: boolean;
+  isManagedByTeam: boolean;
+
+  planStartedAt?: string;
+  planExpiresAt?: string | null;
+
+  usagePercent: number;
+  pagesUsagePercent: number;
+}
+
 const initialFormData: CompanyFormData = {
   name: "",
   legalName: "",
@@ -98,17 +123,21 @@ export default function CompaniesPage() {
     offset: 0,
     hasMore: false,
   });
-  
+
   // Modal states
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [isViewModalOpen, setIsViewModalOpen] = useState(false);
   const [selectedCompany, setSelectedCompany] = useState<Company | null>(null);
-  
+
   // Form states
   const [formData, setFormData] = useState<CompanyFormData>(initialFormData);
   const [formLoading, setFormLoading] = useState(false);
   const [formErrors, setFormErrors] = useState<Record<string, string>>({});
+  const [showPlanModal, setShowPlanModal] = useState(false);
+  const [planData, setPlanData] = useState<PlanData | null>(null);
+  const [planLoading, setPlanLoading] = useState(false);
+
 
   // Calculate page from offset and limit
   const calculatePage = (offset: number, limit: number): number => {
@@ -119,24 +148,24 @@ export default function CompaniesPage() {
   const fetchCompanies = useCallback(async () => {
     try {
       setLoading(true);
-      
+
       // Calculate offset from page
       const offset = (pagination.page - 1) * pagination.limit;
-      
+
       // Build query params
       const params = new URLSearchParams();
       params.append("limit", String(pagination.limit));
       params.append("offset", String(offset));
-      
+
       if (searchTerm) {
         params.append("search", searchTerm);
       }
       if (statusFilter !== "all") {
         params.append("status", statusFilter);
       }
-      
+
       const url = apiUrl(`/api/company?${params.toString()}`);
-      
+
       const res = await fetch(url, {
         credentials: "include",
       });
@@ -148,14 +177,14 @@ export default function CompaniesPage() {
 
       const data = await res.json();
       setCompanies(data.companies || []);
-      
+
       if (data.pagination) {
         setPagination({
           ...data.pagination,
           page: calculatePage(data.pagination.offset, data.pagination.limit),
         });
       }
-      
+
       if (data.counts) {
         setStats(data.counts);
       }
@@ -166,6 +195,32 @@ export default function CompaniesPage() {
       setLoading(false);
     }
   }, [pagination.page, pagination.limit, searchTerm, statusFilter]);
+
+  const fetchPlan = useCallback(async () => {
+    try {
+      setPlanLoading(true);
+
+      const res = await fetch(apiUrl("/api/plan"), {
+        credentials: "include",
+      });
+
+      if (!res.ok) {
+        throw new Error("Failed to fetch plan");
+      }
+
+      const data = await res.json();
+
+      setPlanData(data);
+    } catch (error) {
+      console.error("Failed to fetch plan:", error);
+    } finally {
+      setPlanLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchPlan();
+  }, [fetchPlan]);
 
   useEffect(() => {
     fetchCompanies();
@@ -189,7 +244,7 @@ export default function CompaniesPage() {
         fetchCompanies();
       }
     }, 500);
-    
+
     return () => clearTimeout(timeoutId);
   }, [searchTerm, statusFilter]);
 
@@ -197,7 +252,7 @@ export default function CompaniesPage() {
   const handlePageChange = (newPage: number) => {
     if (newPage < 1) return;
     if (!pagination.hasMore && newPage > pagination.page) return;
-    
+
     setPagination(prev => ({ ...prev, page: newPage }));
   };
 
@@ -207,29 +262,29 @@ export default function CompaniesPage() {
   // Form validation
   const validateForm = (): boolean => {
     const errors: Record<string, string> = {};
-    
+
     if (!formData.name || !formData.name.trim()) {
       errors.name = "Company name is required";
     } else if (formData.name.length > 200) {
       errors.name = "Company name must be less than 200 characters";
     }
-    
-    if(!formData.legalName || !formData.legalName.trim()){
-        errors.legalName = "legal name is required";
-    }else if (formData.legalName.length > 250) {
+
+    if (!formData.legalName || !formData.legalName.trim()) {
+      errors.legalName = "legal name is required";
+    } else if (formData.legalName.length > 250) {
       errors.legalName = "Legal name must be less than 250 characters";
     }
-    
-    if(!formData.email || !formData.email.trim()){
-        errors.email = "email is required";
-    }else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email)) {
+
+    if (!formData.email || !formData.email.trim()) {
+      errors.email = "email is required";
+    } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email)) {
       errors.email = "Invalid email format";
     }
-    
+
     if (formData.address?.postalCode && !/^\d{4,10}$/.test(formData.address.postalCode)) {
       errors["address.postalCode"] = "Invalid postal code format";
     }
-    
+
     setFormErrors(errors);
     return Object.keys(errors).length === 0;
   };
@@ -237,12 +292,12 @@ export default function CompaniesPage() {
   // Create company
   const handleCreateCompany = async (e: React.FormEvent) => {
     e.preventDefault();
-    
+
     if (!validateForm()) return;
-    
+
     try {
       setFormLoading(true);
-      
+
       // Prepare data - remove empty address fields
       const submitData: any = {
         name: formData.name.trim(),
@@ -251,7 +306,7 @@ export default function CompaniesPage() {
         phone: formData.phone || undefined,
         status: formData.status,
       };
-      
+
       // Only include address if it has any non-empty fields
       if (formData.address) {
         const hasAddressFields = Object.values(formData.address).some(v => v && v.trim());
@@ -265,7 +320,7 @@ export default function CompaniesPage() {
           };
         }
       }
-      
+
       const res = await fetch(apiUrl("/api/company"), {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -274,8 +329,17 @@ export default function CompaniesPage() {
       });
 
       const data = await res.json();
-      
+
       if (!res.ok) {
+        // Check if it's a company limit error
+        if (data.code === "COMPANY_LIMIT_REACHED") {
+          await fetchPlan();
+
+          setIsCreateModalOpen(false);
+          setShowPlanModal(true);
+          toast.error(data.error);
+          return;
+        }
         throw new Error(data.error || "Failed to create company");
       }
 
@@ -285,6 +349,7 @@ export default function CompaniesPage() {
       // Reset to first page and refresh
       setPagination(prev => ({ ...prev, page: 1 }));
       fetchCompanies();
+      fetchPlan();
     } catch (error: any) {
       console.error("Error creating company:", error);
       toast.error(error.message || "Failed to create company");
@@ -296,12 +361,12 @@ export default function CompaniesPage() {
   // Update company
   const handleUpdateCompany = async (e: React.FormEvent) => {
     e.preventDefault();
-    
+
     if (!validateForm() || !selectedCompany) return;
-    
+
     try {
       setFormLoading(true);
-      
+
       // Prepare data
       const submitData: any = {
         name: formData.name.trim(),
@@ -310,7 +375,7 @@ export default function CompaniesPage() {
         phone: formData.phone || undefined,
         status: formData.status,
       };
-      
+
       // Only include address if it has any non-empty fields
       if (formData.address) {
         const hasAddressFields = Object.values(formData.address).some(v => v && v.trim());
@@ -326,7 +391,7 @@ export default function CompaniesPage() {
           submitData.address = undefined;
         }
       }
-      
+
       const res = await fetch(apiUrl(`/api/company/${selectedCompany._id}`), {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
@@ -335,7 +400,7 @@ export default function CompaniesPage() {
       });
 
       const data = await res.json();
-      
+
       if (!res.ok) {
         throw new Error(data.error || "Failed to update company");
       }
@@ -383,7 +448,7 @@ export default function CompaniesPage() {
   // Handle form input changes
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
     const { name, value } = e.target;
-    
+
     if (name.startsWith("address.")) {
       const addressField = name.split(".")[1];
       setFormData((prev) => ({
@@ -396,7 +461,7 @@ export default function CompaniesPage() {
     } else {
       setFormData((prev) => ({ ...prev, [name]: value }));
     }
-    
+
     // Clear error for this field
     if (formErrors[name]) {
       setFormErrors((prev) => {
@@ -539,15 +604,14 @@ export default function CompaniesPage() {
                                   <p className="text-xs text-slate-400">{company.legalName}</p>
                                 )}
                               </div>
-                              <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${
-                                company.status === "active"
-                                  ? "bg-green-100 text-green-700"
-                                  : "bg-red-100 text-red-700"
-                              }`}>
+                              <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${company.status === "active"
+                                ? "bg-green-100 text-green-700"
+                                : "bg-red-100 text-red-700"
+                                }`}>
                                 {company.status === "active" ? "Active" : "Inactive"}
                               </span>
                             </div>
-                            
+
                             <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mt-3">
                               {company.email && (
                                 <div className="flex items-center gap-2 text-sm text-slate-500">
@@ -573,7 +637,7 @@ export default function CompaniesPage() {
                               )}
                             </div>
                           </div>
-                          
+
                           <div className="flex items-center gap-2 ml-4">
                             <button
                               onClick={() => handleViewClick(company)}
@@ -609,7 +673,7 @@ export default function CompaniesPage() {
                         >
                           <ChevronLeft className="w-4 h-4 text-slate-400" />
                         </button>
-                        
+
                         {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
                           let pageNum: number;
                           if (totalPages <= 5) {
@@ -621,22 +685,21 @@ export default function CompaniesPage() {
                           } else {
                             pageNum = pagination.page - 2 + i;
                           }
-                          
+
                           return (
                             <button
                               key={pageNum}
                               onClick={() => handlePageChange(pageNum)}
-                              className={`w-8 h-8 rounded-lg flex items-center justify-center text-sm font-medium transition-colors ${
-                                pageNum === pagination.page
-                                  ? "bg-primary text-white"
-                                  : "hover:bg-slate-50 text-slate-600"
-                              }`}
+                              className={`w-8 h-8 rounded-lg flex items-center justify-center text-sm font-medium transition-colors ${pageNum === pagination.page
+                                ? "bg-primary text-white"
+                                : "hover:bg-slate-50 text-slate-600"
+                                }`}
                             >
                               {pageNum}
                             </button>
                           );
                         })}
-                        
+
                         <button
                           disabled={!pagination.hasMore || pagination.page === totalPages}
                           onClick={() => handlePageChange(pagination.page + 1)}
@@ -690,7 +753,7 @@ export default function CompaniesPage() {
                     <X className="w-4 h-4 text-slate-400" />
                   </button>
                 </div>
-                
+
                 <div className="p-6 space-y-6">
                   {/* Basic Information */}
                   <div>
@@ -708,16 +771,15 @@ export default function CompaniesPage() {
                           name="name"
                           value={formData.name}
                           onChange={handleInputChange}
-                          className={`w-full px-3 py-2 rounded-lg border ${
-                            formErrors.name ? "border-red-500" : "border-slate-200"
-                          } focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all`}
+                          className={`w-full px-3 py-2 rounded-lg border ${formErrors.name ? "border-red-500" : "border-slate-200"
+                            } focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all`}
                           placeholder="Enter company name"
                         />
                         {formErrors.name && (
                           <p className="text-xs text-red-500 mt-1">{formErrors.name}</p>
                         )}
                       </div>
-                      
+
                       <div>
                         <label className="block text-sm font-medium text-slate-700 mb-1">
                           Legal Name
@@ -753,16 +815,15 @@ export default function CompaniesPage() {
                           name="email"
                           value={formData.email}
                           onChange={handleInputChange}
-                          className={`w-full px-3 py-2 rounded-lg border ${
-                            formErrors.email ? "border-red-500" : "border-slate-200"
-                          } focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all`}
+                          className={`w-full px-3 py-2 rounded-lg border ${formErrors.email ? "border-red-500" : "border-slate-200"
+                            } focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all`}
                           placeholder="company@example.com"
                         />
                         {formErrors.email && (
                           <p className="text-xs text-red-500 mt-1">{formErrors.email}</p>
                         )}
                       </div>
-                      
+
                       <div>
                         <label className="block text-sm font-medium text-slate-700 mb-1">
                           Phone Number
@@ -799,7 +860,7 @@ export default function CompaniesPage() {
                           placeholder="Street address"
                         />
                       </div>
-                      
+
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                         <div>
                           <label className="block text-sm font-medium text-slate-700 mb-1">
@@ -814,7 +875,7 @@ export default function CompaniesPage() {
                             placeholder="City"
                           />
                         </div>
-                        
+
                         <div>
                           <label className="block text-sm font-medium text-slate-700 mb-1">
                             State
@@ -829,7 +890,7 @@ export default function CompaniesPage() {
                           />
                         </div>
                       </div>
-                      
+
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                         <div>
                           <label className="block text-sm font-medium text-slate-700 mb-1">
@@ -844,7 +905,7 @@ export default function CompaniesPage() {
                             placeholder="Country"
                           />
                         </div>
-                        
+
                         <div>
                           <label className="block text-sm font-medium text-slate-700 mb-1">
                             Postal Code
@@ -854,9 +915,8 @@ export default function CompaniesPage() {
                             name="address.postalCode"
                             value={formData.address?.postalCode || ""}
                             onChange={handleInputChange}
-                            className={`w-full px-3 py-2 rounded-lg border ${
-                              formErrors["address.postalCode"] ? "border-red-500" : "border-slate-200"
-                            } focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all`}
+                            className={`w-full px-3 py-2 rounded-lg border ${formErrors["address.postalCode"] ? "border-red-500" : "border-slate-200"
+                              } focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all`}
                             placeholder="Postal code"
                           />
                           {formErrors["address.postalCode"] && (
@@ -883,7 +943,7 @@ export default function CompaniesPage() {
                     </select>
                   </div>
                 </div>
-                
+
                 <div className="p-6 border-t border-slate-100 flex justify-end gap-3 sticky bottom-0 bg-white">
                   <button
                     type="button"
@@ -947,7 +1007,7 @@ export default function CompaniesPage() {
                     <X className="w-4 h-4 text-slate-400" />
                   </button>
                 </div>
-                
+
                 <div className="p-6 space-y-6">
                   <div>
                     <h4 className="text-sm font-semibold text-slate-900 mb-4 flex items-center gap-2">
@@ -1083,7 +1143,7 @@ export default function CompaniesPage() {
                     </select>
                   </div>
                 </div>
-                
+
                 <div className="p-6 border-t border-slate-100 flex justify-end gap-3 sticky bottom-0 bg-white">
                   <button
                     type="button"
@@ -1143,14 +1203,13 @@ export default function CompaniesPage() {
                   <X className="w-4 h-4 text-slate-400" />
                 </button>
               </div>
-              
+
               <div className="p-6 space-y-6">
                 <div className="flex justify-start">
-                  <span className={`px-3 py-1 rounded-full text-sm font-medium ${
-                    selectedCompany.status === "active"
-                      ? "bg-green-100 text-green-700"
-                      : "bg-red-100 text-red-700"
-                  }`}>
+                  <span className={`px-3 py-1 rounded-full text-sm font-medium ${selectedCompany.status === "active"
+                    ? "bg-green-100 text-green-700"
+                    : "bg-red-100 text-red-700"
+                    }`}>
                     {selectedCompany.status === "active" ? "Active" : "Inactive"}
                   </span>
                 </div>
@@ -1213,7 +1272,7 @@ export default function CompaniesPage() {
                   </div>
                 </div>
               </div>
-              
+
               <div className="p-6 border-t border-slate-100 flex justify-end gap-3">
                 <button
                   onClick={() => {
@@ -1230,6 +1289,13 @@ export default function CompaniesPage() {
           </motion.div>
         )}
       </AnimatePresence>
+      {/* Add this after your modals */}
+      <ManagePlanModal
+        open={showPlanModal}
+        onClose={() => setShowPlanModal(false)}
+        planData={planData}
+      // loading={planLoading}
+      />
     </div>
   );
 }

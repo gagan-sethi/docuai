@@ -130,6 +130,8 @@ export default function AnalyticsPage() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [range, setRange] = useState<RangeKey>("30d");
+  const [fromDate, setFromDate] = useState("");
+  const [toDate, setToDate] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [spendData, setSpendData] = useState<{
     summary: {
@@ -145,23 +147,53 @@ export default function AnalyticsPage() {
   const load = async () => {
     try {
       setError(null);
+
+      const params = new URLSearchParams();
+
+      params.append("limit", "500");
+
+      if (fromDate) {
+        params.append("fromDate", fromDate);
+      }
+
+      if (toDate) {
+        params.append("toDate", toDate);
+      }
+
       const [docsRes, spendRes] = await Promise.all([
-        fetch(apiUrl("/api/documents?limit=500"), { credentials: "include" }),
-        fetch(apiUrl("/api/plan/spend"), { credentials: "include" }),
+        fetch(apiUrl(`/api/documents?${params.toString()}`), {
+          credentials: "include",
+        }),
+        fetch(apiUrl("/api/plan/spend"), {
+          credentials: "include",
+        }),
       ]);
 
-      if (!docsRes.ok) throw new Error(`HTTP ${docsRes.status}`);
+      if (!docsRes.ok) {
+        throw new Error(`HTTP ${docsRes.status}`);
+      }
+
       const docsData = await docsRes.json();
-      setDocs(Array.isArray(docsData?.documents) ? docsData.documents : []);
+
+      setDocs(
+        Array.isArray(docsData?.documents)
+          ? docsData.documents
+          : []
+      );
 
       if (spendRes.ok) {
         const spendDataJson = await spendRes.json();
+
         if (spendDataJson.success && spendDataJson.data) {
           setSpendData(spendDataJson.data);
         }
       }
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Failed to load analytics");
+      setError(
+        e instanceof Error
+          ? e.message
+          : "Failed to load analytics"
+      );
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -170,7 +202,7 @@ export default function AnalyticsPage() {
 
   useEffect(() => {
     load();
-  }, []);
+  }, [fromDate, toDate]);
 
   const handleRefresh = () => {
     setRefreshing(true);
@@ -178,11 +210,13 @@ export default function AnalyticsPage() {
   };
 
   // ─── Filter by selected range ─────────────────────────────────
-  const filtered = useMemo(() => {
-    const start = rangeStart(range);
-    if (!start) return docs;
-    return docs.filter((d) => new Date(d.createdAt) >= start);
-  }, [docs, range]);
+  // const filtered = useMemo(() => {
+  //   const start = rangeStart(range);
+  //   if (!start) return docs;
+  //   return docs.filter((d) => new Date(d.createdAt) >= start);
+  // }, [docs, range]);
+
+  const filtered = docs;
 
   // ─── KPIs ────────────────────────────────────────────────────
   const kpis = useMemo(() => {
@@ -236,22 +270,62 @@ export default function AnalyticsPage() {
   }, [filtered]);
 
   // ─── Daily volume (full window) ──────────────────────────────
+  // const daily = useMemo(() => {
+  //   const days = range === "7d" ? 7 : range === "30d" ? 30 : range === "90d" ? 90 : 30;
+  //   const buckets = new Map<string, number>();
+  //   const start = startOfDay(new Date());
+  //   start.setDate(start.getDate() - (days - 1));
+  //   for (let i = 0; i < days; i++) {
+  //     const d = new Date(start);
+  //     d.setDate(start.getDate() + i);
+  //     buckets.set(d.toISOString().slice(0, 10), 0);
+  //   }
+  //   for (const d of filtered) {
+  //     const k = new Date(d.createdAt).toISOString().slice(0, 10);
+  //     if (buckets.has(k)) buckets.set(k, (buckets.get(k) || 0) + 1);
+  //   }
+  //   return Array.from(buckets.entries()).map(([date, count]) => ({ date, count }));
+  // }, [filtered, range]);
   const daily = useMemo(() => {
-    const days = range === "7d" ? 7 : range === "30d" ? 30 : range === "90d" ? 90 : 30;
     const buckets = new Map<string, number>();
-    const start = startOfDay(new Date());
-    start.setDate(start.getDate() - (days - 1));
-    for (let i = 0; i < days; i++) {
-      const d = new Date(start);
-      d.setDate(start.getDate() + i);
-      buckets.set(d.toISOString().slice(0, 10), 0);
+
+    if (filtered.length === 0) return [];
+
+    // let start = fromDate
+    //   ? startOfDay(new Date(fromDate))
+    //   : startOfDay(new Date(filtered[0].createdAt));
+    const oldestDate = filtered.reduce((min, d) => {
+      const dt = new Date(d.createdAt);
+      return dt < min ? dt : min;
+    }, new Date(filtered[0].createdAt));
+
+    const start = fromDate
+      ? startOfDay(new Date(fromDate))
+      : startOfDay(oldestDate);
+
+    let end = toDate
+      ? startOfDay(new Date(toDate))
+      : startOfDay(new Date());
+
+    const cursor = new Date(start);
+
+    while (cursor <= end) {
+      buckets.set(cursor.toISOString().slice(0, 10), 0);
+      cursor.setDate(cursor.getDate() + 1);
     }
+
     for (const d of filtered) {
       const k = new Date(d.createdAt).toISOString().slice(0, 10);
-      if (buckets.has(k)) buckets.set(k, (buckets.get(k) || 0) + 1);
+      if (buckets.has(k)) {
+        buckets.set(k, (buckets.get(k) || 0) + 1);
+      }
     }
-    return Array.from(buckets.entries()).map(([date, count]) => ({ date, count }));
-  }, [filtered, range]);
+
+    return Array.from(buckets.entries()).map(([date, count]) => ({
+      date,
+      count,
+    }));
+  }, [filtered, fromDate, toDate]);
 
   const dailyMax = useMemo(
     () => Math.max(1, ...daily.map((d) => d.count)),
@@ -340,13 +414,20 @@ export default function AnalyticsPage() {
                 </span>
                 Analytics
               </h1>
-              <p className="text-sm text-slate-500 mt-1">
+              {/* <p className="text-sm text-slate-500 mt-1">
                 {RANGE_LABELS[range]} · live data from your processed documents
+              </p> */}
+
+              <p className="text-sm text-slate-500 mt-1">
+                {fromDate || toDate
+                  ? `${fromDate || "Any"} → ${toDate || "Any"}`
+                  : "All documents"}{" "}
+                · live data from your processed documents
               </p>
             </div>
 
             <div className="flex items-center gap-2">
-              <div className="inline-flex items-center bg-white border border-slate-200 rounded-xl p-1 shadow-sm">
+              {/* <div className="inline-flex items-center bg-white border border-slate-200 rounded-xl p-1 shadow-sm">
                 {(Object.keys(RANGE_LABELS) as RangeKey[]).map((r) => (
                   <button
                     key={r}
@@ -359,6 +440,31 @@ export default function AnalyticsPage() {
                     {r === "all" ? "All" : r.toUpperCase()}
                   </button>
                 ))}
+              </div> */}
+              <div className="flex items-center gap-2">
+                <div className="flex flex-col">
+                  <label className="text-[11px] font-medium text-slate-500 mb-1">
+                    From
+                  </label>
+                  <input
+                    type="date"
+                    value={fromDate}
+                    onChange={(e) => setFromDate(e.target.value)}
+                    className="h-10 px-3 text-sm border border-slate-200 rounded-xl bg-white shadow-sm focus:outline-none focus:ring-2 focus:ring-primary/20"
+                  />
+                </div>
+
+                <div className="flex flex-col">
+                  <label className="text-[11px] font-medium text-slate-500 mb-1">
+                    To
+                  </label>
+                  <input
+                    type="date"
+                    value={toDate}
+                    onChange={(e) => setToDate(e.target.value)}
+                    className="h-10 px-3 text-sm border border-slate-200 rounded-xl bg-white shadow-sm focus:outline-none focus:ring-2 focus:ring-primary/20"
+                  />
+                </div>
               </div>
               <button
                 onClick={handleRefresh}
@@ -635,16 +741,22 @@ function DailyVolumeChart({ data, max }: { data: { date: string; count: number }
             );
           })}
           {/* x labels: first / mid / last */}
-          {[0, Math.floor(data.length / 2), data.length - 1].map((i) => {
+          {/* x labels: first / mid / last */}
+          {Array.from(
+            new Set([0, Math.floor(data.length / 2), data.length - 1])
+          ).map((i) => {
             if (!data[i]) return null;
+
             const x = pad.l + i * barW + barW / 2;
+
             const label = new Date(data[i].date).toLocaleDateString("en-GB", {
               day: "2-digit",
               month: "short",
             });
+
             return (
               <text
-                key={i}
+                key={`label-${i}`}
                 x={x}
                 y={h - 6}
                 textAnchor="middle"
