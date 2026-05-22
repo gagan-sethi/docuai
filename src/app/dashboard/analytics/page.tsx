@@ -133,16 +133,16 @@ export default function AnalyticsPage() {
   const [fromDate, setFromDate] = useState("");
   const [toDate, setToDate] = useState("");
   const [error, setError] = useState<string | null>(null);
-  const [spendData, setSpendData] = useState<{
-    summary: {
-      totalSpend: number;
-      thisMonthSpend: number;
-      lastMonthSpend: number;
-      growthPercent: number;
-      totalTransactions: number;
-    };
-    monthlySpend: Array<{ month: string; amount: number }>;
-  } | null>(null);
+  // const [spendData, setSpendData] = useState<{
+  //   summary: {
+  //     totalSpend: number;
+  //     thisMonthSpend: number;
+  //     lastMonthSpend: number;
+  //     growthPercent: number;
+  //     totalTransactions: number;
+  //   };
+  //   monthlySpend: Array<{ month: string; amount: number }>;
+  // } | null>(null);
 
   const load = async () => {
     try {
@@ -160,14 +160,21 @@ export default function AnalyticsPage() {
         params.append("toDate", toDate);
       }
 
-      const [docsRes, spendRes] = await Promise.all([
-        fetch(apiUrl(`/api/documents?${params.toString()}`), {
+      // const [docsRes, spendRes] = await Promise.all([
+      //   fetch(apiUrl(`/api/documents?${params.toString()}`), {
+      //     credentials: "include",
+      //   }),
+      //   fetch(apiUrl("/api/plan/spend"), {
+      //     credentials: "include",
+      //   }),
+      // ]);
+
+      const docsRes = await fetch(
+        apiUrl(`/api/documents?${params.toString()}`),
+        {
           credentials: "include",
-        }),
-        fetch(apiUrl("/api/plan/spend"), {
-          credentials: "include",
-        }),
-      ]);
+        }
+      );
 
       if (!docsRes.ok) {
         throw new Error(`HTTP ${docsRes.status}`);
@@ -181,13 +188,13 @@ export default function AnalyticsPage() {
           : []
       );
 
-      if (spendRes.ok) {
-        const spendDataJson = await spendRes.json();
+      // if (spendRes.ok) {
+      //   const spendDataJson = await spendRes.json();
 
-        if (spendDataJson.success && spendDataJson.data) {
-          setSpendData(spendDataJson.data);
-        }
-      }
+      //   if (spendDataJson.success && spendDataJson.data) {
+      //     setSpendData(spendDataJson.data);
+      //   }
+      // }
     } catch (e) {
       setError(
         e instanceof Error
@@ -498,7 +505,7 @@ export default function AnalyticsPage() {
             <>
               {/* ─── KPI cards ───────────────────────────────── */}
               {/* ─── KPI cards ───────────────────────────────── */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4 mb-6">
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
                 <KpiCard
                   label="Total Documents"
                   value={fmtNumber(kpis.total)}
@@ -532,7 +539,7 @@ export default function AnalyticsPage() {
                       : "no totals extracted"
                   }
                 />
-                <KpiCard
+                {/* <KpiCard
                   label="Total Spend"
                   value={spendData ? fmtMoney(spendData.summary.totalSpend) : "—"}
                   icon={<TrendingUp className="w-4 h-4" />}
@@ -542,7 +549,7 @@ export default function AnalyticsPage() {
                       ? `${fmtMoney(spendData.summary.thisMonthSpend)} this month · ${spendData.summary.growthPercent >= 0 ? '↑' : '↓'} ${Math.abs(spendData.summary.growthPercent).toFixed(1)}%`
                       : "Loading..."
                   }
-                />
+                /> */}
               </div>
 
               {/* ─── Daily volume + Status ───────────────────── */}
