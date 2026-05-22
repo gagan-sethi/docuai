@@ -35,6 +35,7 @@ import {
   Sparkles,
   Download,
   Sigma,
+  Percent,
   PieChart,
   Layers,
   ArrowUpRight,
@@ -122,6 +123,75 @@ function pickField(
     if (rx.test(f.label)) return (f.value || "").toString().trim() || null;
   }
   return null;
+}
+
+function pickVatAmount(doc: ProcessedDocument): number | null {
+  if (!doc.fields) return null;
+
+  let best: { amount: number; score: number } | null = null;
+
+  for (const f of doc.fields) {
+    const label = f.label.trim();
+    const value = (f.value || "").toString().trim();
+
+    if (!/(vat|tax|gst)/i.test(label)) continue;
+    if (/\b(rate|percent|percentage|pct|%|trn|registration|reg|id|no|num|number)\b/i.test(label)) {
+      continue;
+    }
+
+    const amount = parseAmount(value);
+    if (amount == null) continue;
+
+    const score =
+      /\b(amount|value)\b/i.test(label) ? 4 :
+        /^(vat|tax|gst)$/i.test(label) ? 3 :
+          /\btotal\b/i.test(label) ? 2 :
+            1;
+
+    if (!best || score > best.score) {
+      best = { amount, score };
+    }
+  }
+
+  return best?.amount ?? null;
+}
+
+function parseDocumentDateValue(value: string | null): Date | null {
+  if (!value) return null;
+
+  const trimmed = value.trim();
+  const direct = new Date(trimmed);
+  if (!Number.isNaN(direct.getTime())) return direct;
+
+  const parts = trimmed.match(/^(\d{1,2})[/-](\d{1,2})[/-](\d{2,4})$/);
+  if (!parts) return null;
+
+  const day = Number(parts[1]);
+  const month = Number(parts[2]);
+  const rawYear = Number(parts[3]);
+  const year = rawYear < 100 ? 2000 + rawYear : rawYear;
+  const parsed = new Date(year, month - 1, day);
+
+  return Number.isNaN(parsed.getTime()) ? null : parsed;
+}
+
+function monthKey(date: Date): string {
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`;
+}
+
+function monthLabel(key: string): string {
+  const [year, month] = key.split("-").map(Number);
+  return new Date(year, month - 1, 1).toLocaleDateString("en-GB", {
+    month: "short",
+    year: "numeric",
+  });
+}
+
+function getDocumentMonthKey(doc: ProcessedDocument): string {
+  const invoiceDate = parseDocumentDateValue(
+    pickField(doc, /\b(invoice|bill|document|tax)?[\s_-]*date\b|^date$/i)
+  );
+  return monthKey(invoiceDate ?? new Date(doc.createdAt));
 }
 
 // ─── Page ───────────────────────────────────────────────────────
@@ -243,6 +313,8 @@ export default function AnalyticsPage() {
     let confCount = 0;
     let totalAmount = 0;
     let amountCount = 0;
+    let totalVat = 0;
+    let vatCount = 0;
     for (const d of filtered) {
       const conf = d.overallConfidence > 1
         ? d.overallConfidence
@@ -257,10 +329,15 @@ export default function AnalyticsPage() {
         totalAmount += amt;
         amountCount += 1;
       }
+      const vat = pickVatAmount(d);
+      if (vat != null) {
+        totalVat += vat;
+        vatCount += 1;
+      }
     }
     const avgConf = confCount ? confSum / confCount : 0;
     const approvalRate = total ? (approved / total) * 100 : 0;
-    return { total, approved, review, failed, avgConf, approvalRate, totalAmount, amountCount };
+    return { total, approved, review, failed, avgConf, approvalRate, totalAmount, amountCount, totalVat, vatCount };
   }, [filtered]);
 
   // ─── Status breakdown ────────────────────────────────────────
@@ -310,7 +387,7 @@ export default function AnalyticsPage() {
       ? startOfDay(new Date(fromDate))
       : startOfDay(oldestDate);
 
-    let end = toDate
+    const end = toDate
       ? startOfDay(new Date(toDate))
       : startOfDay(new Date());
 
@@ -337,6 +414,29 @@ export default function AnalyticsPage() {
   const dailyMax = useMemo(
     () => Math.max(1, ...daily.map((d) => d.count)),
     [daily]
+  );
+
+  // ─── VAT totals by invoice month ──────────────────────────────
+  const monthlyVat = useMemo(() => {
+    const buckets = new Map<string, { month: string; total: number; count: number }>();
+
+    for (const d of filtered) {
+      const vat = pickVatAmount(d);
+      if (vat == null) continue;
+
+      const key = getDocumentMonthKey(d);
+      const bucket = buckets.get(key) ?? { month: key, total: 0, count: 0 };
+      bucket.total += vat;
+      bucket.count += 1;
+      buckets.set(key, bucket);
+    }
+
+    return Array.from(buckets.values()).sort((a, b) => a.month.localeCompare(b.month));
+  }, [filtered]);
+
+  const monthlyVatMax = useMemo(
+    () => Math.max(1, ...monthlyVat.map((d) => d.total)),
+    [monthlyVat]
   );
 
   // ─── Top suppliers ───────────────────────────────────────────
@@ -505,7 +605,7 @@ export default function AnalyticsPage() {
             <>
               {/* ─── KPI cards ───────────────────────────────── */}
               {/* ─── KPI cards ───────────────────────────────── */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4 mb-6">
                 <KpiCard
                   label="Total Documents"
                   value={fmtNumber(kpis.total)}
@@ -539,6 +639,17 @@ export default function AnalyticsPage() {
                       : "no totals extracted"
                   }
                 />
+                <KpiCard
+                  label="Total VAT"
+                  value={kpis.vatCount > 0 ? fmtMoney(kpis.totalVat) : "—"}
+                  icon={<Percent className="w-4 h-4" />}
+                  tone="emerald"
+                  hint={
+                    kpis.vatCount > 0
+                      ? `from ${fmtNumber(kpis.vatCount)} invoice${kpis.vatCount === 1 ? "" : "s"}`
+                      : "no VAT extracted"
+                  }
+                />
                 {/* <KpiCard
                   label="Total Spend"
                   value={spendData ? fmtMoney(spendData.summary.totalSpend) : "—"}
@@ -559,6 +670,13 @@ export default function AnalyticsPage() {
                 </Card>
                 <Card title="Status Breakdown" icon={<PieChart className="w-4 h-4" />}>
                   <StatusDonut entries={statusBreakdown} total={kpis.total} />
+                </Card>
+              </div>
+
+              {/* ─── VAT by month ────────────────────────────── */}
+              <div className="mb-6">
+                <Card title="VAT Totals By Month" icon={<Percent className="w-4 h-4" />}>
+                  <MonthlyVatChart data={monthlyVat} max={monthlyVatMax} />
                 </Card>
               </div>
 
@@ -776,6 +894,140 @@ function DailyVolumeChart({ data, max }: { data: { date: string; count: number }
           {/* y label (max) */}
           <text x={4} y={pad.t + 8} className="fill-slate-400 text-[10px]">{max}</text>
           <text x={4} y={pad.t + innerH} className="fill-slate-400 text-[10px]">0</text>
+        </svg>
+      </div>
+    </div>
+  );
+}
+
+function MonthlyVatChart({
+  data,
+  max,
+}: {
+  data: { month: string; total: number; count: number }[];
+  max: number;
+}) {
+  if (data.length === 0) {
+    return (
+      <p className="text-xs text-slate-400 py-10 text-center">
+        No VAT amounts extracted yet.
+      </p>
+    );
+  }
+  console.log("data of the vat", data);
+  console.log(max)
+
+  const totalVat = data.reduce((sum, item) => sum + item.total, 0);
+  const invoiceCount = data.reduce((sum, item) => sum + item.count, 0);
+  const peakMonth = data.reduce((peak, item) => item.total > peak.total ? item : peak, data[0]);
+  const visibleW = 760;
+  const monthSlotW = 72;
+  const w = Math.max(visibleW, 52 + 14 + data.length * monthSlotW);
+  const h = 220;
+  const pad = { l: 52, r: 14, t: 32, b: 46 };
+  const innerW = w - pad.l - pad.r;
+  const innerH = h - pad.t - pad.b;
+  const barW = innerW / data.length;
+
+  return (
+    <div>
+      <div className="flex flex-wrap items-start justify-between gap-3 mb-3">
+        <div>
+          <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
+            <span className="text-2xl font-extrabold text-slate-900">
+              {fmtMoney(totalVat)}
+            </span>
+            <span className="text-xs text-slate-500">
+              total VAT across {fmtNumber(invoiceCount)} invoice{invoiceCount === 1 ? "" : "s"}
+            </span>
+          </div>
+          <p className="text-[11px] text-slate-400 mt-1">
+            Scroll horizontally to view additional months.
+          </p>
+        </div>
+        <div className="rounded-xl border border-emerald-100 bg-emerald-50 px-3 py-2 text-right">
+          <p className="text-[10px] font-bold uppercase tracking-wider text-emerald-700">
+            Highest Month
+          </p>
+          <p className="text-sm font-extrabold text-slate-900">
+            {fmtMoney(peakMonth.total)}
+          </p>
+          <p className="text-[10px] text-emerald-700/80">
+            {monthLabel(peakMonth.month)}
+          </p>
+        </div>
+      </div>
+      <div className="overflow-x-auto pb-1">
+        <svg
+          viewBox={`0 0 ${w} ${h}`}
+          className="h-56 max-w-none"
+          style={{ width: `${w}px`, minWidth: "100%" }}
+        >
+          {[0.25, 0.5, 0.75, 1].map((p) => (
+            <line
+              key={p}
+              x1={pad.l}
+              x2={w - pad.r}
+              y1={pad.t + innerH * (1 - p)}
+              y2={pad.t + innerH * (1 - p)}
+              stroke="#f1f5f9"
+              strokeDasharray="3 3"
+            />
+          ))}
+          {data.map((item, i) => {
+            const bh = (item.total / max) * innerH;
+            const rectW = Math.min(44, Math.max(16, barW - 18));
+            const x = pad.l + i * barW + (barW - rectW) / 2;
+            const y = pad.t + innerH - bh;
+            const label = monthLabel(item.month);
+            const [labelMonth, labelYear] = label.split(" ");
+            return (
+              <g key={item.month}>
+                <rect
+                  x={x}
+                  y={y}
+                  width={rectW}
+                  height={Math.max(2, bh)}
+                  rx={4}
+                  className="fill-emerald-500/85 hover:fill-emerald-600 transition"
+                >
+                  <title>{`${label}: ${fmtMoney(item.total)} VAT from ${item.count} invoice${item.count === 1 ? "" : "s"}`}</title>
+                </rect>
+                {barW >= 58 && (
+                  <text
+                    x={x + rectW / 2}
+                    y={y - 8}
+                    textAnchor="middle"
+                    className="fill-slate-600 text-[9px] font-bold"
+                  >
+                    {fmtMoney(item.total)}
+                  </text>
+                )}
+                <text
+                  x={x + rectW / 2}
+                  y={h - 24}
+                  textAnchor="middle"
+                  className="fill-slate-500 text-[10px] font-semibold"
+                >
+                  {labelMonth}
+                </text>
+                <text
+                  x={x + rectW / 2}
+                  y={h - 10}
+                  textAnchor="middle"
+                  className="fill-slate-400 text-[9px]"
+                >
+                  {labelYear}
+                </text>
+              </g>
+            );
+          })}
+          <text x={4} y={pad.t + 8} className="fill-slate-400 text-[10px]">
+            {fmtMoney(max)}
+          </text>
+          <text x={4} y={pad.t + innerH} className="fill-slate-400 text-[10px]">
+            $0.00
+          </text>
         </svg>
       </div>
     </div>
