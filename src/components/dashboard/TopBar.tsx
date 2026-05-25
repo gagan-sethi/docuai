@@ -202,7 +202,7 @@ export default function TopBar({ title }: { title: string }) {
   const handleLogout = async () => {
     await deleteCookie();
 
-    await fetch(apiUrl("/api/auth/me"), { method: "POST", credentials: "include" });
+    await fetch(apiUrl("/api/auth/logout"), { method: "POST", credentials: "include" });
     router.push("/login");
   };
 
