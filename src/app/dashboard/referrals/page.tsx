@@ -26,7 +26,7 @@ import {
 } from "lucide-react";
 import Sidebar from "@/components/dashboard/Sidebar";
 import TopBar from "@/components/dashboard/TopBar";
-import { apiUrl } from "@/lib/api";
+import { apiUrl, handleUnauthorized } from "@/lib/api";
 
 // ─── Types ──────────────────────────────────────────────────────
 interface ReferralCode {
@@ -295,6 +295,8 @@ export default function ReferralsPage() {
       const res = await fetch(apiUrl("/api/referrals"), {
         credentials: "include",
       });
+      if (await handleUnauthorized(res)) return;
+      
       if (!res.ok) {
         if (res.status === 403) {
           setError("access_denied");

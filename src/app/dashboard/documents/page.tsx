@@ -31,7 +31,7 @@ import Link from "next/link";
 import Sidebar from "@/components/dashboard/Sidebar";
 import TopBar from "@/components/dashboard/TopBar";
 import MergeBar from "@/components/dashboard/MergeBar";
-import { apiUrl } from "@/lib/api";
+import { apiUrl, handleUnauthorized } from "@/lib/api";
 import type { ProcessedDocument, DocumentStatus } from "@/lib/types";
 // import { useSearchParams } from "next/navigation";
 
@@ -156,6 +156,8 @@ export default function DocumentsPage() {
     if (showSpinner) setRefreshing(true);
     try {
       const res = await fetch(apiUrl("/api/documents?limit=500"), { credentials: "include" });
+      if (await handleUnauthorized(res)) return;
+
       if (res.ok) {
         const data = await res.json();
         setDocs(data.documents || []);

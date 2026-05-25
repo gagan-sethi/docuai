@@ -12,3 +12,19 @@ export const API_BASE_URL =
 export function apiUrl(path: string): string {
   return `${API_BASE_URL}${path}`;
 }
+
+export const handleUnauthorized = async (res: Response) => {
+  if (res.status === 401) {
+    try {
+      await fetch(apiUrl("/api/auth/logout"), {
+        method: "POST",
+        credentials: "include",
+      });
+    } catch {}
+
+    window.location.href = "/login";
+    return true;
+  }
+
+  return false;
+};

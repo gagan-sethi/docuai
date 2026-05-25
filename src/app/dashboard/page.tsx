@@ -294,6 +294,16 @@ export default function DashboardPage() {
           fetch(apiUrl("/api/activities?limit=5"), { credentials: "include" }),
           fetch(apiUrl("/api/plan"), { credentials: "include" }),
         ]);
+
+        if (
+          docRes.status === 401 ||
+          actRes.status === 401 ||
+          planRes.status === 401
+        ) {
+          router.replace("/login");
+          return;
+        }
+
         if (docRes.ok) {
           const data = await docRes.json();
           if (data.stats) setApiStats(data.stats);
@@ -878,7 +888,7 @@ export default function DashboardPage() {
                       <div>
                         <div className="flex items-center gap-2">
                           <h3 className="text-sm font-bold text-slate-900">
-                            {label} 
+                            {label}
                           </h3>
                           {plan === "free" && (
                             <span className="px-2 py-0.5 text-[10px] font-bold bg-amber-50 text-amber-600 rounded-full border border-amber-200">

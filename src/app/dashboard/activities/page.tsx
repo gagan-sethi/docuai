@@ -32,7 +32,7 @@ import {
 } from "lucide-react";
 import Sidebar from "@/components/dashboard/Sidebar";
 import TopBar from "@/components/dashboard/TopBar";
-import { apiUrl } from "@/lib/api";
+import { apiUrl, handleUnauthorized } from "@/lib/api";
 import { toast } from "react-toastify";
 
 interface ActivityItem {
@@ -263,6 +263,8 @@ export default function ActivitiesPage() {
       const res = await fetch(apiUrl(`/api/activities?${params}`), {
         credentials: "include",
       });
+      if (await handleUnauthorized(res)) return;
+
 
       if (!res.ok) throw new Error("Failed to fetch activities");
 

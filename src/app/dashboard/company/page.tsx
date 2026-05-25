@@ -24,7 +24,7 @@ import {
 } from "lucide-react";
 import Sidebar from "@/components/dashboard/Sidebar";
 import TopBar from "@/components/dashboard/TopBar";
-import { apiUrl } from "@/lib/api";
+import { apiUrl, handleUnauthorized } from "@/lib/api";
 import { toast } from "react-toastify";
 import ManagePlanModal from "@/components/dashboard/ManagePlanModal";
 
@@ -170,6 +170,8 @@ export default function CompaniesPage() {
         credentials: "include",
       });
 
+      if (await handleUnauthorized(res)) return;
+      
       if (!res.ok) {
         const error = await res.json();
         throw new Error(error.error || "Failed to fetch companies");
@@ -203,6 +205,7 @@ export default function CompaniesPage() {
       const res = await fetch(apiUrl("/api/plan"), {
         credentials: "include",
       });
+      if (await handleUnauthorized(res)) return;
 
       if (!res.ok) {
         throw new Error("Failed to fetch plan");

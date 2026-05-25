@@ -25,6 +25,7 @@ import {
   Smartphone,
 } from "lucide-react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import Sidebar from "@/components/dashboard/Sidebar";
 import TopBar from "@/components/dashboard/TopBar";
 import MergeBar from "@/components/dashboard/MergeBar";
@@ -106,6 +107,7 @@ export default function WhatsAppInboxPage() {
   const [autoMerge, setAutoMerge] = useState(false);
   const [autoMergeSaving, setAutoMergeSaving] = useState(false);
 
+  const router = useRouter();
   /** A WhatsApp doc is mergeable once it has been processed. */
   const isMergeable = useCallback(
     (d: ProcessedDocument) =>
@@ -123,6 +125,12 @@ export default function WhatsAppInboxPage() {
           credentials: "include",
           cache: "no-store",
         });
+
+        if (res.status === 401) {
+          router.replace("/login");
+          return;
+        }
+
         if (res.ok) {
           const data = (await res.json()) as {
             preferences?: { whatsappAutoMerge?: boolean };
@@ -183,14 +191,26 @@ export default function WhatsAppInboxPage() {
   }, []);
 
   // Fetch user info
-  useEffect(() => {
-    fetch(apiUrl("/api/auth/me"), { credentials: "include" })
-      .then((r) => (r.ok ? r.json() : null))
-      .then((data) => {
-        if (data?.user) setUser(data.user);
-      })
-      .catch(() => {});
-  }, []);
+ useEffect(() => {
+  fetch(apiUrl("/api/auth/me"), {
+    credentials: "include",
+  })
+    .then((r) => {
+      // ✅ Unauthorized
+      if (r.status === 401) {
+        router.replace("/login");
+        return null;
+      }
+
+      return r.ok ? r.json() : null;
+    })
+    .then((data) => {
+      if (data?.user) {
+        setUser(data.user);
+      }
+    })
+    .catch(() => {});
+}, [router]);
 
   const fetchDocs = useCallback(async (showSpinner = false) => {
     if (showSpinner) setRefreshing(true);
@@ -198,6 +218,10 @@ export default function WhatsAppInboxPage() {
       const res = await fetch(apiUrl("/api/documents?source=whatsapp&limit=200"), {
         credentials: "include",
       });
+      if (res.status === 401) {
+        router.replace("/login");
+        return;
+      }
       if (res.ok) {
         const data = await res.json();
         setDocs(data.documents || []);

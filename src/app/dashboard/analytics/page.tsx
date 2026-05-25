@@ -42,7 +42,7 @@ import {
 } from "lucide-react";
 import Sidebar from "@/components/dashboard/Sidebar";
 import TopBar from "@/components/dashboard/TopBar";
-import { apiUrl } from "@/lib/api";
+import { apiUrl, handleUnauthorized } from "@/lib/api";
 import type { ProcessedDocument } from "@/lib/types";
 
 type RangeKey = "7d" | "30d" | "90d" | "all";
@@ -245,6 +245,9 @@ export default function AnalyticsPage() {
           credentials: "include",
         }
       );
+
+      if (await handleUnauthorized(docsRes)) return;
+
 
       if (!docsRes.ok) {
         throw new Error(`HTTP ${docsRes.status}`);

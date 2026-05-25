@@ -21,7 +21,7 @@ import {
 import Sidebar from "@/components/dashboard/Sidebar";
 import TopBar from "@/components/dashboard/TopBar";
 
-import { apiUrl } from "@/lib/api";
+import { apiUrl, handleUnauthorized } from "@/lib/api";
 import { toast } from "react-toastify";
 
 interface Notification {
@@ -185,6 +185,7 @@ export default function NotificationsPage() {
         credentials: "include",
       });
 
+      if (await handleUnauthorized(res)) return;
       
 
       if (!res.ok) throw new Error("Failed to fetch notifications");

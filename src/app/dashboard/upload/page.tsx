@@ -34,6 +34,7 @@ import MergeBar from "@/components/dashboard/MergeBar";
 import UpgradeModal from "@/components/dashboard/UpgradeModal";
 import ManagePlanModal from "@/components/dashboard/ManagePlanModal";
 import { apiUrl } from "@/lib/api";
+import { handleUnauthorized } from "@/lib/api";
 
 // ─── Types ──────────────────────────────────────────────────────
 type FileStatus = "queued" | "detecting" | "ready" | "uploading" | "processing" | "structuring" | "done" | "error";
@@ -161,6 +162,8 @@ async function processFile(
        body: formData 
       });
 
+      if (await handleUnauthorized(uploadRes)) return;
+
     if (!uploadRes.ok) {
       const err = await uploadRes.json().catch(() => ({}));
       if (uploadRes.status === 403 && err.upgradeRequired) {
@@ -255,6 +258,9 @@ export default function UploadPage() {
   const refreshPlan = useCallback(async () => {
     try {
       const res = await fetch(apiUrl("/api/plan"), { credentials: "include" });
+      
+      if (await handleUnauthorized(res)) return;
+
       if (!res.ok) return;
       const data = await res.json();
       setPlanInfo(data);
