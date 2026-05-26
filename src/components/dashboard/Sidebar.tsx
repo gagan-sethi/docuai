@@ -21,7 +21,8 @@ import {
   BarChart3,
   Bell,
   Gift,
-  Activity
+  Activity,
+  Wallet,
 } from "lucide-react";
 
 const mainNav = [
@@ -45,6 +46,11 @@ const mainNav = [
     name: "Documents",
     href: "/dashboard/documents",
     icon: FileText,
+  },
+  {
+    name: "Financial",
+    href: "/dashboard/finance",
+    icon: Wallet,
   },
   {
     name: "WhatsApp Inbox",

@@ -32,7 +32,9 @@ import Sidebar from "@/components/dashboard/Sidebar";
 import TopBar from "@/components/dashboard/TopBar";
 import MergeBar from "@/components/dashboard/MergeBar";
 import { apiUrl, handleUnauthorized } from "@/lib/api";
-import type { ProcessedDocument, DocumentStatus } from "@/lib/types";
+import type { ProcessedDocument, DocumentStatus, DocType } from "@/lib/types";
+import { DocTypeBadge, DocTypeDropdown } from "@/components/dashboard/DocTypeBadge";
+import { DOC_TYPE_OPTIONS, resolveDocTypeCode, getDocTypeMeta } from "@/lib/finance";
 // import { useSearchParams } from "next/navigation";
 
 
@@ -89,6 +91,14 @@ function StatusBadge({ status }: { status: DocumentStatus }) {
 
 const STATUS_FILTERS = ["All", "Needs Review", "Approved", "Rejected", "Processing", "Error"] as const;
 const SOURCE_FILTERS = ["All Sources", "Uploaded", "WhatsApp"] as const;
+const TYPE_FILTERS: Array<{ value: "all" | DocType; label: string }> = [
+  { value: "all", label: "All Types" },
+  { value: "sales_invoice", label: "🟢 Sales" },
+  { value: "expense_invoice", label: "🔴 Expense" },
+  { value: "purchase_order", label: "🟡 Purchase Order" },
+  { value: "receipt", label: "🔵 Receipt" },
+  { value: "unknown", label: "⚪ Unclassified" },
+];
 const SORT_OPTIONS = [
   { label: "Newest first", value: "newest" },
   { label: "Oldest first", value: "oldest" },
@@ -114,10 +124,12 @@ export default function DocumentsPage() {
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("All");
   const [sourceFilter, setSourceFilter] = useState<SourceFilter>("All Sources");
+  const [typeFilter, setTypeFilter] = useState<"all" | DocType>("all");
   const [sort, setSort] = useState<SortValue>("newest");
   const [viewMode, setViewMode] = useState<ViewMode>("list");
   const [showStatusDd, setShowStatusDd] = useState(false);
   const [showSourceDd, setShowSourceDd] = useState(false);
+  const [showTypeDd, setShowTypeDd] = useState(false);
   const [showSortDd, setShowSortDd] = useState(false);
   const [selectedDoc, setSelectedDoc] = useState<ProcessedDocument | null>(null);
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
@@ -167,6 +179,29 @@ export default function DocumentsPage() {
     setRefreshing(false);
   }, []);
 
+  const updateDocType = useCallback(async (docId: string, code: DocType) => {
+    // Optimistic update
+    setDocs((prev) =>
+      prev.map((d) =>
+        d.id === docId
+          ? { ...d, docTypeCode: code, docTypeManual: true, docType: getDocTypeMeta(code).label }
+          : d
+      )
+    );
+    try {
+      await fetch(apiUrl(`/api/documents/${docId}`), {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({
+          docTypeCode: code,
+          docTypeManual: true,
+          docType: getDocTypeMeta(code).label,
+        }),
+      });
+    } catch { /* swallow; UI already updated */ }
+  }, []);
+
   useEffect(() => {
     fetchDocs();
     const interval = setInterval(() => fetchDocs(), 30000);
@@ -191,7 +226,8 @@ export default function DocumentsPage() {
         sourceFilter === "All Sources" ||
         (sourceFilter === "Uploaded" && d.source === "upload") ||
         (sourceFilter === "WhatsApp" && d.source === "whatsapp");
-      return matchSearch && matchStatus && matchSource;
+      const matchType = typeFilter === "all" || resolveDocTypeCode(d) === typeFilter;
+      return matchSearch && matchStatus && matchSource && matchType;
     })
     .sort((a, b) => {
       if (sort === "newest") return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
@@ -214,7 +250,7 @@ export default function DocumentsPage() {
   ];
 
   const sortLabel = SORT_OPTIONS.find((s) => s.value === sort)?.label ?? "Sort";
-  const hasActiveFilters = statusFilter !== "All" || sourceFilter !== "All Sources" || search;
+  const hasActiveFilters = statusFilter !== "All" || sourceFilter !== "All Sources" || typeFilter !== "all" || search;
 
   return (
     <div className="min-h-screen bg-slate-50">
@@ -294,6 +330,24 @@ export default function DocumentsPage() {
               )}
             </div>
 
+            {/* Type filter */}
+            <Dropdown
+              label={typeFilter === "all" ? "Type" : (TYPE_FILTERS.find((t) => t.value === typeFilter)?.label || "Type")}
+              open={showTypeDd}
+              setOpen={setShowTypeDd}
+              icon={<Filter className="w-4 h-4" />}
+            >
+              {TYPE_FILTERS.map((opt) => (
+                <DropdownItem
+                  key={opt.value}
+                  active={typeFilter === opt.value}
+                  onClick={() => { setTypeFilter(opt.value); setShowTypeDd(false); }}
+                >
+                  {opt.label}
+                </DropdownItem>
+              ))}
+            </Dropdown>
+
             {/* Status filter */}
             <Dropdown
               label={statusFilter === "All" ? "Status" : statusFilter}
@@ -356,7 +410,7 @@ export default function DocumentsPage() {
 
             {hasActiveFilters && (
               <button
-                onClick={() => { setSearch(""); setStatusFilter("All"); setSourceFilter("All Sources"); }}
+                onClick={() => { setSearch(""); setStatusFilter("All"); setSourceFilter("All Sources"); setTypeFilter("all"); }}
                 className="flex items-center gap-1 text-xs font-medium text-slate-500 hover:text-red-500 transition-colors"
               >
                 <X className="w-3.5 h-3.5" /> Clear filters
@@ -439,6 +493,7 @@ export default function DocumentsPage() {
                         selectable={isMergeable(doc)}
                         selected={selectedIds.includes(doc.id)}
                         onToggleSelect={() => toggleSelected(doc.id)}
+                        onChangeType={(code) => updateDocType(doc.id, code)}
                       />
                     ))}
                   </AnimatePresence>
@@ -457,6 +512,7 @@ export default function DocumentsPage() {
                     selectable={isMergeable(doc)}
                     selected={selectedIds.includes(doc.id)}
                     onToggleSelect={() => toggleSelected(doc.id)}
+                    onChangeType={(code) => updateDocType(doc.id, code)}
                   />
                 ))}
               </AnimatePresence>
@@ -564,6 +620,7 @@ function ListRow({
   selectable,
   selected,
   onToggleSelect,
+  onChangeType,
 }: {
   doc: ProcessedDocument;
   index: number;
@@ -571,6 +628,7 @@ function ListRow({
   selectable: boolean;
   selected: boolean;
   onToggleSelect: () => void;
+  onChangeType: (code: DocType) => void;
 }) {
   const conf = doc.overallConfidence > 1 ? Math.round(doc.overallConfidence) : Math.round(doc.overallConfidence * 100);
 
@@ -605,9 +663,18 @@ function ListRow({
         </div>
       </td>
       <td className="px-4 py-3.5">
-        <span className="text-xs font-medium text-slate-600 bg-slate-100 rounded-full px-2.5 py-1">
-          {doc.docType || "Unknown"}
-        </span>
+        <div onClick={(e) => e.stopPropagation()}>
+          <DocTypeDropdown
+            value={resolveDocTypeCode(doc)}
+            onChange={onChangeType}
+            size="sm"
+          />
+          {doc.docTypeManual && (
+            <span className="ml-1.5 text-[9px] font-medium text-slate-400 uppercase tracking-wide">
+              manual
+            </span>
+          )}
+        </div>
       </td>
       <td className="px-4 py-3.5">
         {doc.source === "whatsapp" ? (
@@ -678,6 +745,7 @@ function GridCard({
   selectable,
   selected,
   onToggleSelect,
+  onChangeType,
 }: {
   doc: ProcessedDocument;
   index: number;
@@ -685,6 +753,7 @@ function GridCard({
   selectable: boolean;
   selected: boolean;
   onToggleSelect: () => void;
+  onChangeType: (code: DocType) => void;
 }) {
   const conf = doc.overallConfidence > 1 ? Math.round(doc.overallConfidence) : Math.round(doc.overallConfidence * 100);
 
@@ -718,7 +787,14 @@ function GridCard({
         )}
       </div>
       <p className="text-sm font-semibold text-slate-800 truncate mb-1">{doc.fileName}</p>
-      <p className="text-xs text-slate-400 mb-3">{doc.docType || "Unknown type"} · {formatFileSize(doc.fileSize)}</p>
+      <p className="text-xs text-slate-400 mb-2">{formatFileSize(doc.fileSize)}</p>
+      <div onClick={(e) => e.stopPropagation()} className="mb-2">
+        <DocTypeDropdown
+          value={resolveDocTypeCode(doc)}
+          onChange={onChangeType}
+          size="sm"
+        />
+      </div>
       <div className="flex items-center justify-between">
         <StatusBadge status={doc.status} />
         {doc.overallConfidence > 0 && (
@@ -793,7 +869,7 @@ function DocDetailDrawer({ doc, onClose }: { doc: ProcessedDocument; onClose: ()
         {/* Meta info */}
         <div className="bg-slate-50 rounded-xl p-4 space-y-2.5">
           {[
-            { label: "Document Type", value: doc.docType || "Auto-detect pending" },
+            { label: "Document Type", value: getDocTypeMeta(resolveDocTypeCode(doc)).label },
             { label: "Source", value: doc.source === "whatsapp" ? "WhatsApp" : "Manual Upload" },
             { label: "OCR Engine", value: doc.ocrEngine || "None" },
             { label: "File Type", value: doc.fileType },

@@ -11,8 +11,16 @@ import {
   RotateCw, Maximize2, PanelLeftClose, PanelLeftOpen, Image as ImageIcon,
   ArrowLeft, LayoutDashboard,
 } from "lucide-react";
-import type { ProcessedDocument, ExtractedField, LineItem } from "@/lib/types";
+import type { ProcessedDocument, ExtractedField, LineItem, DocType, ExpenseCategory } from "@/lib/types";
 import { apiUrl } from "@/lib/api";
+import { DocTypeDropdown } from "@/components/dashboard/DocTypeBadge";
+import {
+  EXPENSE_CATEGORY_OPTIONS,
+  deriveFinancialSummary,
+  formatMoney,
+  getDocTypeMeta,
+  resolveDocTypeCode,
+} from "@/lib/finance";
 
 interface Toast { id: number; message: string; type: "success" | "error" | "info"; }
 let toastCounter = 0;
@@ -174,6 +182,47 @@ function ReviewPageContent() {
 
   const copyJson = useCallback(() => { if (!currentDoc) return; navigator.clipboard.writeText(JSON.stringify({ fields: currentDoc.fields, lineItems: currentDoc.lineItems }, null, 2)); addToast("Copied JSON", "info"); }, [currentDoc, addToast]);
 
+  const updateDocType = useCallback(async (code: DocType) => {
+    if (!currentDoc) return;
+    setDocuments((prev) =>
+      prev.map((d) =>
+        d.id === currentDoc.id
+          ? { ...d, docTypeCode: code, docTypeManual: true, docType: getDocTypeMeta(code).label }
+          : d
+      )
+    );
+    try {
+      await fetch(apiUrl(`/api/documents/${currentDoc.id}`), {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ docTypeCode: code, docTypeManual: true, docType: getDocTypeMeta(code).label }),
+      });
+      addToast(`Type set to ${getDocTypeMeta(code).label}`);
+    } catch {
+      addToast("Failed to update type", "error");
+    }
+  }, [currentDoc, addToast]);
+
+  const updateExpenseCategory = useCallback(async (cat: ExpenseCategory) => {
+    if (!currentDoc) return;
+    setDocuments((prev) =>
+      prev.map((d) =>
+        d.id === currentDoc.id ? { ...d, expenseCategory: cat, expenseCategoryManual: true } : d
+      )
+    );
+    try {
+      await fetch(apiUrl(`/api/documents/${currentDoc.id}`), {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ expenseCategory: cat, expenseCategoryManual: true }),
+      });
+    } catch {
+      addToast("Failed to update category", "error");
+    }
+  }, [currentDoc, addToast]);
+
   const downloadExcel = useCallback(async () => {
     if (!currentDoc) return;
     try { const res = await fetch(apiUrl(`/api/documents/${currentDoc.id}/excel`), { credentials: "include" }); if (!res.ok) throw new Error(); const blob = await res.blob(); const url = URL.createObjectURL(blob); const a = document.createElement("a"); a.href = url; a.download = `${currentDoc.fileName.replace(/\.[^.]+$/, "")}_data.csv`; a.click(); URL.revokeObjectURL(url); addToast("Excel downloaded"); }
@@ -188,8 +237,74 @@ function ReviewPageContent() {
 
   const renderExtractedData = () => {
     if (!currentDoc) return null;
+    const code = resolveDocTypeCode(currentDoc);
+    const meta = getDocTypeMeta(code);
+    const fin = deriveFinancialSummary(currentDoc);
+    const isExpenseLike = code === "expense_invoice" || code === "receipt";
     return (
       <div className="p-5 space-y-5">
+        {/* Financial summary card */}
+        <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} className="rounded-xl border border-gray-200 bg-white shadow-sm">
+          <div className="border-b border-gray-200 px-4 py-3 flex items-center justify-between">
+            <div>
+              <h2 className="text-sm font-semibold text-gray-900">Financial Summary</h2>
+              <p className="text-[10px] text-gray-500">
+                {meta.affectsFinancials
+                  ? code === "sales_invoice"
+                    ? "Counts toward Revenue + VAT Collected"
+                    : "Counts toward Expenses + VAT Paid"
+                  : "Procurement tracking — no financial impact"}
+              </p>
+            </div>
+            <span className="text-[10px] uppercase tracking-wider font-semibold text-slate-500">
+              {fin.currency}
+            </span>
+          </div>
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 px-4 py-3 text-xs">
+            <div>
+              <p className="text-[10px] uppercase tracking-wider text-slate-400 mb-0.5">Subtotal</p>
+              <p className="font-semibold tabular-nums text-slate-900">{formatMoney(fin.subtotal, fin.currency)}</p>
+            </div>
+            <div>
+              <p className="text-[10px] uppercase tracking-wider text-slate-400 mb-0.5">VAT ({fin.vatRate || 0}%)</p>
+              <p className="font-semibold tabular-nums text-slate-900">{formatMoney(fin.vatAmount, fin.currency)}</p>
+            </div>
+            <div>
+              <p className="text-[10px] uppercase tracking-wider text-slate-400 mb-0.5">Grand Total</p>
+              <p className="font-semibold tabular-nums text-slate-900">{formatMoney(fin.grandTotal, fin.currency)}</p>
+            </div>
+            <div>
+              <p className="text-[10px] uppercase tracking-wider text-slate-400 mb-0.5">
+                {code === "sales_invoice" ? "Customer" : "Supplier"}
+              </p>
+              <p className="font-medium text-slate-700 truncate" title={fin.counterparty}>
+                {fin.counterparty || "—"}
+              </p>
+            </div>
+          </div>
+          {isExpenseLike && (
+            <div className="border-t border-gray-100 px-4 py-3 flex items-center justify-between gap-3">
+              <div>
+                <p className="text-[10px] uppercase tracking-wider text-slate-400 mb-1">Expense Category</p>
+                <p className="text-[10px] text-slate-500">
+                  {currentDoc.expenseCategoryManual ? "Manually set" : "Auto-suggested by AI"}
+                </p>
+              </div>
+              <select
+                value={currentDoc.expenseCategory ?? ""}
+                onChange={(e) => updateExpenseCategory(e.target.value as ExpenseCategory)}
+                disabled={!isEditable}
+                className="rounded-lg border border-gray-300 bg-white px-3 py-1.5 text-xs font-medium text-gray-700 focus:border-indigo-400 focus:outline-none focus:ring-2 focus:ring-indigo-100 disabled:opacity-60"
+              >
+                <option value="">Select category…</option>
+                {EXPENSE_CATEGORY_OPTIONS.map((o) => (
+                  <option key={o.value} value={o.value}>{o.label}</option>
+                ))}
+              </select>
+            </div>
+          )}
+        </motion.div>
+
         {currentDoc.fields.length > 0 && (
           <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} className="rounded-xl border border-gray-200 bg-white shadow-sm">
             <div className="border-b border-gray-200 px-4 py-3 flex items-center justify-between"><div><h2 className="text-sm font-semibold text-gray-900">Extracted Fields</h2><p className="text-[10px] text-gray-500">{currentDoc.fields.length} fields extracted</p></div><FileText className="h-4 w-4 text-gray-300" /></div>
@@ -291,7 +406,21 @@ function ReviewPageContent() {
                     {isEditable && (isEditing ? (<button onClick={saveEdits} disabled={actionLoading} className="flex items-center gap-1 rounded-lg bg-indigo-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-indigo-700 transition disabled:opacity-60">{actionLoading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Save className="h-3.5 w-3.5" />} Save</button>) : (<button onClick={startEditing} className="flex items-center gap-1 rounded-lg bg-indigo-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-indigo-700 transition"><Edit3 className="h-3.5 w-3.5" /> Edit</button>))}
                   </div>
                 </div>
-                <p className="mt-1 text-xs text-gray-500">{currentDoc.docType || "Document"} &middot; Confidence: <ConfidenceBadge value={currentDoc.overallConfidence} />{currentDoc.ocrEngine && <span className="capitalize"> &middot; {currentDoc.ocrEngine} OCR</span>} &middot; Updated {new Date(currentDoc.updatedAt).toLocaleString()}</p>
+                <div className="mt-1.5 flex flex-wrap items-center gap-2 text-xs text-gray-500">
+                  <DocTypeDropdown
+                    value={resolveDocTypeCode(currentDoc)}
+                    onChange={updateDocType}
+                    disabled={!isEditable}
+                    size="sm"
+                  />
+                  {currentDoc.docTypeManual && (
+                    <span className="text-[9px] font-medium text-slate-400 uppercase tracking-wide">manual</span>
+                  )}
+                  <span>&middot;</span>
+                  <span>Confidence:</span> <ConfidenceBadge value={currentDoc.overallConfidence} />
+                  {currentDoc.ocrEngine && <><span>&middot;</span><span className="capitalize">{currentDoc.ocrEngine} OCR</span></>}
+                  <span>&middot;</span><span>Updated {new Date(currentDoc.updatedAt).toLocaleString()}</span>
+                </div>
               </div>
               <div id="split-container" className="flex-1 flex overflow-hidden">
                 {showPreview && (<>

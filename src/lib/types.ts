@@ -14,6 +14,56 @@ export type DocumentSource = "upload" | "whatsapp";
 
 export type OcrEngine = "textract" | "paddleocr" | "none";
 
+// ─── Document classification (Phase: Financial Engine) ──────────
+
+/**
+ * Canonical document types used by the financial engine.
+ * - sales_invoice: client is the seller → adds to Revenue + VAT Collected
+ * - expense_invoice: client is the buyer → adds to Expenses + VAT Paid
+ * - purchase_order: procurement tracking, NO financial impact
+ * - receipt: treated as operational expense
+ * - unknown: AI could not classify (or pre-classification)
+ */
+export type DocType =
+  | "sales_invoice"
+  | "expense_invoice"
+  | "purchase_order"
+  | "receipt"
+  | "unknown";
+
+/**
+ * Expense categories auto-suggested by the AI for expense_invoice and receipt
+ * documents. The user can override via the UI dropdown.
+ */
+export type ExpenseCategory =
+  | "logistics"
+  | "marketing"
+  | "printing"
+  | "utilities"
+  | "rent"
+  | "food_beverage"
+  | "transport"
+  | "raw_materials"
+  | "other";
+
+/**
+ * Structured financial summary attached to every processed document.
+ * The backend should populate this from the extracted fields after
+ * classification. Frontend uses it directly for the financial dashboard,
+ * P&L and VAT reports.
+ */
+export interface FinancialSummary {
+  currency: string;          // ISO 4217, e.g. "AED", "USD"
+  subtotal: number;          // pre-VAT amount
+  vatRate: number;           // 0-100, e.g. 5 for 5%
+  vatAmount: number;         // VAT amount in currency
+  grandTotal: number;        // subtotal + vatAmount
+  invoiceDate?: string;      // ISO date when invoice was issued
+  trn?: string;              // tax registration / VAT number
+  counterparty?: string;     // supplier (for expenses) or customer (for sales)
+  invoiceNumber?: string;
+}
+
 export interface ExtractedField {
   id: string;
   label: string;
@@ -45,7 +95,13 @@ export interface ProcessedDocument {
   ocrEngine?: OcrEngine;   // which OCR engine was used
   status: DocumentStatus;
   source: DocumentSource;
-  docType?: string; // Invoice, Purchase Order, Delivery Note, Receipt, etc.
+  docType?: string;        // legacy free-text label (Invoice, PO, etc.) — kept for back-compat
+  docTypeCode?: DocType;   // canonical classification used by the financial engine
+  docTypeConfidence?: number; // 0-100, AI's confidence in the classification
+  docTypeManual?: boolean; // true if the user manually overrode the AI's choice
+  expenseCategory?: ExpenseCategory;
+  expenseCategoryManual?: boolean;
+  financial?: FinancialSummary;
   overallConfidence: number;
   fields: ExtractedField[];
   lineItems: LineItem[];
