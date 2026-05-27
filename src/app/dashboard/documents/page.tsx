@@ -450,7 +450,7 @@ export default function DocumentsPage() {
               )}
             </motion.div>
           ) : viewMode === "list" ? (
-            <div className="bg-white rounded-2xl border border-slate-100 overflow-hidden shadow-sm">
+            <div className="bg-white rounded-2xl border border-slate-100 overflow-visible shadow-sm">
               <table className="w-full text-sm">
                 <thead className="bg-slate-50 border-b border-slate-100">
                   <tr>
@@ -662,7 +662,7 @@ function ListRow({
           </div>
         </div>
       </td>
-      <td className="px-4 py-3.5">
+      <td className="px-4 py-3.5 relative overflow-visible">
         <div onClick={(e) => e.stopPropagation()}>
           <DocTypeDropdown
             value={resolveDocTypeCode(doc)}

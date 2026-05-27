@@ -67,16 +67,39 @@ export function DocTypeDropdown({
         type="button"
         disabled={disabled}
         onClick={() => setOpen((p) => !p)}
-        className={`inline-flex items-center gap-1.5 rounded-full border font-medium transition ${meta.badge} ${px} ${
-          disabled ? "opacity-60 cursor-not-allowed" : "hover:brightness-95"
-        }`}
+        className={`inline-flex items-center gap-1.5 rounded-full border font-medium transition ${meta.badge} ${px} ${disabled ? "opacity-60 cursor-not-allowed" : "hover:brightness-95"
+          }`}
       >
         <span aria-hidden>{meta.emoji}</span>
         <span>{meta.short}</span>
         <ChevronDown className="h-3 w-3 opacity-70" />
       </button>
       {open && (
-        <div className="absolute z-30 mt-1 min-w-[170px] rounded-lg border border-slate-200 bg-white shadow-lg overflow-hidden">
+        <div
+          className="absolute z-30 min-w-[170px] rounded-lg border border-slate-200 bg-white shadow-lg overflow-hidden"
+          style={{
+            top:
+              ref.current &&
+                window.innerHeight - ref.current.getBoundingClientRect().bottom < 220
+                ? "auto"
+                : "100%",
+            bottom:
+              ref.current &&
+                window.innerHeight - ref.current.getBoundingClientRect().bottom < 220
+                ? "100%"
+                : "auto",
+            marginTop:
+              ref.current &&
+                window.innerHeight - ref.current.getBoundingClientRect().bottom < 220
+                ? 0
+                : 4,
+            marginBottom:
+              ref.current &&
+                window.innerHeight - ref.current.getBoundingClientRect().bottom < 220
+                ? 4
+                : 0,
+          }}
+        >
           {DOC_TYPE_OPTIONS.filter((o) => o.value !== "unknown").map((opt) => (
             <button
               key={opt.value}
@@ -85,9 +108,8 @@ export function DocTypeDropdown({
                 setOpen(false);
                 if (opt.value !== value) onChange(opt.value);
               }}
-              className={`flex w-full items-center justify-between gap-2 px-3 py-2 text-left text-xs transition hover:bg-slate-50 ${
-                opt.value === value ? "bg-slate-50" : ""
-              }`}
+              className={`flex w-full items-center justify-between gap-2 px-3 py-2 text-left text-xs transition hover:bg-slate-50 ${opt.value === value ? "bg-slate-50" : ""
+                }`}
             >
               <span className="flex items-center gap-2">
                 <span aria-hidden>{opt.emoji}</span>
