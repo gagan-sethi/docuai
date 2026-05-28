@@ -39,6 +39,8 @@ import {
   PieChart,
   Layers,
   ArrowUpRight,
+  Receipt,
+  Landmark,
 } from "lucide-react";
 import Sidebar from "@/components/dashboard/Sidebar";
 import TopBar from "@/components/dashboard/TopBar";
@@ -645,7 +647,7 @@ export default function AnalyticsPage() {
                 <KpiCard
                   label="Total VAT"
                   value={kpis.vatCount > 0 ? fmtMoney(kpis.totalVat) : "—"}
-                  icon={<Percent className="w-4 h-4" />}
+                  icon={<Receipt className="w-4 h-4" />}
                   tone="emerald"
                   hint={
                     kpis.vatCount > 0
@@ -678,7 +680,7 @@ export default function AnalyticsPage() {
 
               {/* ─── VAT by month ────────────────────────────── */}
               <div className="mb-6">
-                <Card title="VAT Totals By Month" icon={<Percent className="w-4 h-4" />}>
+                <Card title="VAT Totals By Month" icon={<Landmark className="w-4 h-4" />}>
                   <MonthlyVatChart data={monthlyVat} max={monthlyVatMax} />
                 </Card>
               </div>

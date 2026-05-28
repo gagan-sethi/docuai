@@ -28,6 +28,7 @@ import {
   buildCategoryBuckets,
   buildMonthlyBuckets,
   deriveFinancialSummary,
+  formatCompactMoney,
   formatMoney,
   getDocTypeMeta,
   resolveDocTypeCode,
@@ -103,11 +104,12 @@ function KpiCard({
       className="bg-white rounded-2xl border border-slate-100 p-5 shadow-sm"
     >
       <div className="flex items-start justify-between gap-3 mb-3">
-        <div className="min-w-0 flex-1">
+        <div className="min-w-0 flex-1 mt-2">
           <p className="text-xs font-medium uppercase tracking-wide text-slate-500">{label}</p>
-          <p className="mt-2 text-lg sm:text-xl xl:text-2xl font-bold text-slate-900 tabular-nums break-words leading-tight">
+          <p className="mt-3 text-lg sm:text-xl xl:text-2xl font-bold text-slate-900 tabular-nums break-words leading-tight text-nowrap">
             {value}
-          </p>          {helper && <p className="text-xs text-slate-400 mt-1">{helper}</p>}
+          </p>
+          {helper && <p className="text-xs text-slate-400 mt-1">{helper}</p>}
         </div>
         <div className={`p-2.5 rounded-xl ${t.iconBg}`}>
           <Icon className={`w-5 h-5 ${t.iconFg}`} />
@@ -281,7 +283,7 @@ export default function FinanceDashboardPage() {
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
                 <KpiCard
                   label="Total Revenue"
-                  value={formatMoney(totals.revenue, totals.currency)}
+                  value={formatCompactMoney(totals.revenue, totals.currency)}
                   Icon={TrendingUp}
                   tone="emerald"
                   helper={`${totals.salesCount} sales invoice${totals.salesCount === 1 ? "" : "s"}`}
@@ -289,7 +291,8 @@ export default function FinanceDashboardPage() {
                 />
                 <KpiCard
                   label="Total Expenses"
-                  value={formatMoney(totals.expenses, totals.currency)}
+                  // value={formatMoney(totals.expenses, totals.currency)}
+                 value={formatCompactMoney(totals.expenses, totals.currency)}
                   Icon={TrendingDown}
                   tone="rose"
                   helper={`${totals.expenseCount + totals.receiptCount} expense docs`}
@@ -297,7 +300,8 @@ export default function FinanceDashboardPage() {
                 />
                 <KpiCard
                   label="Net Profit"
-                  value={formatMoney(totals.netProfit, totals.currency)}
+                  // value={formatMoney(totals.netProfit, totals.currency)}
+                  value={formatCompactMoney(totals.netProfit, totals.currency)}
                   Icon={Wallet}
                   tone={totals.netProfit >= 0 ? "emerald" : "rose"}
                   helper="Revenue − Expenses"
@@ -305,7 +309,8 @@ export default function FinanceDashboardPage() {
                 />
                 <KpiCard
                   label="VAT Payable"
-                  value={formatMoney(totals.vatPayable, totals.currency)}
+                  // value={formatMoney(totals.vatPayable, totals.currency)}
+                  value={formatCompactMoney(totals.vatPayable, totals.currency)}
                   Icon={Percent}
                   tone="indigo"
                   helper={`Collected − Paid`}

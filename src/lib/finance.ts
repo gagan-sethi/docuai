@@ -371,3 +371,57 @@ export function formatNumber(value: number): string {
   if (!Number.isFinite(value)) return "—";
   return new Intl.NumberFormat("en-AE", { maximumFractionDigits: 2 }).format(value);
 }
+
+// export function formatCompactMoney(
+//   amount: number,
+//   currency = "AED"
+// ) {
+//   if (!Number.isFinite(amount)) return "—";
+
+//   const abs = Math.abs(amount);
+
+//   let formatted = "";
+
+//   if (abs >= 1_000_000_000) {
+//     formatted = `${(amount / 1_000_000_000).toFixed(1)}B`;
+//   } else if (abs >= 1_000_000) {
+//     formatted = `${(amount / 1_000_000).toFixed(1)}M`;
+//   } else if (abs >= 1_000) {
+//     formatted = `${(amount / 1_000).toFixed(1)}K`;
+//   } else {
+//     formatted = amount.toFixed(2);
+//   }
+
+//   // Remove only trailing .0 before K/M/B
+//   formatted = formatted.replace(/\.0([KMB])$/, "$1");
+
+//   return `${currency} ${formatted}`;
+// }
+export function formatCompactMoney(
+  amount: number,
+  currency = "AED"
+) {
+  if (!Number.isFinite(amount)) return "—";
+
+  const abs = Math.abs(amount);
+
+  const truncate = (num: number) =>
+    Math.trunc(num * 10) / 10;
+
+  let formatted = "";
+
+  if (abs >= 1_000_000_000) {
+    formatted = `${truncate(amount / 1_000_000_000)}B`;
+  } else if (abs >= 1_000_000) {
+    formatted = `${truncate(amount / 1_000_000)}M`;
+  } else if (abs >= 1_000) {
+    formatted = `${truncate(amount / 1_000)}K`;
+  } else {
+    formatted = amount.toFixed(2);
+  }
+
+  // Remove trailing .0
+  formatted = formatted.replace(/\.0([KMB])$/, "$1");
+
+  return `${currency} ${formatted}`;
+}
