@@ -102,11 +102,12 @@ function KpiCard({
       animate={{ opacity: 1, y: 0 }}
       className="bg-white rounded-2xl border border-slate-100 p-5 shadow-sm"
     >
-      <div className="flex items-start justify-between mb-3">
-        <div>
+      <div className="flex items-start justify-between gap-3 mb-3">
+        <div className="min-w-0 flex-1">
           <p className="text-xs font-medium uppercase tracking-wide text-slate-500">{label}</p>
-          <p className="mt-2 text-2xl font-bold text-slate-900 tabular-nums">{value}</p>
-          {helper && <p className="text-xs text-slate-400 mt-1">{helper}</p>}
+          <p className="mt-2 text-lg sm:text-xl xl:text-2xl font-bold text-slate-900 tabular-nums break-words leading-tight">
+            {value}
+          </p>          {helper && <p className="text-xs text-slate-400 mt-1">{helper}</p>}
         </div>
         <div className={`p-2.5 rounded-xl ${t.iconBg}`}>
           <Icon className={`w-5 h-5 ${t.iconFg}`} />
