@@ -163,10 +163,17 @@ export interface Attachment {
   size: number;
 }
 
+export type SupportPriority =
+  | "low"
+  | "medium"
+  | "high"
+  | "urgent";
+
 export interface IssueType {
   _id: string;
   name: string,
   description: string,
+  priority: SupportPriority;
 }
 
 export interface SupportTicket {

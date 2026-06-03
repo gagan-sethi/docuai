@@ -410,10 +410,17 @@ export default function SupportPage() {
       try {
         setSubmitState("loading");
 
+        const selectedIssueType = issueTypes.find(
+          (issue) => issue.name === values.issueType
+        );
         const formData = new FormData();
         formData.append("name", values.name);
         formData.append("email", values.email);
         formData.append("issueType", values.issueType);
+        formData.append(
+          "priority",
+          selectedIssueType?.priority || "medium"
+        );
         formData.append("message", values.message);
 
         // Append attachments
@@ -728,7 +735,7 @@ export default function SupportPage() {
                     setPage(1);
                   }}
                   className="w-full pl-9 pr-3 py-2.5 rounded-lg border border-slate-200 text-sm text-slate-700 bg-white outline-none transition focus:ring-2 focus:ring-indigo-400/30 focus:border-indigo-300 placeholder:text-slate-400"
-                  style={{borderRadius:"15px",  borderColor:"grey"}}
+                  style={{ borderRadius: "15px", borderColor: "grey" }}
                 />
               </div>
 
