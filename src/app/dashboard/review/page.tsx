@@ -13,7 +13,7 @@ import {
 } from "lucide-react";
 import type { ProcessedDocument, ExtractedField, LineItem, DocType, ExpenseCategory } from "@/lib/types";
 import { apiUrl } from "@/lib/api";
-import { DocTypeDropdown } from "@/components/dashboard/DocTypeBadge";
+import { AiProcessingIndicators, DocTypeBadge, DocTypeDropdown } from "@/components/dashboard/DocTypeBadge";
 import {
   EXPENSE_CATEGORY_OPTIONS,
   deriveFinancialSummary,
@@ -187,7 +187,7 @@ function ReviewPageContent() {
     setDocuments((prev) =>
       prev.map((d) =>
         d.id === currentDoc.id
-          ? { ...d, docTypeCode: code, docTypeManual: true, docType: getDocTypeMeta(code).label }
+          ? { ...d, type: code, docTypeCode: code, docTypeManual: true, docType: getDocTypeMeta(code).label, auto_categorized: false }
           : d
       )
     );
@@ -196,7 +196,13 @@ function ReviewPageContent() {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         credentials: "include",
-        body: JSON.stringify({ docTypeCode: code, docTypeManual: true, docType: getDocTypeMeta(code).label }),
+        body: JSON.stringify({
+          type: code,
+          docTypeCode: code,
+          docTypeManual: true,
+          docType: getDocTypeMeta(code).label,
+          auto_categorized: false,
+        }),
       });
       addToast(`Type set to ${getDocTypeMeta(code).label}`);
     } catch {
@@ -394,8 +400,9 @@ function ReviewPageContent() {
             <div className="flex h-full flex-col overflow-hidden">
               <div className="flex-shrink-0 border-b border-gray-200 bg-white px-5 py-3">
                 <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-3 min-w-0">
+                  <div className="flex flex-wrap items-center gap-2 min-w-0">
                     <h1 className="text-lg font-bold text-gray-900 truncate">{currentDoc.fileName}</h1>
+                    <DocTypeBadge code={resolveDocTypeCode(currentDoc)} />
                     <StatusBadge status={currentDoc.status} />
                     {!isEditable && (currentDoc.status === "approved" || currentDoc.status === "rejected") && (<span className="inline-flex items-center gap-1 rounded-full bg-gray-100 px-2 py-0.5 text-[10px] font-medium text-gray-500 border border-gray-200">{currentDoc.status === "approved" ? <ShieldCheck className="h-3 w-3" /> : <ShieldX className="h-3 w-3" />} Read-only</span>)}
                   </div>
@@ -421,6 +428,7 @@ function ReviewPageContent() {
                   {currentDoc.ocrEngine && <><span>&middot;</span><span className="capitalize">{currentDoc.ocrEngine} OCR</span></>}
                   <span>&middot;</span><span>Updated {new Date(currentDoc.updatedAt).toLocaleString()}</span>
                 </div>
+                <AiProcessingIndicators doc={currentDoc} className="mt-2" />
               </div>
               <div id="split-container" className="flex-1 flex overflow-hidden">
                 {showPreview && (<>

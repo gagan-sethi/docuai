@@ -1,6 +1,6 @@
 "use client";
 
-import { Suspense, useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   FileText,
@@ -33,8 +33,8 @@ import TopBar from "@/components/dashboard/TopBar";
 import MergeBar from "@/components/dashboard/MergeBar";
 import { apiUrl, handleUnauthorized } from "@/lib/api";
 import type { ProcessedDocument, DocumentStatus, DocType } from "@/lib/types";
-import { DocTypeBadge, DocTypeDropdown } from "@/components/dashboard/DocTypeBadge";
-import { DOC_TYPE_OPTIONS, resolveDocTypeCode, getDocTypeMeta } from "@/lib/finance";
+import { AiProcessingIndicators, DocTypeBadge, DocTypeDropdown } from "@/components/dashboard/DocTypeBadge";
+import { resolveDocTypeCode, getDocTypeMeta } from "@/lib/finance";
 // import { useSearchParams } from "next/navigation";
 
 
@@ -184,7 +184,7 @@ export default function DocumentsPage() {
     setDocs((prev) =>
       prev.map((d) =>
         d.id === docId
-          ? { ...d, docTypeCode: code, docTypeManual: true, docType: getDocTypeMeta(code).label }
+          ? { ...d, type: code, docTypeCode: code, docTypeManual: true, docType: getDocTypeMeta(code).label, auto_categorized: false }
           : d
       )
     );
@@ -195,8 +195,10 @@ export default function DocumentsPage() {
         credentials: "include",
         body: JSON.stringify({
           docTypeCode: code,
+          type: code,
           docTypeManual: true,
           docType: getDocTypeMeta(code).label,
+          auto_categorized: false,
         }),
       });
     } catch { /* swallow; UI already updated */ }
@@ -477,6 +479,7 @@ export default function DocumentsPage() {
                     <th className="text-left px-4 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wide">Type</th>
                     <th className="text-left px-4 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wide">Source</th>
                     <th className="text-left px-4 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wide">Status</th>
+                    <th className="text-left px-4 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wide">AI</th>
                     <th className="text-left px-4 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wide">Confidence</th>
                     <th className="text-left px-4 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wide">Added</th>
                     <th className="px-4 py-3" />
@@ -691,6 +694,9 @@ function ListRow({
         <StatusBadge status={doc.status} />
       </td>
       <td className="px-4 py-3.5">
+        <AiProcessingIndicators doc={doc} />
+      </td>
+      <td className="px-4 py-3.5">
         {doc.overallConfidence > 0 ? (
           <div className="flex items-center gap-2">
             <div className="w-16 h-1.5 bg-slate-100 rounded-full overflow-hidden">
@@ -795,6 +801,7 @@ function GridCard({
           size="sm"
         />
       </div>
+      <AiProcessingIndicators doc={doc} className="mb-3" />
       <div className="flex items-center justify-between">
         <StatusBadge status={doc.status} />
         {doc.overallConfidence > 0 && (
@@ -840,6 +847,10 @@ function DocDetailDrawer({ doc, onClose }: { doc: ProcessedDocument; onClose: ()
           <div>
             <h3 className="text-sm font-bold text-slate-800 truncate max-w-[240px]">{doc.fileName}</h3>
             <p className="text-xs text-slate-400">{formatFileSize(doc.fileSize)}</p>
+            <div className="mt-2 flex flex-wrap items-center gap-1.5">
+              <DocTypeBadge code={resolveDocTypeCode(doc)} />
+              <AiProcessingIndicators doc={doc} />
+            </div>
           </div>
         </div>
         <button onClick={onClose} className="p-2 rounded-xl text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition">

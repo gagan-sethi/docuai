@@ -22,28 +22,28 @@ export const DOC_TYPE_OPTIONS: Array<{
   {
     value: "sales_invoice",
     label: "Sales Invoice",
-    short: "Sales",
+    short: "Sales Invoice",
     emoji: "🟢",
-    badge: "bg-green-100 text-green-700 border-green-200",
-    dot: "bg-green-500",
+    badge: "bg-blue-50 text-blue-700 border-blue-200 dark:bg-blue-400/15 dark:text-blue-200 dark:border-blue-400/30",
+    dot: "bg-blue-500",
     affectsFinancials: true,
   },
   {
     value: "expense_invoice",
     label: "Expense Invoice",
-    short: "Expense",
+    short: "Expense Invoice",
     emoji: "🔴",
-    badge: "bg-red-100 text-red-700 border-red-200",
-    dot: "bg-red-500",
+    badge: "bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-400/15 dark:text-amber-200 dark:border-amber-400/30",
+    dot: "bg-amber-500",
     affectsFinancials: true,
   },
   {
     value: "purchase_order",
     label: "Purchase Order",
-    short: "PO",
+    short: "Purchase Order",
     emoji: "🟡",
-    badge: "bg-amber-100 text-amber-700 border-amber-200",
-    dot: "bg-amber-500",
+    badge: "bg-purple-50 text-purple-700 border-purple-200 dark:bg-purple-400/15 dark:text-purple-200 dark:border-purple-400/30",
+    dot: "bg-purple-500",
     affectsFinancials: false,
   },
   {
@@ -51,8 +51,8 @@ export const DOC_TYPE_OPTIONS: Array<{
     label: "Receipt",
     short: "Receipt",
     emoji: "🔵",
-    badge: "bg-blue-100 text-blue-700 border-blue-200",
-    dot: "bg-blue-500",
+    badge: "bg-teal-50 text-teal-700 border-teal-200 dark:bg-teal-400/15 dark:text-teal-200 dark:border-teal-400/30",
+    dot: "bg-teal-500",
     affectsFinancials: true,
   },
   {
@@ -60,15 +60,20 @@ export const DOC_TYPE_OPTIONS: Array<{
     label: "Unclassified",
     short: "Unknown",
     emoji: "⚪",
-    badge: "bg-slate-100 text-slate-600 border-slate-200",
+    badge: "bg-slate-100 text-slate-600 border-slate-200 dark:bg-slate-700/60 dark:text-slate-200 dark:border-slate-500",
     dot: "bg-slate-400",
     affectsFinancials: false,
   },
 ];
 
-export function getDocTypeMeta(code: DocType | undefined) {
+export function normalizeDocTypeCode(code: unknown): DocType | undefined {
+  return DOC_TYPE_OPTIONS.some((o) => o.value === code) ? (code as DocType) : undefined;
+}
+
+export function getDocTypeMeta(code: DocType | string | undefined | null) {
+  const normalized = normalizeDocTypeCode(code);
   return (
-    DOC_TYPE_OPTIONS.find((o) => o.value === code) ??
+    DOC_TYPE_OPTIONS.find((o) => o.value === normalized) ??
     DOC_TYPE_OPTIONS[DOC_TYPE_OPTIONS.length - 1]
   );
 }
@@ -107,8 +112,13 @@ const LEGACY_TYPE_PATTERNS: Array<{ rx: RegExp; code: DocType }> = [
  * Best-effort mapping from the old free-text docType string to the new
  * canonical code. Used only when backend has not yet populated docTypeCode.
  */
-export function resolveDocTypeCode(doc: Pick<ProcessedDocument, "docType" | "docTypeCode">): DocType {
-  if (doc.docTypeCode) return doc.docTypeCode;
+export function resolveDocTypeCode(doc: Pick<ProcessedDocument, "type" | "docType" | "docTypeCode">): DocType {
+  const apiType = normalizeDocTypeCode(doc.type);
+  if (apiType) return apiType;
+
+  const canonical = normalizeDocTypeCode(doc.docTypeCode);
+  if (canonical) return canonical;
+
   const t = doc.docType ?? "";
   for (const { rx, code } of LEGACY_TYPE_PATTERNS) {
     if (rx.test(t)) return code;

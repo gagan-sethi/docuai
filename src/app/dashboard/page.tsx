@@ -32,7 +32,10 @@ import {
 import Link from "next/link";
 import Sidebar from "@/components/dashboard/Sidebar";
 import TopBar from "@/components/dashboard/TopBar";
+import { AiProcessingIndicators, DocTypeBadge } from "@/components/dashboard/DocTypeBadge";
 import { apiUrl } from "@/lib/api";
+import type { ProcessedDocument } from "@/lib/types";
+import { resolveDocTypeCode } from "@/lib/finance";
 import { useRouter } from "next/navigation";
 import ManagePlanModal from "@/components/dashboard/ManagePlanModal";
 
@@ -222,15 +225,7 @@ export default function DashboardPage() {
     avgConfidence: number;
     processing: number;
   } | null>(null);
-  const [apiDocs, setApiDocs] = useState<Array<{
-    id: string;
-    fileName: string;
-    docType?: string;
-    status: string;
-    overallConfidence: number;
-    source: string;
-    createdAt: string;
-  }>>([]);
+  const [apiDocs, setApiDocs] = useState<ProcessedDocument[]>([]);
   const [apiActivities, setApiActivities] = useState<Array<{
     action: string;
     description: string;
@@ -429,11 +424,11 @@ export default function DashboardPage() {
 
   // Merge API docs into recent docs for display
   const displayDocs = apiDocs.slice(0, 6).map(d => ({
+    doc: d,
     id: d.id,
     displayId: d.id.slice(0, 8).toUpperCase(),
     name: d.fileName,
-    type: d.docType || "Document",
-    status: d.status,
+    status: String(d.status),
     confidence: Math.round(d.overallConfidence),
     date: getRelativeTime(d.createdAt),
     source: d.source || "upload",
@@ -703,8 +698,12 @@ export default function DashboardPage() {
                           )}
                         </div>
                         <p className="text-xs text-muted mt-0.5">
-                          {doc.type} · {doc.date}
+                          {doc.date}
                         </p>
+                        <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
+                          <DocTypeBadge code={resolveDocTypeCode(doc.doc)} />
+                          <AiProcessingIndicators doc={doc.doc} />
+                        </div>
                       </div>
 
                       {/* Confidence */}

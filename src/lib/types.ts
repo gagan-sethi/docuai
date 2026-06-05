@@ -85,6 +85,7 @@ export interface LineItem {
 
 export interface ProcessedDocument {
   id: string;
+  type?: string;           // API-facing canonical document type
   fileName: string;
   fileSize: number;
   fileType: string;
@@ -102,6 +103,9 @@ export interface ProcessedDocument {
   expenseCategory?: ExpenseCategory;
   expenseCategoryManual?: boolean;
   financial?: FinancialSummary;
+  ai_verified?: boolean;
+  ocr_accuracy?: number | null;
+  auto_categorized?: boolean;
   overallConfidence: number;
   fields: ExtractedField[];
   lineItems: LineItem[];
@@ -176,4 +180,3 @@ export interface SupportTicket {
   status: "open" | "in_progress" | "resolved";
   createdAt: string;
 }
-

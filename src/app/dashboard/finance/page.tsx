@@ -30,10 +30,9 @@ import {
   deriveFinancialSummary,
   formatCompactMoney,
   formatMoney,
-  getDocTypeMeta,
   resolveDocTypeCode,
 } from "@/lib/finance";
-import { DocTypeBadge } from "@/components/dashboard/DocTypeBadge";
+import { AiProcessingIndicators, DocTypeBadge } from "@/components/dashboard/DocTypeBadge";
 import {
   downloadLedgerCsv,
   downloadPnlCsv,
@@ -553,6 +552,7 @@ function RecentList({
                   <div className="mt-0.5">
                     <DocTypeBadge code={code} size="xs" />
                   </div>
+                  <AiProcessingIndicators doc={d} className="mt-1 justify-end" />
                 </div>
               </Link>
             );
