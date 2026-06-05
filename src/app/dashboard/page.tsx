@@ -10,18 +10,13 @@ import {
   AlertTriangle,
   ArrowUpRight,
   ArrowDownRight,
-  TrendingUp,
   Eye,
   Download,
-  MoreHorizontal,
   MessageSquare,
   Zap,
-  BarChart3,
   RefreshCcw,
   ChevronRight,
   Sparkles,
-  Calendar,
-  Filter,
   Hand,
   FileSpreadsheet,
   Send,
@@ -33,9 +28,11 @@ import Link from "next/link";
 import Sidebar from "@/components/dashboard/Sidebar";
 import TopBar from "@/components/dashboard/TopBar";
 import { AiProcessingIndicators, DocTypeBadge } from "@/components/dashboard/DocTypeBadge";
+import AiInsightsWidget from "@/components/dashboard/AiInsightsWidget";
 import { apiUrl } from "@/lib/api";
 import type { ProcessedDocument } from "@/lib/types";
-import { resolveDocTypeCode } from "@/lib/finance";
+import type { FinancialInsight } from "@/lib/financialIntelligence";
+import { getCategoryMeta, resolveDocTypeCode } from "@/lib/finance";
 import { useRouter } from "next/navigation";
 import ManagePlanModal from "@/components/dashboard/ManagePlanModal";
 
@@ -226,6 +223,9 @@ export default function DashboardPage() {
     processing: number;
   } | null>(null);
   const [apiDocs, setApiDocs] = useState<ProcessedDocument[]>([]);
+  const [aiInsights, setAiInsights] = useState<FinancialInsight[]>([]);
+  const [insightsLoading, setInsightsLoading] = useState(true);
+  const [insightsError, setInsightsError] = useState<string | null>(null);
   const [apiActivities, setApiActivities] = useState<Array<{
     action: string;
     description: string;
@@ -284,16 +284,18 @@ export default function DashboardPage() {
   useEffect(() => {
     const fetchData = async () => {
       try {
-        const [docRes, actRes, planRes] = await Promise.all([
-          fetch(apiUrl("/api/documents"), { credentials: "include" }),
+        const [docRes, actRes, planRes, insightsRes] = await Promise.all([
+          fetch(apiUrl("/api/documents?limit=1000"), { credentials: "include" }),
           fetch(apiUrl("/api/activities?limit=5"), { credentials: "include" }),
           fetch(apiUrl("/api/plan"), { credentials: "include" }),
+          fetch(apiUrl("/api/finance/insights?limit=1000"), { credentials: "include" }),
         ]);
 
         if (
           docRes.status === 401 ||
           actRes.status === 401 ||
-          planRes.status === 401
+          planRes.status === 401 ||
+          insightsRes.status === 401
         ) {
           router.replace("/login");
           return;
@@ -302,7 +304,7 @@ export default function DashboardPage() {
         if (docRes.ok) {
           const data = await docRes.json();
           if (data.stats) setApiStats(data.stats);
-          if (data.documents) setApiDocs(data.documents);
+          setApiDocs(Array.isArray(data.documents) ? data.documents : []);
         }
         if (actRes.ok) {
           const data = await actRes.json();
@@ -312,15 +314,25 @@ export default function DashboardPage() {
           const data = await planRes.json();
           setPlanData(data);
         }
+        if (insightsRes.ok) {
+          const data = await insightsRes.json();
+          setAiInsights(Array.isArray(data.insights) ? data.insights : []);
+          setInsightsError(null);
+        } else {
+          setAiInsights([]);
+          setInsightsError("Unable to load AI insights right now.");
+        }
       } catch {
-        // Silently fall back to defaults
+        setInsightsError("Unable to refresh AI insights right now.");
+      } finally {
+        setInsightsLoading(false);
       }
     };
     fetchData();
     // Poll every 10s for updates
     const interval = setInterval(fetchData, 10000);
     return () => clearInterval(interval);
-  }, []);
+  }, [router]);
 
   // useEffect(() => {
   //   const fetchPlans = async () => {
@@ -644,6 +656,20 @@ export default function DashboardPage() {
             </div>
           </motion.div>
 
+          {/* AI Insights */}
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.55 }}
+          >
+            <AiInsightsWidget
+              insights={aiInsights}
+              docsCount={apiDocs.length}
+              loading={insightsLoading}
+              error={insightsError}
+            />
+          </motion.div>
+
           {/* Main Content Grid */}
           <div className="grid lg:grid-cols-3 gap-6">
             {/* Recent Documents — takes 2 cols */}
@@ -702,6 +728,14 @@ export default function DashboardPage() {
                         </p>
                         <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
                           <DocTypeBadge code={resolveDocTypeCode(doc.doc)} />
+                          {doc.doc.expenseCategory && (
+                            <span className={`inline-flex items-center gap-1 rounded-full border px-1.5 py-0.5 text-[9px] font-bold ${getCategoryMeta(doc.doc.expenseCategory).tone}`}>
+                              {getCategoryMeta(doc.doc.expenseCategory).label}
+                              <span className="font-medium opacity-70">
+                                {doc.doc.expenseCategoryManual ? "Manual" : "AI"}
+                              </span>
+                            </span>
+                          )}
                           <AiProcessingIndicators doc={doc.doc} />
                         </div>
                       </div>
@@ -854,10 +888,6 @@ export default function DashboardPage() {
               const plan = planData?.plan || "free";
               const label = planData?.label || "Free";
               const docsUsed = planData?.documentsUsed || 0;
-              const docsLimit =
-                typeof planData?.documentsPerMonth === "number"
-                  ? planData.documentsPerMonth
-                  : 5;
 
               const pagesUsed = planData?.pagesUsed || 0;
               const pagesLimit =

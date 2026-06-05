@@ -38,6 +38,7 @@ export type DocType =
 export type ExpenseCategory =
   | "logistics"
   | "marketing"
+  | "office"
   | "printing"
   | "utilities"
   | "rent"
@@ -101,6 +102,7 @@ export interface ProcessedDocument {
   docTypeConfidence?: number; // 0-100, AI's confidence in the classification
   docTypeManual?: boolean; // true if the user manually overrode the AI's choice
   expenseCategory?: ExpenseCategory;
+  expenseCategoryConfidence?: number;
   expenseCategoryManual?: boolean;
   financial?: FinancialSummary;
   ai_verified?: boolean;

@@ -83,20 +83,26 @@ export function getDocTypeMeta(code: DocType | string | undefined | null) {
 export const EXPENSE_CATEGORY_OPTIONS: Array<{
   value: ExpenseCategory;
   label: string;
+  tone: string;
 }> = [
-  { value: "logistics", label: "Logistics" },
-  { value: "marketing", label: "Marketing" },
-  { value: "printing", label: "Printing" },
-  { value: "utilities", label: "Utilities" },
-  { value: "rent", label: "Rent" },
-  { value: "food_beverage", label: "Food & Beverage" },
-  { value: "transport", label: "Transport" },
-  { value: "raw_materials", label: "Raw Materials" },
-  { value: "other", label: "Other" },
+  { value: "logistics", label: "Logistics", tone: "bg-cyan-50 text-cyan-700 border-cyan-200" },
+  { value: "marketing", label: "Marketing", tone: "bg-fuchsia-50 text-fuchsia-700 border-fuchsia-200" },
+  { value: "office", label: "Office", tone: "bg-indigo-50 text-indigo-700 border-indigo-200" },
+  { value: "printing", label: "Printing", tone: "bg-violet-50 text-violet-700 border-violet-200" },
+  { value: "utilities", label: "Utilities", tone: "bg-sky-50 text-sky-700 border-sky-200" },
+  { value: "rent", label: "Rent", tone: "bg-amber-50 text-amber-700 border-amber-200" },
+  { value: "food_beverage", label: "Food & Beverage", tone: "bg-emerald-50 text-emerald-700 border-emerald-200" },
+  { value: "transport", label: "Transport", tone: "bg-orange-50 text-orange-700 border-orange-200" },
+  { value: "raw_materials", label: "Raw Materials", tone: "bg-stone-50 text-stone-700 border-stone-200" },
+  { value: "other", label: "Other", tone: "bg-slate-50 text-slate-600 border-slate-200" },
 ];
 
 export function getCategoryLabel(c: ExpenseCategory | undefined): string {
   return EXPENSE_CATEGORY_OPTIONS.find((o) => o.value === c)?.label ?? "—";
+}
+
+export function getCategoryMeta(c: ExpenseCategory | undefined) {
+  return EXPENSE_CATEGORY_OPTIONS.find((o) => o.value === c) ?? EXPENSE_CATEGORY_OPTIONS[EXPENSE_CATEGORY_OPTIONS.length - 1];
 }
 
 // ─── Legacy-label normaliser ────────────────────────────────────

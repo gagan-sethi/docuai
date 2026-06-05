@@ -18,6 +18,7 @@ import {
   EXPENSE_CATEGORY_OPTIONS,
   deriveFinancialSummary,
   formatMoney,
+  getCategoryMeta,
   getDocTypeMeta,
   resolveDocTypeCode,
 } from "@/lib/finance";
@@ -63,6 +64,38 @@ function ConfidenceBadge({ value }: { value: number }) {
   const pct = value > 1 ? Math.round(value) : Math.round(value * 100);
   const cls = pct >= 90 ? "bg-green-100 text-green-700" : pct >= 70 ? "bg-amber-100 text-amber-700" : "bg-red-100 text-red-700";
   return <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${cls}`}>{pct}%</span>;
+}
+
+function CategoryBadge({
+  category,
+  confidence,
+  manual,
+}: {
+  category?: ExpenseCategory;
+  confidence?: number;
+  manual?: boolean;
+}) {
+  if (!category) {
+    return (
+      <span className="inline-flex items-center rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1 text-xs font-semibold text-slate-500">
+        Uncategorized
+      </span>
+    );
+  }
+  const meta = getCategoryMeta(category);
+  const pct = typeof confidence === "number" && confidence > 0
+    ? confidence > 1
+      ? Math.round(confidence)
+      : Math.round(confidence * 100)
+    : null;
+  return (
+    <span className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-semibold ${meta.tone}`}>
+      {meta.label}
+      <span className="text-[10px] font-medium opacity-70">
+        {manual ? "Manual" : pct ? `AI ${pct}%` : "AI"}
+      </span>
+    </span>
+  );
 }
 
 function DocumentPreview({ docId, fileType, fileName }: { docId: string; fileType: string; fileName: string }) {
@@ -214,7 +247,9 @@ function ReviewPageContent() {
     if (!currentDoc) return;
     setDocuments((prev) =>
       prev.map((d) =>
-        d.id === currentDoc.id ? { ...d, expenseCategory: cat, expenseCategoryManual: true } : d
+        d.id === currentDoc.id
+          ? { ...d, expenseCategory: cat, expenseCategoryConfidence: 100, expenseCategoryManual: true }
+          : d
       )
     );
     try {
@@ -222,7 +257,7 @@ function ReviewPageContent() {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         credentials: "include",
-        body: JSON.stringify({ expenseCategory: cat, expenseCategoryManual: true }),
+        body: JSON.stringify({ expenseCategory: cat, expenseCategoryConfidence: 100, expenseCategoryManual: true }),
       });
     } catch {
       addToast("Failed to update category", "error");
@@ -292,9 +327,11 @@ function ReviewPageContent() {
             <div className="border-t border-gray-100 px-4 py-3 flex items-center justify-between gap-3">
               <div>
                 <p className="text-[10px] uppercase tracking-wider text-slate-400 mb-1">Expense Category</p>
-                <p className="text-[10px] text-slate-500">
-                  {currentDoc.expenseCategoryManual ? "Manually set" : "Auto-suggested by AI"}
-                </p>
+                <CategoryBadge
+                  category={currentDoc.expenseCategory}
+                  confidence={currentDoc.expenseCategoryConfidence}
+                  manual={currentDoc.expenseCategoryManual}
+                />
               </div>
               <select
                 value={currentDoc.expenseCategory ?? ""}

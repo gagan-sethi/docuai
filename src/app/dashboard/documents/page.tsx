@@ -32,9 +32,9 @@ import Sidebar from "@/components/dashboard/Sidebar";
 import TopBar from "@/components/dashboard/TopBar";
 import MergeBar from "@/components/dashboard/MergeBar";
 import { apiUrl, handleUnauthorized } from "@/lib/api";
-import type { ProcessedDocument, DocumentStatus, DocType } from "@/lib/types";
+import type { ProcessedDocument, DocumentStatus, DocType, ExpenseCategory } from "@/lib/types";
 import { AiProcessingIndicators, DocTypeBadge, DocTypeDropdown } from "@/components/dashboard/DocTypeBadge";
-import { resolveDocTypeCode, getDocTypeMeta } from "@/lib/finance";
+import { resolveDocTypeCode, getDocTypeMeta, getCategoryMeta } from "@/lib/finance";
 // import { useSearchParams } from "next/navigation";
 
 
@@ -78,6 +78,30 @@ function statusConfig(status: DocumentStatus) {
     error: { label: "Error", cls: "bg-red-100 text-red-700 border-red-200", dotCls: "bg-red-500", icon: <AlertTriangle className="w-3 h-3" /> },
   };
   return cfg[status] || cfg.uploaded;
+}
+
+function ExpenseCategoryChip({
+  category,
+  confidence,
+  manual,
+}: {
+  category?: ExpenseCategory;
+  confidence?: number;
+  manual?: boolean;
+}) {
+  if (!category) return null;
+  const meta = getCategoryMeta(category);
+  const pct = typeof confidence === "number" && confidence > 0
+    ? confidence > 1
+      ? Math.round(confidence)
+      : Math.round(confidence * 100)
+    : null;
+  return (
+    <span className={`inline-flex max-w-full items-center gap-1 rounded-full border px-2 py-0.5 text-[10px] font-bold ${meta.tone}`}>
+      <span className="truncate">{meta.label}</span>
+      <span className="font-medium opacity-70">{manual ? "Manual" : pct ? `AI ${pct}%` : "AI"}</span>
+    </span>
+  );
 }
 
 function StatusBadge({ status }: { status: DocumentStatus }) {
@@ -801,6 +825,15 @@ function GridCard({
           size="sm"
         />
       </div>
+      {doc.expenseCategory && (
+        <div className="mb-3">
+          <ExpenseCategoryChip
+            category={doc.expenseCategory}
+            confidence={doc.expenseCategoryConfidence}
+            manual={doc.expenseCategoryManual}
+          />
+        </div>
+      )}
       <AiProcessingIndicators doc={doc} className="mb-3" />
       <div className="flex items-center justify-between">
         <StatusBadge status={doc.status} />
@@ -849,6 +882,11 @@ function DocDetailDrawer({ doc, onClose }: { doc: ProcessedDocument; onClose: ()
             <p className="text-xs text-slate-400">{formatFileSize(doc.fileSize)}</p>
             <div className="mt-2 flex flex-wrap items-center gap-1.5">
               <DocTypeBadge code={resolveDocTypeCode(doc)} />
+              <ExpenseCategoryChip
+                category={doc.expenseCategory}
+                confidence={doc.expenseCategoryConfidence}
+                manual={doc.expenseCategoryManual}
+              />
               <AiProcessingIndicators doc={doc} />
             </div>
           </div>
