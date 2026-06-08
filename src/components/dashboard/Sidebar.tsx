@@ -5,6 +5,7 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import { apiUrl } from "@/lib/api";
+import BrandLogo from "@/components/BrandLogo";
 import {
   LayoutDashboard,
   FileText,
@@ -177,18 +178,32 @@ export default function Sidebar() {
       {/* Logo */}
       <div className="flex items-center justify-between h-16 px-4 border-b border-slate-800">
         <Link href="/dashboard" className="flex items-center gap-2.5">
-          <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-primary to-secondary flex items-center justify-center shadow-lg shadow-primary/25 flex-shrink-0">
-            <FileText className="w-4 h-4 text-white" />
-          </div>
           <AnimatePresence>
-            {!collapsed && (
+            {collapsed ? (
               <motion.span
+                key="mark"
+                initial={{ opacity: 0, scale: 0.9 }}
+                animate={{ opacity: 1, scale: 1 }}
+                exit={{ opacity: 0, scale: 0.9 }}
+              >
+                <BrandLogo
+                  compact
+                  className="h-9 w-9 rounded-lg bg-white p-1 shadow-lg shadow-primary/20"
+                  imageClassName="h-full w-full"
+                />
+              </motion.span>
+            ) : (
+              <motion.span
+                key="wordmark"
                 initial={{ opacity: 0, width: 0 }}
                 animate={{ opacity: 1, width: "auto" }}
                 exit={{ opacity: 0, width: 0 }}
-                className="text-lg font-bold text-white tracking-tight whitespace-nowrap overflow-hidden"
+                className="overflow-hidden"
               >
-                Docu<span className="text-secondary">AI</span>
+                <BrandLogo
+                  className="h-9 w-[150px] rounded-lg bg-white px-2 py-1 shadow-lg shadow-primary/20"
+                  imageClassName="h-full w-full"
+                />
               </motion.span>
             )}
           </AnimatePresence>

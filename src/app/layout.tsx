@@ -10,15 +10,17 @@ const inter = Inter({
 });
 
 export const metadata: Metadata = {
-  title: "DocuAI – AI-Powered Document Processing Platform",
+  title: "Invonix - AI-Powered Finance Automation Platform",
   description:
-    "Stop manual data entry. Upload any document and get structured data instantly. AI-powered OCR with 90-95% accuracy for invoices, purchase orders, and more.",
+    "Automate invoice processing, expense management, VAT reporting, purchase orders, document extraction, and financial insights with Invonix.",
   keywords: [
-    "document processing",
-    "AI OCR",
-    "invoice processing",
-    "data extraction",
-    "automation",
+    "finance automation",
+    "invoice automation",
+    "expense management",
+    "VAT reporting",
+    "AI document extraction",
+    "accounting automation",
+    "financial analytics",
   ],
 };
 

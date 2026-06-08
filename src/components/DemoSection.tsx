@@ -22,10 +22,10 @@ interface ExtractedRow {
 
 const sampleData: ExtractedRow[] = [
   { field: "Document Type", value: "Invoice", confidence: 99 },
-  { field: "Customer Name", value: "Hamdan Trading LLC", confidence: 97 },
-  { field: "Customer Code", value: "HT-00234", confidence: 95 },
+  { field: "Supplier Name", value: "Hamdan Trading LLC", confidence: 97 },
+  { field: "Accounting Category", value: "Inventory Purchase", confidence: 95 },
   { field: "Invoice Number", value: "INV-2026-08472", confidence: 99 },
-  { field: "Invoice Date", value: "2026-03-15", confidence: 98 },
+  { field: "VAT Amount", value: "$620.00", confidence: 98 },
   { field: "PO Number", value: "PO-55219", confidence: 96 },
 ];
 
@@ -105,11 +105,12 @@ export default function DemoSection() {
             Live Demo
           </span>
           <h2 className="text-3xl sm:text-4xl lg:text-5xl font-bold tracking-tight">
-            See it in <span className="gradient-text">action</span>
+            See finance automation{" "}
+            <span className="gradient-text">in action</span>
           </h2>
           <p className="mt-5 text-lg text-muted leading-relaxed">
-            Upload any document and watch our AI extract structured data in
-            real-time. No signup required.
+            Upload a sample financial document and watch Invonix extract,
+            classify, validate, and prepare accounting-ready data in real time.
           </p>
         </motion.div>
 
@@ -133,7 +134,7 @@ export default function DemoSection() {
                   <div className="w-3 h-3 rounded-full bg-green-400" />
                 </div>
                 <span className="text-xs font-medium text-slate-400">
-                  DocuAI — Document Processor
+                  Invonix - Finance Automation Demo
                 </span>
               </div>
               {state !== "idle" && (
@@ -219,12 +220,12 @@ export default function DemoSection() {
                     <h3 className="text-xl font-bold text-slate-800">
                       {state === "uploading"
                         ? "Uploading document..."
-                        : "AI is extracting data..."}
+                        : "AI is extracting financial data..."}
                     </h3>
                     <p className="text-sm text-muted mt-2">
                       {state === "uploading"
                         ? `Uploading ${fileName}`
-                        : "Running OCR and intelligent field detection"}
+                        : "Running OCR, VAT detection, and smart classification"}
                     </p>
                     {/* Progress bar */}
                     <div className="max-w-md mx-auto mt-8">
@@ -242,10 +243,10 @@ export default function DemoSection() {
                     {state === "processing" && (
                       <div className="flex flex-wrap items-center justify-center gap-3 mt-6">
                         {[
-                          "OCR Processing",
-                          "Table Detection",
-                          "Field Extraction",
-                          "Data Structuring",
+                          "Document Extraction",
+                          "VAT Detection",
+                          "Expense Categorization",
+                          "Financial Structuring",
                         ].map((label, i) => (
                           <motion.span
                             key={label}

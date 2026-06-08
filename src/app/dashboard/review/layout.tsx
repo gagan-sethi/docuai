@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 
 export const metadata: Metadata = {
-  title: "Review Documents – DocuAI",
+  title: "Review Documents – Invonix",
   description: "Review, validate, and edit AI-extracted data from your documents.",
 };
 

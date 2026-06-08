@@ -216,7 +216,7 @@ function AcceptInner() {
           </h1>
           <p className="text-sm text-slate-500 mt-1">
             <strong className="text-slate-700">{preview.workspace.ownerName}</strong> invited
-            you to collaborate on DocuAI.
+            you to collaborate on Invonix.
           </p>
         </div>
       </motion.div>
@@ -267,7 +267,7 @@ function AcceptInner() {
             <Lock className="w-3 h-3" />
             Password
             <span className="text-[10px] text-slate-400 font-normal ml-1">
-              (only needed if this is your first DocuAI account)
+              (only needed if this is your first Invonix account)
             </span>
           </label>
           <input

@@ -77,7 +77,7 @@ function ShareModal({
     setTimeout(() => setCopied(null), 2500);
   };
 
-  const shareMessage = `Hey! Sign up for DocuAI using my referral link and get a discount on your plan:\n${signupUrl}`;
+  const shareMessage = `Hey! Sign up for Invonix using my referral link and get a discount on your plan:\n${signupUrl}`;
 
   return (
     <motion.div
@@ -166,7 +166,7 @@ function ShareModal({
           <button
             onClick={() => {
               window.open(
-                `mailto:?subject=${encodeURIComponent("Join DocuAI with my referral!")}&body=${encodeURIComponent(shareMessage)}`,
+                `mailto:?subject=${encodeURIComponent("Join Invonix with my referral!")}&body=${encodeURIComponent(shareMessage)}`,
                 "_blank"
               );
             }}

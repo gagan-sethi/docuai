@@ -2,18 +2,17 @@
 
 import { motion } from "framer-motion";
 import {
-  FileText,
   ScanText,
   BrainCircuit,
   Shield,
-  CheckCircle2,
 } from "lucide-react";
 import Link from "next/link";
+import BrandLogo from "@/components/BrandLogo";
 
 const features = [
-  { icon: ScanText, text: "AI-powered OCR with 90–95% accuracy" },
-  { icon: BrainCircuit, text: "Smart document understanding — no templates" },
-  { icon: Shield, text: "Enterprise-grade security & encryption" },
+  { icon: ScanText, text: "AI-powered extraction for finance documents" },
+  { icon: BrainCircuit, text: "Smart VAT, supplier, and category detection" },
+  { icon: Shield, text: "Enterprise-grade security and encryption" },
 ];
 
 export default function AuthLayout({
@@ -25,20 +24,16 @@ export default function AuthLayout({
     <div className="min-h-screen flex">
       {/* Left: Branding Panel */}
       <div className="hidden lg:flex lg:w-[480px] xl:w-[540px] flex-col relative overflow-hidden">
-        <div className="absolute inset-0 bg-gradient-to-br from-slate-900 via-primary/90 to-slate-900" />
+        <div className="absolute inset-0 bg-gradient-to-br from-slate-950 via-primary-dark to-slate-900" />
         <div className="absolute inset-0 opacity-5 dot-pattern" />
-
-        {/* Decorative shapes */}
-        <div className="absolute top-20 -left-20 w-60 h-60 bg-primary/20 rounded-full blur-3xl" />
-        <div className="absolute bottom-20 -right-20 w-60 h-60 bg-secondary/20 rounded-full blur-3xl" />
 
         <div className="relative flex-1 flex flex-col justify-between p-10 xl:p-12">
           {/* Logo */}
           <Link href="/" className="flex items-center gap-2.5">
-            <div className="w-9 h-9 rounded-xl bg-white/10 backdrop-blur-xl flex items-center justify-center border border-white/20">
-              <FileText className="w-5 h-5 text-white" />
-            </div>
-            <span className="text-xl font-bold text-white">DocuAI</span>
+            <BrandLogo
+              className="h-11 w-[178px] rounded-xl bg-white px-2.5 py-1.5 shadow-xl shadow-black/20"
+              imageClassName="h-full w-full"
+            />
           </Link>
 
           {/* Main content */}
@@ -49,13 +44,12 @@ export default function AuthLayout({
               transition={{ duration: 0.6 }}
             >
               <h2 className="text-3xl xl:text-4xl font-bold text-white leading-tight">
-                Transform documents into{" "}
-                <span className="text-secondary">structured data</span>{" "}
-                instantly
+                Transform finance documents into{" "}
+                <span className="text-secondary">financial intelligence</span>
               </h2>
               <p className="mt-4 text-base text-slate-300 leading-relaxed">
-                Join hundreds of businesses automating their document
-                processing with AI-powered OCR.
+                Automate invoice processing, expenses, VAT reporting, and
+                accounting-ready exports from one AI-powered platform.
               </p>
 
               <div className="mt-10 space-y-5">
@@ -87,8 +81,8 @@ export default function AuthLayout({
             className="pt-8 border-t border-white/10"
           >
             <p className="text-sm text-slate-400 italic leading-relaxed">
-              &ldquo;DocuAI reduced our invoice processing time by 80%. The AI
-              accuracy is remarkable.&rdquo;
+              &ldquo;Invonix reduced our bookkeeping work by 80% and gave our
+              finance team clearer visibility.&rdquo;
             </p>
             <div className="mt-3 flex items-center gap-3">
               <div className="w-8 h-8 rounded-full bg-gradient-to-br from-secondary to-primary flex items-center justify-center text-xs font-bold text-white">

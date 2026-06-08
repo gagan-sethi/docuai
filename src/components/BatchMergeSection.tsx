@@ -18,21 +18,21 @@ import Link from "next/link";
 const steps = [
   {
     icon: CheckSquare,
-    title: "Select many",
+    title: "Select many documents",
     description:
-      "Tick the invoices, receipts or POs you want — or hit Select All on a whole month of documents.",
+      "Choose the invoices, receipts, purchase orders, or VAT records you want to process for the month.",
   },
   {
     icon: Bot,
-    title: "AI unifies columns",
+    title: "AI unifies finance fields",
     description:
-      "GPT normalises mismatched headers across vendors — \u201cVAT No\u201d, \u201cTax ID\u201d, \u201cGSTIN\u201d all collapse into one canonical column.",
+      "Invonix normalizes mismatched supplier fields so VAT numbers, tax IDs, totals, and categories map cleanly.",
   },
   {
     icon: FileSpreadsheet,
-    title: "One audit-ready sheet",
+    title: "One accounting-ready report",
     description:
-      "Download a single Excel/CSV with every invoice as a row and unified columns — drop it straight into your audit folder.",
+      "Download a single Excel or CSV report with unified columns for accounting, audit, VAT, and reconciliation.",
   },
 ];
 
@@ -75,28 +75,26 @@ export default function BatchMergeSection() {
         >
           <span className="inline-flex items-center gap-2 text-sm font-semibold text-primary tracking-wide uppercase mb-3">
             <Sparkles className="w-4 h-4" />
-            New · AI Batch Merge
+            Batch Processing
           </span>
           <h2 className="text-3xl sm:text-4xl lg:text-5xl font-bold tracking-tight">
-            100 invoices →{" "}
-            <span className="gradient-text">one audit-ready spreadsheet</span>
+            Hundreds of finance documents to{" "}
+            <span className="gradient-text">one unified report</span>
           </h2>
           <p className="mt-5 text-lg text-muted leading-relaxed">
-            Stop copy-pasting from PDFs into Excel. Select any number of
-            documents, let our AI unify the columns across vendors, and review
-            a single clean sheet — with grand totals already calculated, no
-            empty columns, and zero <code className="text-[0.95em] px-1 rounded bg-slate-100">null</code>{" "}
-            values — perfect for VAT returns, audits, and reconciliation.
+            Select any number of invoices, receipts, and purchase orders. Invonix
+            unifies fields across suppliers, calculates totals, and prepares a
+            single clean export for VAT returns, audits, and reconciliation.
           </p>
           <div className="mt-5 flex flex-wrap items-center justify-center gap-2">
             <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-50 border border-emerald-200 text-emerald-700 text-xs font-semibold">
-              <ShieldCheck className="w-3.5 h-3.5" /> No null values
+              <ShieldCheck className="w-3.5 h-3.5" /> Clean finance data
             </span>
             <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-purple-50 border border-purple-200 text-purple-700 text-xs font-semibold">
-              <Sparkles className="w-3.5 h-3.5" /> AI-unified columns
+              <Sparkles className="w-3.5 h-3.5" /> AI-unified fields
             </span>
             <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-indigo-50 border border-indigo-200 text-indigo-700 text-xs font-semibold">
-              <Sigma className="w-3.5 h-3.5" /> Auto grand-total
+              <Sigma className="w-3.5 h-3.5" /> Auto totals
             </span>
           </div>
         </motion.div>
@@ -155,10 +153,9 @@ export default function BatchMergeSection() {
                   Works on WhatsApp too
                 </h3>
                 <p className="text-sm text-slate-700 leading-relaxed">
-                  Forward a batch of invoices to our WhatsApp number — turn on{" "}
-                  <span className="font-semibold">Auto-merge</span> and we&apos;ll
-                  reply with one combined Excel link instead of one message per
-                  file.
+                  Forward a batch of invoices or receipts to Invonix on WhatsApp.
+                  Turn on <span className="font-semibold">batch processing</span>{" "}
+                  and create one combined accounting-ready report.
                 </p>
               </div>
             </motion.div>
@@ -175,7 +172,7 @@ export default function BatchMergeSection() {
                 href="/signup"
                 className="inline-flex items-center justify-center gap-2 px-6 py-3 rounded-xl bg-gradient-to-r from-primary to-secondary text-white font-semibold shadow-lg shadow-primary/20 hover:shadow-xl hover:shadow-primary/30 transition-all"
               >
-                Try Batch Merge Free
+                Try Batch Processing
                 <ArrowRight className="w-4 h-4" />
               </Link>
               <Link
@@ -251,7 +248,7 @@ export default function BatchMergeSection() {
               <div className="flex items-center gap-2 px-4 py-3 bg-gradient-to-r from-emerald-600 to-emerald-700 text-white">
                 <FileSpreadsheet className="w-4 h-4" />
                 <span className="text-sm font-semibold">
-                  docuai-merged-april.csv
+                  invonix-finance-april.csv
                 </span>
                 <span className="ml-auto text-xs text-emerald-100">
                   4 documents · 7 unified columns

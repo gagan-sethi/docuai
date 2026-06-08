@@ -1057,7 +1057,7 @@ function StatusDonut({
     completed: "#10b981",
     review: "#f59e0b",
     processing: "#0ea5e9",
-    structuring: "#8b5cf6",
+    structuring: "#082f73",
     uploaded: "#94a3b8",
     rejected: "#ef4444",
     failed: "#ef4444",

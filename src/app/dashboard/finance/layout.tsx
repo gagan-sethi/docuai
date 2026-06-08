@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 
 export const metadata: Metadata = {
-  title: "Financial Dashboard – DocuAI",
+  title: "Financial Dashboard – Invonix",
   description: "Revenue, Expenses, Net Profit and VAT computed from processed documents.",
 };
 

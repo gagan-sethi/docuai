@@ -113,7 +113,7 @@ const guides: Guide[] = [
     tag: "Data output",
     tagClass: "bg-blue-50 text-blue-700",
     title: "Understanding structured data output",
-    description: "Learn how DocuAI organizes extracted fields, handles tables, and what the JSON format looks like.",
+    description: "Learn how Invonix organizes extracted fields, handles tables, and what the JSON format looks like.",
     link: "/help/structured-data",
   },
   {
@@ -476,7 +476,7 @@ export default function SupportPage() {
               </span>
               <h1 className="text-4xl sm:text-5xl font-bold mb-4">How can we help you?</h1>
               <p className="text-white/80 text-lg max-w-md mx-auto mb-9">
-                Find answers, manage your account, and get assistance with DocuAI.
+                Find answers, manage your account, and get assistance with Invonix.
               </p>
 
               {/* Search Bar */}
@@ -550,7 +550,7 @@ export default function SupportPage() {
             <SectionHeader
               label="Documentation"
               title="Guides & Articles"
-              subtitle="Step-by-step guides to help you get the most out of DocuAI."
+              subtitle="Step-by-step guides to help you get the most out of Invonix."
             />
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
               {guides.map((guide) => (
@@ -875,7 +875,7 @@ export default function SupportPage() {
 
           {/* Footer Note */}
           {/* <div className="border-t border-slate-200 py-6 text-center text-xs text-slate-400">
-            © 2025 DocuAI. All rights reserved.
+            © 2025 Invonix. All rights reserved.
           </div> */}
         </main>
       </motion.div>

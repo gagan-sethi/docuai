@@ -1,7 +1,6 @@
 "use client";
 
 import {
-  FileText,
   Globe,
   Link2,
   ExternalLink,
@@ -10,14 +9,16 @@ import {
   Heart,
 } from "lucide-react";
 import Link from "next/link";
+import BrandLogo from "@/components/BrandLogo";
 
 const footerLinks = {
   Product: [
     { name: "Features", href: "#features" },
+    { name: "Financial Intelligence", href: "#financial-intelligence" },
     { name: "How It Works", href: "#how-it-works" },
     { name: "Pricing", href: "/pricing" },
     { name: "Demo", href: "#demo" },
-    { name: "API Docs", href: "#" },
+    { name: "WhatsApp Processing", href: "#whatsapp" },
   ],
   Company: [
     { name: "About Us", href: "#" },
@@ -49,14 +50,16 @@ export default function Footer() {
           {/* Brand */}
           <div className="col-span-2">
             <Link href="/" className="flex items-center gap-2.5 mb-4">
-              <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-primary to-secondary flex items-center justify-center">
-                <FileText className="w-5 h-5 text-white" />
-              </div>
-              <span className="text-xl font-bold">DocuAI</span>
+              <BrandLogo
+                className="h-11 w-[178px] rounded-xl bg-white px-2.5 py-1.5 shadow-lg shadow-black/20"
+                imageClassName="h-full w-full"
+              />
             </Link>
             <p className="text-sm text-slate-400 max-w-xs leading-relaxed mb-6">
-              AI-powered document processing platform. Transform unstructured
-              documents into structured data instantly.
+              Invonix - From Documents to Financial Intelligence.
+              Transform invoices, receipts, purchase orders, and financial
+              documents into structured accounting data and actionable business
+              insights.
             </p>
             <div className="flex items-center gap-4">
               {[Globe, Link2, ExternalLink].map((Icon, i) => (
@@ -97,7 +100,7 @@ export default function Footer() {
         <div className="py-6 border-t border-slate-800 flex flex-wrap items-center gap-6">
           <div className="flex items-center gap-2 text-sm text-slate-400">
             <Mail className="w-4 h-4" />
-            <span>hello@docuai.com</span>
+            <span>hello@invonix.ai</span>
           </div>
           <div className="flex items-center gap-2 text-sm text-slate-400">
             <MapPin className="w-4 h-4" />
@@ -108,7 +111,7 @@ export default function Footer() {
         {/* Bottom bar */}
         <div className="py-6 border-t border-slate-800 flex flex-col sm:flex-row items-center justify-between gap-4">
           <p className="text-sm text-slate-500">
-            © 2026 DocuAI. All rights reserved.
+            © 2026 Invonix. All rights reserved.
           </p>
           <p className="text-xs text-slate-600 flex items-center gap-1">
             Powered by AI • Built with <Heart className="w-3.5 h-3.5 text-red-400 fill-red-400" />

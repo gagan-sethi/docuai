@@ -9,7 +9,6 @@ import {
   EyeOff,
   ArrowRight,
   ArrowLeft,
-  FileText,
   Loader2,
   CheckCircle2,
   AlertCircle,
@@ -20,6 +19,7 @@ import {
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import AuthLayout from "@/components/auth/AuthLayout";
+import BrandLogo from "@/components/BrandLogo";
 import { apiUrl } from "@/lib/api";
 import { useSearchParams } from "next/navigation";
 
@@ -309,12 +309,11 @@ function ForgotPasswordContent() {
           className="text-center"
         >
           <div className="lg:hidden flex items-center gap-2.5 mb-10">
-            <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-primary to-secondary flex items-center justify-center">
-              <FileText className="w-5 h-5 text-white" />
-            </div>
-            <span className="text-xl font-bold">
-              Docu<span className="gradient-text">AI</span>
-            </span>
+            <BrandLogo
+              priority
+              className="h-11 w-[176px]"
+              imageClassName="h-full w-full"
+            />
           </div>
 
           <div className="w-20 h-20 mx-auto mb-6 rounded-2xl bg-gradient-to-br from-success/10 to-emerald-50 flex items-center justify-center">
@@ -345,7 +344,7 @@ function ForgotPasswordContent() {
 
           <div className="mt-6 flex items-center justify-center gap-2 text-xs text-muted">
             <Sparkles className="w-3.5 h-3.5" />
-            Secured by DocuAI
+            Secured by Invonix
           </div>
         </motion.div>
       </AuthLayout>
@@ -361,12 +360,11 @@ function ForgotPasswordContent() {
       >
         {/* Mobile logo */}
         <div className="lg:hidden flex items-center gap-2.5 mb-10">
-          <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-primary to-secondary flex items-center justify-center">
-            <FileText className="w-5 h-5 text-white" />
-          </div>
-          <span className="text-xl font-bold">
-            Docu<span className="gradient-text">AI</span>
-          </span>
+          <BrandLogo
+            priority
+            className="h-11 w-[176px]"
+            imageClassName="h-full w-full"
+          />
         </div>
 
         {/* Step Indicator */}

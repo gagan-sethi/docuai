@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { Fragment, useEffect, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   Check,
@@ -13,7 +13,6 @@ import {
 import Link from "next/link";
 import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
-import { features } from "process";
 import { apiUrl } from "@/lib/api";
 
 type PricingPlan = {
@@ -29,139 +28,98 @@ type PricingPlan = {
   };
 };
 
-// ─── Pricing Data ───────────────────────────────────────────────
-// const plans = [
-//   {
-//     name: "Starter",
-//     monthlyPrice: 49,
-//     yearlyPrice: 39,
-//     description: "Perfect for small businesses getting started with automation",
-//     features: [
-//       "100 documents/month",
-//       "PDF & image upload",
-//       "AI OCR extraction",
-//       "Excel & CSV export",
-//       "Email support",
-//       "1 user account",
-//       "Basic dashboard",
-//     ],
-//     cta: "Start Free Trial",
-//     popular: false,
-//   },
-//   {
-//     name: "Professional",
-//     monthlyPrice: 149,
-//     yearlyPrice: 119,
-//     description: "For growing teams with higher volume and advanced features",
-//     features: [
-//       "1,000 documents/month",
-//       "Everything in Starter",
-//       "WhatsApp integration",
-//       "Bulk upload",
-//       "Priority support",
-//       "5 user accounts",
-//       "Sub-admin roles",
-//       "API access",
-//       "Custom fields",
-//     ],
-//     cta: "Start Free Trial",
-//     popular: true,
-//   },
-//   {
-//     name: "Enterprise",
-//     monthlyPrice: 0,
-//     yearlyPrice: 0,
-//     description: "For large organizations with custom needs and compliance",
-//     features: [
-//       "Unlimited documents",
-//       "Everything in Professional",
-//       "ERP integration",
-//       "Custom workflows",
-//       "Dedicated account manager",
-//       "Unlimited users",
-//       "SLA guarantee",
-//       "On-premise option",
-//       "Custom AI training",
-//       "White-label option",
-//     ],
-//     cta: "Contact Sales",
-//     popular: false,
-//   },
-// ];
+type PlanApiItem = {
+  label: string;
+  description: string;
+  features: string[];
+  interval: string;
+  price: number;
+  stripePriceId?: string;
+};
+
+type PlanListResponse = {
+  success?: boolean;
+  data?: PlanApiItem[];
+  error?: string;
+};
 
 const comparisonFeatures = [
   {
-    category: "Document Processing",
+    category: "Finance Automation",
     features: [
       {
         name: "Documents per month",
         starter: "100",
         pro: "1,000",
+        firm: "Client-based",
         enterprise: "Unlimited",
       },
       {
-        name: "PDF upload",
+        name: "AI document extraction",
         starter: true,
         pro: true,
+        firm: true,
         enterprise: true,
       },
       {
-        name: "Image upload (JPG/PNG)",
+        name: "Expense tracking",
         starter: true,
         pro: true,
+        firm: true,
         enterprise: true,
       },
       {
-        name: "Scanned document support",
-        starter: true,
-        pro: true,
-        enterprise: true,
-      },
-      {
-        name: "Bulk upload",
+        name: "Batch processing",
         starter: false,
         pro: true,
+        firm: true,
         enterprise: true,
       },
       {
-        name: "WhatsApp document upload",
+        name: "WhatsApp processing",
         starter: false,
         pro: true,
+        firm: true,
         enterprise: true,
       },
     ],
   },
   {
-    category: "AI & OCR",
+    category: "Financial Intelligence",
     features: [
       {
-        name: "AI OCR extraction",
-        starter: true,
-        pro: true,
-        enterprise: true,
-      },
-      {
-        name: "Table detection",
-        starter: true,
-        pro: true,
-        enterprise: true,
-      },
-      {
-        name: "Auto field detection",
+        name: "Financial dashboard",
         starter: "Basic",
         pro: "Advanced",
+        firm: "Client-level",
         enterprise: "Custom",
       },
       {
-        name: "Handwriting support",
+        name: "VAT reporting",
         starter: false,
-        pro: "Limited",
+        pro: true,
+        firm: true,
+        enterprise: true,
+      },
+      {
+        name: "Profit & loss monitoring",
+        starter: false,
+        pro: true,
+        firm: true,
+        enterprise: true,
+      },
+      {
+        name: "Supplier insights",
+        starter: false,
+        pro: true,
+        firm: true,
         enterprise: true,
       },
       {
         name: "Custom AI model training",
         starter: false,
         pro: false,
+        firm: false,
         enterprise: true,
       },
     ],
@@ -173,59 +131,75 @@ const comparisonFeatures = [
         name: "Excel export (XLSX)",
         starter: true,
         pro: true,
+        firm: true,
         enterprise: true,
       },
       {
         name: "CSV export",
         starter: true,
         pro: true,
+        firm: true,
+        enterprise: true,
+      },
+      {
+        name: "Accounting-ready reports",
+        starter: true,
+        pro: true,
+        firm: true,
         enterprise: true,
       },
       {
         name: "API access",
         starter: false,
         pro: true,
+        firm: true,
         enterprise: true,
       },
       {
         name: "ERP integration",
         starter: false,
         pro: false,
-        enterprise: true,
-      },
-      {
-        name: "Webhook notifications",
-        starter: false,
-        pro: true,
+        firm: false,
         enterprise: true,
       },
     ],
   },
   {
-    category: "Team & Admin",
+    category: "Teams & Companies",
     features: [
       {
         name: "User accounts",
         starter: "1",
         pro: "5",
+        firm: "Firm team",
         enterprise: "Unlimited",
+      },
+      {
+        name: "Multi-company management",
+        starter: false,
+        pro: "Limited",
+        firm: true,
+        enterprise: true,
+      },
+      {
+        name: "Client management",
+        starter: false,
+        pro: false,
+        firm: true,
+        enterprise: "Custom",
       },
       {
         name: "Role-based access",
         starter: false,
         pro: true,
+        firm: true,
         enterprise: true,
       },
       {
-        name: "Sub-admin roles",
-        starter: false,
-        pro: true,
-        enterprise: true,
-      },
-      {
-        name: "Audit log",
+        name: "Audit logs",
         starter: false,
         pro: false,
+        firm: true,
         enterprise: true,
       },
     ],
@@ -237,24 +211,28 @@ const comparisonFeatures = [
         name: "Email support",
         starter: true,
         pro: true,
+        firm: true,
         enterprise: true,
       },
       {
         name: "Priority support",
         starter: false,
         pro: true,
+        firm: true,
         enterprise: true,
+      },
+      {
+        name: "Partner dashboard",
+        starter: false,
+        pro: false,
+        firm: true,
+        enterprise: false,
       },
       {
         name: "Dedicated account manager",
         starter: false,
         pro: false,
-        enterprise: true,
-      },
-      {
-        name: "SLA guarantee",
-        starter: false,
-        pro: false,
+        firm: false,
         enterprise: true,
       },
     ],
@@ -265,42 +243,42 @@ const faqs = [
   {
     question: "How does the 14-day free trial work?",
     answer:
-      "You get full access to your chosen plan for 14 days, no credit card required. If you love it, simply add payment to continue. If not, your account will be paused — no charges.",
+      "You get access to your chosen Invonix plan for 14 days, no credit card required. If it fits your workflow, add payment to continue. If not, your account is paused with no charges.",
   },
   {
     question: "Can I change my plan later?",
     answer:
-      "Yes! You can upgrade or downgrade at any time. When upgrading, you get immediate access to new features. When downgrading, changes take effect at the next billing cycle.",
+      "Yes. You can upgrade or downgrade as your document volume, team size, or finance automation needs change.",
   },
   {
-    question: "What document formats are supported?",
+    question: "What financial documents are supported?",
     answer:
-      "We support PDF, JPG, PNG, and scanned documents. Our AI handles invoices, purchase orders, delivery notes, receipts, and more — all without requiring pre-configured templates.",
+      "Invonix supports PDFs, JPGs, PNGs, and scanned documents for invoices, receipts, purchase orders, delivery notes, quotations, VAT documents, and other finance records.",
   },
   {
     question: "How accurate is the AI extraction?",
     answer:
-      "Our AI achieves 90–95% accuracy on high-quality documents. For lower quality scans, accuracy may vary. All extracted data can be reviewed and edited before export.",
+      "Invonix targets 90-95% accuracy on high-quality documents. Teams can review, edit, and approve extracted data before export or reporting.",
   },
   {
-    question: "How does WhatsApp integration work?",
+    question: "How does WhatsApp processing work?",
     answer:
-      "On Professional and Enterprise plans, you link your mobile number during signup. Then simply send document photos or PDFs to our WhatsApp Business number — they're automatically processed and appear in your dashboard.",
+      "On supported plans, your team sends invoices, receipts, or purchase orders to Invonix via WhatsApp. The documents are processed automatically and appear in the dashboard as structured financial data.",
   },
   {
     question: "Is my data secure?",
     answer:
-      "Absolutely. We use AES-256 encryption at rest, TLS 1.3 in transit, and store files on AWS S3 with restricted access. We're GDPR-compliant and never share your data.",
+      "Yes. Invonix uses encrypted storage, secure transport, role-based access, and audit-friendly controls for sensitive finance documents.",
   },
   {
-    question: "What is the Partner/Affiliate program?",
+    question: "What is the Partner Program?",
     answer:
-      "Accounting firms and consultants can earn recurring commissions by referring clients to DocuAI. Each partner gets a unique referral link, a dashboard to track referrals, and automated commission tracking.",
+      "Accounting firms, bookkeepers, tax consultants, ERP consultants, and business advisors can refer or manage clients through Invonix with referral tracking, partner dashboards, and recurring commission support.",
   },
   {
     question: "Do you offer annual billing discounts?",
     answer:
-      "Yes! Annual billing saves you 20% compared to monthly pricing. You can switch between monthly and annual billing at any time.",
+      "Yes. Annual billing saves 20% compared to monthly pricing, and you can switch billing cycles as your needs change.",
   },
 ];
 
@@ -316,6 +294,47 @@ function CellValue({ value }: { value: boolean | string }) {
   return (
     <span className="text-sm font-medium text-slate-700">{value}</span>
   );
+}
+
+function getPlanMeta(name: string) {
+  const normalized = name.toLowerCase();
+
+  if (normalized.includes("enterprise")) {
+    return {
+      positioning: "For Large Organizations",
+      description:
+        "Advanced security, integrations, and workflows for high-volume finance teams.",
+      cta: "Contact Sales",
+      href: "#",
+    };
+  }
+
+  if (normalized.includes("accounting") || normalized.includes("firm")) {
+    return {
+      positioning: "For Accountants & Bookkeepers",
+      description:
+        "Manage client companies, referrals, and accounting-ready exports.",
+      cta: "Become a Partner",
+      href: "/signup",
+    };
+  }
+
+  if (normalized.includes("professional") || normalized.includes("pro")) {
+    return {
+      positioning: "For Growing Businesses",
+      description:
+        "Scale finance automation across teams, WhatsApp, VAT reporting, and analytics.",
+      cta: "Start Free Trial",
+      href: "/signup",
+    };
+  }
+
+  return {
+    positioning: "For Small Businesses",
+    description: "Automate core invoice, receipt, and expense workflows.",
+    cta: "Start Free Trial",
+    href: "/signup",
+  };
 }
 
 // ─── FAQ Item ───────────────────────────────────────────────────
@@ -362,7 +381,7 @@ function FAQItem({
 // ─── Main Pricing Page ──────────────────────────────────────────
 export default function PricingPage() {
   const [annual, setAnnual] = useState(false);
-  const [plans, setPlans] = useState<PricingPlan[]>([]);
+  const [plans, setPlans] = useState<PlanApiItem[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -376,10 +395,10 @@ export default function PricingPage() {
           credentials: "include", // ✅ important (same as your PATCH)
         });
 
-        const json = await res.json();
+        const json = (await res.json()) as PlanListResponse;
 
         if (json.success) {
-          setPlans(json.data);
+          setPlans(json.data ?? []);
         } else {
           console.error("API error:", json.error);
         }
@@ -394,7 +413,7 @@ export default function PricingPage() {
   }, []);
 
   const groupedPlans: PricingPlan[] = Object.values(
-    plans.reduce((acc: any, plan: any) => {
+    plans.reduce<Record<string, PricingPlan>>((acc, plan) => {
       const key = plan.label;
 
       if (!acc[key]) {
@@ -429,10 +448,8 @@ export default function PricingPage() {
 
       {/* Hero */}
       <section className="relative pt-16 pb-8 overflow-hidden">
-        <div className="absolute inset-0">
-          <div className="absolute top-0 left-1/4 w-96 h-96 bg-primary/5 rounded-full blur-3xl" />
-          <div className="absolute bottom-0 right-1/4 w-96 h-96 bg-secondary/5 rounded-full blur-3xl" />
-        </div>
+        <div className="absolute inset-0 bg-[linear-gradient(135deg,#ffffff_0%,#f8fafc_50%,#eefaf8_100%)]" />
+        <div className="absolute inset-0 dot-pattern opacity-30" />
         <div className="relative max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
           <motion.div
             initial={{ opacity: 0, y: 20 }}
@@ -443,12 +460,13 @@ export default function PricingPage() {
               Pricing
             </span>
             <h1 className="text-3xl sm:text-4xl lg:text-5xl font-bold tracking-tight">
-              Simple pricing,{" "}
-              <span className="gradient-text">powerful results</span>
+              Finance automation pricing for{" "}
+              <span className="gradient-text">every team</span>
             </h1>
             <p className="mt-5 text-lg text-muted leading-relaxed max-w-2xl mx-auto">
-              Start free, upgrade when you&apos;re ready. All plans include a 14-day
-              free trial with no credit card required.
+              Choose a plan for small businesses, growing finance teams,
+              accounting firms, or enterprise operations. All plans include a
+              14-day free trial with no credit card required.
             </p>
 
             {/* Billing toggle */}
@@ -491,16 +509,25 @@ export default function PricingPage() {
 
       {/* Pricing Cards */}
       <section className="relative pb-20">
-        <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="grid md:grid-cols-3 gap-8 lg:gap-6">
-            {groupedPlans.map((plan: any, i: number) => (
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="grid md:grid-cols-2 xl:grid-cols-4 gap-8 lg:gap-6">
+            {loading ? (
+              <div className="md:col-span-2 xl:col-span-4 rounded-3xl bg-white shadow-lg shadow-slate-100 border border-slate-100 p-8 text-center">
+                <p className="text-sm font-semibold text-slate-700">
+                  Loading finance automation plans...
+                </p>
+                <p className="mt-2 text-sm text-muted">
+                  Fetching the latest Invonix billing options.
+                </p>
+              </div>
+            ) : groupedPlans.map((plan, i) => (
               <motion.div
                 key={plan.name}
                 initial={{ opacity: 0, y: 30 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ duration: 0.5, delay: i * 0.1 }}
                 className={`relative rounded-3xl ${plan.popular
-                    ? "bg-white shadow-2xl shadow-primary/10 border-2 border-primary/20 scale-105 z-10"
+                    ? "bg-white shadow-2xl shadow-primary/10 border-2 border-primary/20 xl:scale-105 z-10"
                     : "bg-white shadow-lg shadow-slate-100 border border-slate-100"
                   } p-8 flex flex-col`}
               >
@@ -514,10 +541,15 @@ export default function PricingPage() {
                 )}
 
                 <div className="mb-6">
+                  <p className="text-xs font-bold text-primary uppercase tracking-wider mb-3">
+                    {getPlanMeta(plan.name).positioning}
+                  </p>
                   <h3 className="text-xl font-bold text-slate-900">
                     {plan.name}
                   </h3>
-                  <p className="text-sm text-muted mt-1">{plan.description}</p>
+                  <p className="text-sm text-muted mt-1">
+                    {getPlanMeta(plan.name).description || plan.description}
+                  </p>
                 </div>
 
                 <div className="mb-8">
@@ -564,13 +596,13 @@ export default function PricingPage() {
                 </ul>
 
                 <Link
-                  href={plan.name === "Enterprise" ? "#" : "/signup"}
+                  href={getPlanMeta(plan.name).href}
                   className={`btn-shine group w-full flex items-center justify-center gap-2 px-6 py-3.5 text-sm font-semibold rounded-2xl transition-all duration-200 ${plan.popular
                       ? "text-white bg-gradient-to-r from-primary to-primary-dark shadow-lg shadow-primary/25 hover:shadow-primary/40 hover:scale-105"
                       : "text-slate-700 bg-slate-50 border border-slate-200 hover:bg-primary/5 hover:text-primary hover:border-primary/20"
                     }`}
                 >
-                  {plan.cta}
+                  {getPlanMeta(plan.name).cta}
                   <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
                 </Link>
               </motion.div>
@@ -600,7 +632,8 @@ export default function PricingPage() {
               Compare all features
             </h2>
             <p className="mt-3 text-muted">
-              A detailed breakdown of what&apos;s included in each plan
+              A detailed breakdown of what&apos;s included for businesses,
+              finance teams, accounting firms, and enterprises
             </p>
           </motion.div>
 
@@ -611,7 +644,7 @@ export default function PricingPage() {
             className="bg-white rounded-2xl shadow-lg shadow-slate-100 border border-slate-100 overflow-hidden"
           >
             <div className="overflow-x-auto">
-              <table className="w-full min-w-[640px]">
+              <table className="w-full min-w-[820px]">
                 {/* Table header */}
                 <thead>
                   <tr className="border-b border-slate-100">
@@ -627,16 +660,19 @@ export default function PricingPage() {
                       </span>
                     </th>
                     <th className="px-4 py-5 text-center text-sm font-semibold text-slate-600">
+                      Accounting Firm
+                    </th>
+                    <th className="px-4 py-5 text-center text-sm font-semibold text-slate-600">
                       Enterprise
                     </th>
                   </tr>
                 </thead>
                 <tbody>
                   {comparisonFeatures.map((category) => (
-                    <>
-                      <tr key={category.category}>
+                    <Fragment key={category.category}>
+                      <tr>
                         <td
-                          colSpan={4}
+                          colSpan={5}
                           className="px-6 py-3 bg-slate-50 text-xs font-bold text-slate-500 uppercase tracking-wider"
                         >
                           {category.category}
@@ -657,11 +693,14 @@ export default function PricingPage() {
                             <CellValue value={feature.pro} />
                           </td>
                           <td className="px-4 py-3.5 text-center">
+                            <CellValue value={feature.firm} />
+                          </td>
+                          <td className="px-4 py-3.5 text-center">
                             <CellValue value={feature.enterprise} />
                           </td>
                         </tr>
                       ))}
-                    </>
+                    </Fragment>
                   ))}
                 </tbody>
               </table>
@@ -710,11 +749,12 @@ export default function PricingPage() {
             viewport={{ once: true }}
           >
             <h2 className="text-3xl sm:text-4xl font-bold text-white tracking-tight">
-              Ready to automate your document processing?
+              Ready to automate finance operations?
             </h2>
             <p className="mt-4 text-lg text-slate-300 max-w-2xl mx-auto">
-              Start your free trial today and see how DocuAI can save your team
-              hours every week.
+              Start your free trial today and see how Invonix can reduce
+              bookkeeping work, improve VAT visibility, and turn documents into
+              business insights.
             </p>
             <div className="mt-10 flex flex-col sm:flex-row items-center justify-center gap-4">
               <Link

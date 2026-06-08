@@ -7,27 +7,27 @@ const testimonials = [
   {
     name: "Sarah Al-Mansoori",
     role: "Finance Director",
-    company: "Gulf Trading Co.",
+    company: "Trading Company, UAE",
     content:
-      "DocuAI has transformed our invoice processing. What used to take our team hours now takes minutes. The accuracy is remarkable — we rarely need to make corrections.",
+      "Invonix transformed our month-end invoice and VAT workflow. What used to take hours now takes minutes, and our finance team has clearer visibility.",
     rating: 5,
     avatar: "SA",
   },
   {
     name: "Ahmed Khalil",
     role: "Operations Manager",
-    company: "Dubai Logistics",
+    company: "Logistics Company, GCC",
     content:
-      "The WhatsApp integration is a game-changer. Our suppliers send invoices directly, and the system processes them automatically. It's seamless.",
+      "The WhatsApp processing is a game-changer. Receipts and supplier invoices arrive from the field and become structured finance data automatically.",
     rating: 5,
     avatar: "AK",
   },
   {
     name: "Maria Chen",
     role: "Head of Accounting",
-    company: "TechPrime Solutions",
+    company: "Manufacturing Company, Africa",
     content:
-      "We process over 500 documents monthly. DocuAI handles different formats without any template setup. The Excel export integrates perfectly with our ERP.",
+      "We process over 500 financial documents monthly. Invonix handles different formats, categories, and exports in a way that fits our accounting workflow.",
     rating: 5,
     avatar: "MC",
   },
@@ -51,12 +51,13 @@ export default function Testimonials() {
             Testimonials
           </span>
           <h2 className="text-3xl sm:text-4xl lg:text-5xl font-bold tracking-tight">
-            Loved by <span className="gradient-text">businesses</span>{" "}
-            worldwide
+            Trusted across{" "}
+            <span className="gradient-text">industries and regions</span>
           </h2>
           <p className="mt-5 text-lg text-muted leading-relaxed">
-            See what our customers say about automating their document
-            workflows with DocuAI.
+            Trading, logistics, accounting, construction, retail, and
+            manufacturing teams across the UAE, GCC, and Africa use Invonix to
+            reduce bookkeeping work and improve financial visibility.
           </p>
         </motion.div>
 

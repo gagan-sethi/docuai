@@ -8,33 +8,49 @@ import {
   DollarSign,
   ArrowRight,
   CheckCircle2,
+  Briefcase,
+  Headphones,
 } from "lucide-react";
 import Link from "next/link";
 
+const designedFor = [
+  "Accounting Firms",
+  "Bookkeepers",
+  "Tax Consultants",
+  "ERP Consultants",
+  "Business Advisors",
+];
+
 const partnerBenefits = [
   {
-    icon: Link2,
-    title: "Unique Referral Link",
+    icon: DollarSign,
+    title: "Recurring Commissions",
     description:
-      "Get a personalized referral link to share with your clients",
+      "Earn recurring commissions when your clients automate finance operations with Invonix.",
+  },
+  {
+    icon: Link2,
+    title: "Referral Tracking",
+    description:
+      "Use unique referral links and transparent attribution for every client signup.",
   },
   {
     icon: BarChart3,
-    title: "Track Referrals",
+    title: "Partner Dashboard",
     description:
-      "Real-time dashboard showing referred clients and their activity",
-  },
-  {
-    icon: DollarSign,
-    title: "Earn Commission",
-    description:
-      "Earn recurring commissions on every referred client subscription",
+      "Track referred clients, plan activity, commissions, and performance in one place.",
   },
   {
     icon: Users,
-    title: "Grow Together",
+    title: "Client Management",
     description:
-      "Help your clients automate while building a new revenue stream",
+      "Support multiple client companies and help them move from manual bookkeeping to automation.",
+  },
+  {
+    icon: Headphones,
+    title: "Dedicated Support",
+    description:
+      "Get partner enablement, onboarding help, and sales support for larger client accounts.",
   },
 ];
 
@@ -45,8 +61,7 @@ export default function Partners() {
       <div className="absolute inset-0 opacity-5 dot-pattern" />
 
       <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="grid lg:grid-cols-2 gap-16 items-center">
-          {/* Left: Content */}
+        <div className="grid lg:grid-cols-[0.9fr_1.1fr] gap-16 items-center">
           <motion.div
             initial={{ opacity: 0, x: -30 }}
             whileInView={{ opacity: 1, x: 0 }}
@@ -59,29 +74,30 @@ export default function Partners() {
             </span>
 
             <h2 className="text-3xl sm:text-4xl lg:text-5xl font-bold tracking-tight text-white leading-tight">
-              Grow your revenue with our{" "}
-              <span className="text-secondary">Affiliate Program</span>
+              Partner Program for Accounting Firms{" "}
+              <span className="text-secondary">& Consultants</span>
             </h2>
 
             <p className="mt-5 text-lg text-slate-300 leading-relaxed">
-              Perfect for accounting firms, consultants, and tech partners.
-              Refer your clients to DocuAI and earn recurring commissions on
-              every subscription.
+              Help clients automate invoices, expenses, VAT reporting, and
+              financial visibility while building a recurring revenue stream
+              around modern finance automation.
             </p>
 
-            <ul className="mt-8 space-y-3">
-              {[
-                "Partner signup with unique referral links",
-                "Automated tracking of referred clients",
-                "Transparent commission dashboard",
-                "Admin panel for partner management",
-              ].map((item) => (
-                <li key={item} className="flex items-center gap-3">
-                  <CheckCircle2 className="w-5 h-5 text-secondary flex-shrink-0" />
-                  <span className="text-sm text-white/80">{item}</span>
-                </li>
-              ))}
-            </ul>
+            <div className="mt-8">
+              <div className="flex items-center gap-2 mb-4">
+                <Briefcase className="w-5 h-5 text-secondary" />
+                <p className="text-sm font-semibold text-white">Designed for</p>
+              </div>
+              <ul className="grid sm:grid-cols-2 gap-3">
+                {designedFor.map((item) => (
+                  <li key={item} className="flex items-center gap-3">
+                    <CheckCircle2 className="w-5 h-5 text-secondary flex-shrink-0" />
+                    <span className="text-sm text-white/80">{item}</span>
+                  </li>
+                ))}
+              </ul>
+            </div>
 
             <div className="mt-10">
               <Link
@@ -94,7 +110,6 @@ export default function Partners() {
             </div>
           </motion.div>
 
-          {/* Right: Benefits Grid */}
           <motion.div
             initial={{ opacity: 0, x: 30 }}
             whileInView={{ opacity: 1, x: 0 }}
@@ -109,7 +124,9 @@ export default function Partners() {
                 whileInView={{ opacity: 1, y: 0 }}
                 viewport={{ once: true }}
                 transition={{ delay: 0.3 + i * 0.1 }}
-                className="bg-white/5 backdrop-blur-xl rounded-2xl p-6 border border-white/10 hover:bg-white/10 transition-colors"
+                className={`bg-white/5 backdrop-blur-xl rounded-2xl p-6 border border-white/10 hover:bg-white/10 transition-colors ${
+                  i === partnerBenefits.length - 1 ? "sm:col-span-2" : ""
+                }`}
               >
                 <div className="w-12 h-12 rounded-xl bg-secondary/20 flex items-center justify-center mb-4">
                   <benefit.icon className="w-6 h-6 text-secondary" />

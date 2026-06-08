@@ -5,6 +5,7 @@ import { useEffect, useState } from "react";
 import StripeWrapper from "./StripeWrapper";
 import CheckoutForm from "./CheckoutForm";
 import { apiUrl } from "@/lib/api";
+import BrandLogo from "@/components/BrandLogo";
 
 type PaymentInit = {
   clientSecret: string;
@@ -111,11 +112,11 @@ export default function CheckoutClient() {
   // }
   if (loadingInit) {
   return (
-    <div className="min-h-screen flex items-center justify-center relative overflow-hidden bg-gradient-to-br from-slate-900 via-indigo-900 to-slate-900">
+    <div className="min-h-screen flex items-center justify-center relative overflow-hidden bg-gradient-to-br from-slate-950 via-primary-dark to-slate-900">
       
       {/* Background glow effects */}
-      <div className="absolute top-[-20%] left-[-10%] w-[400px] h-[400px] bg-indigo-500/20 rounded-full blur-3xl" />
-      <div className="absolute bottom-[-20%] right-[-10%] w-[400px] h-[400px] bg-purple-500/20 rounded-full blur-3xl" />
+      <div className="absolute top-[-20%] left-[-10%] w-[400px] h-[400px] bg-primary/20 rounded-full blur-3xl" />
+      <div className="absolute bottom-[-20%] right-[-10%] w-[400px] h-[400px] bg-secondary/20 rounded-full blur-3xl" />
 
       {/* Main Card */}
       <div className="relative z-10 w-[340px] rounded-2xl border border-white/10 bg-white/5 backdrop-blur-xl p-8 shadow-2xl">
@@ -123,12 +124,12 @@ export default function CheckoutClient() {
         {/* Animated logo */}
         <div className="flex justify-center mb-6">
           <div className="relative">
-            <div className="absolute inset-0 rounded-xl bg-indigo-500/30 blur-xl animate-pulse" />
-            <div className="w-14 h-14 rounded-xl bg-white/10 border border-white/20 flex items-center justify-center">
-              <svg className="w-6 h-6 text-indigo-300" viewBox="0 0 24 24" fill="currentColor">
-                <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8l-6-6z" />
-              </svg>
-            </div>
+            <div className="absolute inset-0 rounded-xl bg-primary/30 blur-xl animate-pulse" />
+            <BrandLogo
+              compact
+              className="relative h-14 w-14 rounded-xl bg-white p-2 shadow-xl shadow-black/20"
+              imageClassName="h-full w-full"
+            />
           </div>
         </div>
 
@@ -150,12 +151,12 @@ export default function CheckoutClient() {
 
         {/* Progress bar */}
         <div className="mt-6 h-1.5 bg-white/10 rounded-full overflow-hidden">
-          <div className="h-full w-1/3 bg-gradient-to-r from-indigo-400 to-purple-500 animate-[loading_1.5s_infinite]" />
+          <div className="h-full w-1/3 bg-gradient-to-r from-primary-light to-secondary animate-[loading_1.5s_infinite]" />
         </div>
 
         {/* Spinner fallback */}
         <div className="flex justify-center mt-5">
-          <div className="w-5 h-5 border-2 border-white/20 border-t-indigo-400 rounded-full animate-spin" />
+          <div className="w-5 h-5 border-2 border-white/20 border-t-secondary rounded-full animate-spin" />
         </div>
       </div>
 

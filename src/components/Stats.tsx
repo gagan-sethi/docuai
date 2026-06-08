@@ -5,28 +5,22 @@ import { useRef, useState, useEffect } from "react";
 
 const stats = [
   {
-    value: 95,
-    suffix: "%",
-    label: "OCR Accuracy",
-    description: "On high-quality documents",
-  },
-  {
-    value: 80,
-    suffix: "%",
-    label: "Less Manual Entry",
-    description: "Compared to traditional methods",
-  },
-  {
-    value: 3,
-    suffix: "sec",
-    label: "Processing Time",
-    description: "Average per document",
-  },
-  {
-    value: 50,
+    value: 500,
     suffix: "+",
-    label: "Document Formats",
-    description: "Supported without templates",
+    label: "Businesses",
+    description: "Across the UAE, GCC & Africa",
+  },
+  {
+    value: 50000,
+    suffix: "+",
+    label: "Documents Processed",
+    description: "Invoices, receipts, POs, and VAT records",
+  },
+  {
+    value: 90,
+    suffix: "%+",
+    label: "OCR Accuracy",
+    description: "On supported finance documents",
   },
 ];
 
@@ -57,7 +51,7 @@ function AnimatedCounter({
 
   return (
     <span className="text-5xl lg:text-6xl font-extrabold tracking-tight">
-      {count}
+      {count.toLocaleString("en-US")}
       <span className="text-primary">{suffix}</span>
     </span>
   );
@@ -72,7 +66,26 @@ export default function Stats() {
       <div className="absolute inset-0 bg-gradient-to-r from-primary/[0.03] via-transparent to-secondary/[0.03]" />
 
       <div ref={ref} className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-8 lg:gap-12">
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          whileInView={{ opacity: 1, y: 0 }}
+          viewport={{ once: true, margin: "-100px" }}
+          transition={{ duration: 0.6 }}
+          className="text-center max-w-3xl mx-auto mb-12"
+        >
+          <span className="inline-block text-sm font-semibold text-primary tracking-wide uppercase mb-3">
+            Platform Statistics
+          </span>
+          <h2 className="text-3xl sm:text-4xl lg:text-5xl font-bold tracking-tight">
+            Trusted proof for regional finance teams
+          </h2>
+          <p className="mt-5 text-lg text-muted leading-relaxed">
+            Built for businesses handling financial documents across trading,
+            logistics, accounting, construction, retail, and manufacturing.
+          </p>
+        </motion.div>
+
+        <div className="grid sm:grid-cols-3 gap-8 lg:gap-12">
           {stats.map((stat, i) => (
             <motion.div
               key={stat.label}

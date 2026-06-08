@@ -1,9 +1,9 @@
 import type { Metadata } from "next";
 
 export const metadata: Metadata = {
-  title: "Pricing – DocuAI",
+  title: "Pricing - Invonix",
   description:
-    "Simple, transparent pricing for AI-powered document processing. Start free, scale as you grow.",
+    "Pricing for Invonix finance automation plans for small businesses, growing finance teams, accounting firms, and enterprises.",
 };
 
 export default function PricingLayout({

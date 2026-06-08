@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 
 export const metadata: Metadata = {
-  title: "WhatsApp Inbox – DocuAI",
+  title: "WhatsApp Inbox – Invonix",
   description: "View and manage all documents received via WhatsApp.",
 };
 

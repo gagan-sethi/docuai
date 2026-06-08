@@ -3,11 +3,11 @@
 :root {
   --background: #ffffff;
   --foreground: #0f172a;
-  --primary: #4f46e5;
-  --primary-dark: #4338ca;
-  --primary-light: #818cf8;
-  --secondary: #06b6d4;
-  --accent: #8b5cf6;
+  --primary: #1457c9;
+  --primary-dark: #082f73;
+  --primary-light: #4f8df7;
+  --secondary: #0ea5e9;
+  --accent: #0f172a;
   --success: #10b981;
   --muted: #64748b;
   --surface: #f8fafc;
@@ -57,7 +57,7 @@ body {
 
 /* Gradient text utility */
 .gradient-text {
-  background: linear-gradient(135deg, #4f46e5, #06b6d4, #8b5cf6);
+  background: linear-gradient(135deg, #0f172a 0%, #1457c9 48%, #0ea5e9 100%);
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
@@ -73,7 +73,7 @@ body {
 
 /* Animated gradient background */
 .animated-gradient {
-  background: linear-gradient(-45deg, #4f46e5, #06b6d4, #8b5cf6, #10b981);
+  background: linear-gradient(-45deg, #082f73, #1457c9, #0ea5e9, #10b981);
   background-size: 400% 400%;
   animation: gradientShift 15s ease infinite;
 }
@@ -100,8 +100,8 @@ body {
 
 /* Pulse glow */
 @keyframes pulseGlow {
-  0%, 100% { box-shadow: 0 0 20px rgba(79, 70, 229, 0.3); }
-  50% { box-shadow: 0 0 40px rgba(79, 70, 229, 0.6); }
+  0%, 100% { box-shadow: 0 0 20px rgba(20, 87, 201, 0.3); }
+  50% { box-shadow: 0 0 40px rgba(20, 87, 201, 0.6); }
 }
 
 .pulse-glow {
@@ -148,8 +148,8 @@ body {
 
 .drop-zone:hover,
 .drop-zone.active {
-  border-color: #4f46e5;
-  background: rgba(79, 70, 229, 0.04);
+  border-color: #1457c9;
+  background: rgba(20, 87, 201, 0.04);
 }
 
 /* Data extraction animation */

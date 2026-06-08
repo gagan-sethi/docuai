@@ -8,7 +8,6 @@ import {
   Eye,
   EyeOff,
   ArrowRight,
-  FileText,
   Loader2,
   CheckCircle,
   AlertCircle,
@@ -16,6 +15,7 @@ import {
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import AuthLayout from "@/components/auth/AuthLayout";
+import BrandLogo from "@/components/BrandLogo";
 import { apiUrl } from "@/lib/api";
 // import { GoogleLogin } from "@react-oauth/google";
 import { useGoogleLogin } from "@react-oauth/google";
@@ -122,12 +122,11 @@ function LoginPageContent() {
       >
         {/* Mobile logo */}
         <div className="lg:hidden flex items-center gap-2.5 mb-10">
-          <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-primary to-secondary flex items-center justify-center">
-            <FileText className="w-5 h-5 text-white" />
-          </div>
-          <span className="text-xl font-bold">
-            Docu<span className="gradient-text">AI</span>
-          </span>
+          <BrandLogo
+            priority
+            className="h-11 w-[176px]"
+            imageClassName="h-full w-full"
+          />
         </div>
 
         {/* Header */}

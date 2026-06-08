@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 
 export const metadata: Metadata = {
-  title: "Billing – DocuAI",
+  title: "Billing – Invonix",
   description: "Manage your plan, view usage, and download past invoices.",
 };
 

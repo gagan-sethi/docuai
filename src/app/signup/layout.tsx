@@ -1,9 +1,9 @@
 import type { Metadata } from "next";
 
 export const metadata: Metadata = {
-  title: "Sign Up – DocuAI",
+  title: "Sign Up - Invonix",
   description:
-    "Create your DocuAI account and start processing documents with AI.",
+    "Create your Invonix account and start automating finance documents with AI.",
 };
 
 export default function SignupLayout({

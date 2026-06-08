@@ -273,7 +273,7 @@ function ProfileSection({
     <Section
       icon={<User className="w-4 h-4" />}
       title="Profile"
-      description="How you appear inside DocuAI and on extracted invoice exports."
+      description="How you appear inside Invonix and on extracted invoice exports."
     >
       <form onSubmit={submit} className="space-y-4">
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">

@@ -22,12 +22,13 @@ export default function CTA() {
           </div>
 
           <h2 className="text-3xl sm:text-4xl lg:text-5xl font-bold tracking-tight leading-tight">
-            Stop typing. Start{" "}
-            <span className="gradient-text">extracting.</span>
+            Automate finance work. Unlock{" "}
+            <span className="gradient-text">financial intelligence.</span>
           </h2>
           <p className="mt-6 text-lg text-muted max-w-2xl mx-auto leading-relaxed">
-            Join hundreds of businesses that have already automated their
-            document processing. Upload or send via WhatsApp — start your free trial today.
+            Turn invoices, receipts, purchase orders, and VAT documents into
+            structured accounting data, exports, dashboards, and actionable
+            insights.
           </p>
 
           <div className="mt-10 flex flex-col sm:flex-row items-center justify-center gap-4">
@@ -44,11 +45,15 @@ export default function CTA() {
               className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-10 py-4 text-base font-semibold text-green-700 bg-green-50 border-2 border-green-200 rounded-2xl hover:bg-green-100 hover:border-green-300 transition-all duration-200"
             >
               <MessageCircle className="w-5 h-5" />
-              Try WhatsApp Upload
+              Try WhatsApp Processing
             </a>
           </div>
 
-          <p className="mt-6 text-sm text-muted">
+          <p className="mt-6 text-sm font-semibold text-slate-600">
+            Trusted by 500+ businesses across the UAE, GCC & Africa • 50,000+
+            documents processed • 90%+ OCR accuracy
+          </p>
+          <p className="mt-2 text-sm text-muted">
             Free 14-day trial • No credit card required • Cancel anytime
           </p>
         </motion.div>

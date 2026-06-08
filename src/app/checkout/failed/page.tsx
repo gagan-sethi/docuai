@@ -2,6 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
+import BrandLogo from "@/components/BrandLogo";
 
 export default function FailedPage() {
   const router = useRouter();
@@ -28,7 +29,7 @@ export default function FailedPage() {
       className="min-h-screen flex items-center justify-center px-6 relative overflow-hidden"
       style={{
         fontFamily: "'DM Sans', sans-serif",
-        background: "linear-gradient(135deg, #1a1a4e 0%, #2d1b69 40%, #1e3a5f 100%)",
+        background: "linear-gradient(135deg, #020617 0%, #082f73 48%, #0f172a 100%)",
       }}
     >
       {/* Grid pattern */}
@@ -47,14 +48,11 @@ export default function FailedPage() {
       />
 
       <div className="relative z-10 text-center max-w-md w-full">
-        {/* DocuAI logo */}
-        <div className="flex items-center justify-center gap-2 mb-10">
-          <div className="w-8 h-8 rounded-lg bg-white/10 border border-white/20 flex items-center justify-center">
-            <svg className="w-4 h-4 text-white" viewBox="0 0 24 24" fill="currentColor">
-              <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8l-6-6z" />
-            </svg>
-          </div>
-          <span className="font-semibold text-lg tracking-tight text-white">DocuAI</span>
+        <div className="flex items-center justify-center mb-10">
+          <BrandLogo
+            className="h-12 w-[190px] rounded-xl bg-white px-3 py-1.5 shadow-xl shadow-black/20"
+            imageClassName="h-full w-full"
+          />
         </div>
 
         {/* Animated X circle */}
@@ -118,8 +116,8 @@ export default function FailedPage() {
             onClick={() => router.back()}
             className="w-full py-3.5 rounded-xl font-semibold text-white text-sm tracking-wide transition-all duration-200 hover:opacity-90"
             style={{
-              background: "linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%)",
-              boxShadow: "0 4px 24px rgba(79,70,229,0.4)",
+              background: "linear-gradient(135deg, #1457c9 0%, #082f73 100%)",
+              boxShadow: "0 4px 24px rgba(20,87,201,0.4)",
             }}
           >
             Try Again

@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 
 export const metadata: Metadata = {
-  title: "Settings – DocuAI",
+  title: "Settings – Invonix",
   description: "Update your profile, preferences, and account security.",
 };
 

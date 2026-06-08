@@ -11,7 +11,6 @@ import {
   Eye,
   EyeOff,
   ArrowRight,
-  FileText,
   Loader2,
   CheckCircle2,
   MessageCircle,
@@ -29,8 +28,9 @@ import {
   Calculator,
 } from "lucide-react";
 import Link from "next/link";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useSearchParams } from "next/navigation";
 import AuthLayout from "@/components/auth/AuthLayout";
+import BrandLogo from "@/components/BrandLogo";
 import { apiUrl } from "@/lib/api";
 
 // New step order: details → OTP → WhatsApp → verify-email → complete
@@ -174,7 +174,6 @@ function OTPInput({
 
 // ─── Main Signup Page ───────────────────────────────────────────
 function SignupPageContent() {
-  const router = useRouter();
   const searchParams = useSearchParams();
   const [step, setStep] = useState<Step>("details");
   const [showPassword, setShowPassword] = useState(false);
@@ -447,12 +446,11 @@ function SignupPageContent() {
       >
         {/* Mobile logo */}
         <div className="lg:hidden flex items-center gap-2.5 mb-8">
-          <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-primary to-secondary flex items-center justify-center">
-            <FileText className="w-5 h-5 text-white" />
-          </div>
-          <span className="text-xl font-bold">
-            Docu<span className="gradient-text">AI</span>
-          </span>
+          <BrandLogo
+            priority
+            className="h-11 w-[176px]"
+            imageClassName="h-full w-full"
+          />
         </div>
 
         {/* Step Indicator */}
@@ -959,7 +957,7 @@ function SignupPageContent() {
                 You&apos;re all set!<PartyPopper className="w-6 h-6 text-amber-500" />
               </h1>
               <p className="mt-2 text-sm text-muted max-w-sm mx-auto">
-                Welcome to DocuAI, <span className="font-semibold text-slate-700">{form.fullName || "there"}</span>!
+                Welcome to Invonix, <span className="font-semibold text-slate-700">{form.fullName || "there"}</span>!
                 Your account is ready. Start uploading documents to see AI magic.
               </p>
 

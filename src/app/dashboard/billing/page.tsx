@@ -235,7 +235,7 @@ export default function BillingPage() {
                       </h2>
                       <p className="text-sm text-white/80 mt-2 max-w-md">
                         {isFree
-                          ? "You're on the free tier — perfect for trying out DocuAI. Upgrade any time to lift your monthly limits."
+                          ? "You're on the free tier — perfect for trying out Invonix. Upgrade any time to lift your monthly limits."
                           : "Thanks for being a paid customer. Your usage resets automatically each billing period."}
                       </p>
                     </div>
