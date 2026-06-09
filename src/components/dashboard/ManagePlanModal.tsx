@@ -291,8 +291,8 @@ export default function ManagePlanModal({ open, onClose, planData }: Props) {
                     <div
                       key={planKey}
                       className={`relative flex flex-col p-5 rounded-xl border-2 bg-gradient-to-b transition-all ${isCurrent
-                          ? "border-primary shadow-lg shadow-primary/10 ring-1 ring-primary/20"
-                          : "border-slate-200 hover:shadow-md"
+                        ? "border-primary shadow-lg shadow-primary/10 ring-1 ring-primary/20"
+                        : "border-slate-200 hover:shadow-md"
                         }`}
                     >
                       {isCurrent && (
@@ -302,7 +302,7 @@ export default function ManagePlanModal({ open, onClose, planData }: Props) {
                       )}
 
                       {/* Trial Badge */}
-                      {planSupportsTrial && hasTrialDays && !isCurrent && (
+                      {showTrialButton && (
                         <span className="absolute -top-2.5 right-4 px-2 py-0.5 text-[10px] font-bold bg-purple-100 text-purple-700 rounded-full shadow-sm flex items-center gap-1">
                           <Gift className="w-3 h-3" /> {p.trialDays} DAY TRIAL
                         </span>
@@ -336,9 +336,11 @@ export default function ManagePlanModal({ open, onClose, planData }: Props) {
                                 </span>
 
                                 {/* Discount Badge */}
-                                <span className="px-1.5 py-0.5 text-[10px] font-bold bg-green-100 text-green-700 rounded-full">
-                                  {p.appliedDiscountPercent || p.discountPercent}% OFF
-                                </span>
+                                {(p.appliedDiscountPercent ?? 0) > 0 && (
+                                  <span className="px-1.5 py-0.5 text-[10px] font-bold bg-green-100 text-green-700 rounded-full">
+                                    {p.appliedDiscountPercent}% OFF
+                                  </span>
+                                )}
                               </>
                             ) : (
                               <span className="text-lg font-extrabold text-slate-900">
