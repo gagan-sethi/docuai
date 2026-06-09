@@ -7,13 +7,22 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
-import { Sparkles, Zap, CheckCircle2, Gift } from "lucide-react";
+import { Sparkles, Zap, CheckCircle2, Gift, Tag } from "lucide-react";
 import { apiUrl } from "@/lib/api";
 
 const usdFormatter = new Intl.NumberFormat("en-US", {
   style: "currency",
   currency: "USD",
 });
+
+export type CampaignDiscount = {
+  type: "fixed" | "percentage";
+  value: number;
+  name: string;
+  label: string;
+  startDate: string;
+  endDate: string;
+};
 
 export type PlanOption = {
   _id?: string;
@@ -37,6 +46,9 @@ export type PlanOption = {
   trialDays?: number;
   isTrialEligible?: boolean;
   hasUsedTrial?: boolean;
+  
+  // Campaign discount field
+  campaignDiscount?: CampaignDiscount | null;
 };
 
 export interface ManagePlanModalPlanData {
@@ -167,6 +179,15 @@ export default function ManagePlanModal({ open, onClose, planData }: Props) {
     }
   };
 
+  // Helper function to format campaign discount text
+  const formatCampaignDiscount = (campaign: CampaignDiscount): string => {
+    if (campaign.type === "percentage") {
+      return `${campaign.value}% OFF`;
+    } else {
+      return `${usdFormatter.format(campaign.value)} OFF`;
+    }
+  };
+
   return (
     <AnimatePresence>
       {open && (
@@ -259,6 +280,9 @@ export default function ManagePlanModal({ open, onClose, planData }: Props) {
                   const price = p.price ?? 0;
                   const isPaid = price > 0;
                   const planKey = String(p._id || p.id);
+                  
+                  // Check if campaign discount exists
+                  const hasCampaignDiscount = p.campaignDiscount !== null && p.discountApplied === true;
 
                   // IMPORTANT: Fix the trial eligibility logic
                   const hasNotUsedTrial = !p.hasUsedTrial;
@@ -283,7 +307,9 @@ export default function ManagePlanModal({ open, onClose, planData }: Props) {
                       hasNotUsedTrial,
                       isNotCurrentPlan,
                       isTrialEligible: p.isTrialEligible,
-                      showTrialButton
+                      showTrialButton,
+                      hasCampaignDiscount,
+                      campaignDiscount: p.campaignDiscount
                     });
                   }
 
@@ -302,9 +328,17 @@ export default function ManagePlanModal({ open, onClose, planData }: Props) {
                       )}
 
                       {/* Trial Badge */}
-                      {showTrialButton && (
+                      {/* {showTrialButton && (
                         <span className="absolute -top-2.5 right-4 px-2 py-0.5 text-[10px] font-bold bg-purple-100 text-purple-700 rounded-full shadow-sm flex items-center gap-1">
                           <Gift className="w-3 h-3" /> {p.trialDays} DAY TRIAL
+                        </span>
+                      )} */}
+
+                      {/* Campaign Discount Badge - Top Center */}
+                      {hasCampaignDiscount && p.campaignDiscount && (
+                        <span className="absolute -top-2.5 left-1/2 transform -translate-x-1/2 px-3 py-0.5 text-[10px] font-bold bg-gradient-to-r from-orange-500 to-red-500 text-white rounded-full shadow-sm flex items-center gap-1 whitespace-nowrap">
+                          <Tag className="w-3 h-3" /> 
+                          {p.campaignDiscount.label || formatCampaignDiscount(p.campaignDiscount)}
                         </span>
                       )}
 
@@ -312,7 +346,7 @@ export default function ManagePlanModal({ open, onClose, planData }: Props) {
                         <div className="p-2 rounded-lg bg-slate-100">
                           <Zap className="w-4 h-4 text-primary" />
                         </div>
-                        <div>
+                        <div className="flex-1">
                           <h3 className="text-sm font-bold text-slate-900">
                             {p.label}
                           </h3>
@@ -356,6 +390,28 @@ export default function ManagePlanModal({ open, onClose, planData }: Props) {
                           </div>
                         </div>
                       </div>
+
+                      {/* Campaign Info Section */}
+                      {hasCampaignDiscount && p.campaignDiscount && (
+                        <div className="mb-3 p-2 bg-gradient-to-r from-orange-50 to-red-50 rounded-lg border border-orange-200">
+                          <div className="flex items-start gap-2">
+                            <Tag className="w-3.5 h-3.5 text-orange-600 mt-0.5 flex-shrink-0" />
+                            <div className="flex-1">
+                              <p className="text-xs font-semibold text-orange-800">
+                                {p.campaignDiscount.label}
+                              </p>
+                              <p className="text-[10px] text-orange-600 mt-0.5">
+                                {formatCampaignDiscount(p.campaignDiscount)} • Limited time offer
+                              </p>
+                              {p.campaignDiscount.endDate && (
+                                <p className="text-[9px] text-orange-500 mt-0.5">
+                                  Valid until {new Date(p.campaignDiscount.endDate).toLocaleDateString()}
+                                </p>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                      )}
 
                       <p className="text-xs font-medium text-slate-600 mb-3 pb-3 border-b border-slate-100">
                         {p.documentsPerMonth === "Unlimited"
@@ -402,7 +458,7 @@ export default function ManagePlanModal({ open, onClose, planData }: Props) {
                               </button>
                             )}
 
-                            {/* Upgrade Button - Always shown for paid plans */}
+                            {/* Upgrade Button - Keep original color */}
                             <button
                               onClick={() => handlePlanSelect(p)}
                               disabled={navigatingPlanId === planKey}
@@ -412,6 +468,8 @@ export default function ManagePlanModal({ open, onClose, planData }: Props) {
                                 ? "Opening..."
                                 : showTrialButton
                                   ? "Upgrade (Skip Trial)"
+                                  : hasCampaignDiscount
+                                  ? "Claim Campaign Offer"
                                   : "Upgrade Now"}
                             </button>
 
