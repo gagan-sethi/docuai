@@ -56,6 +56,7 @@ export default function TicketDetailPage() {
   const [showDetails, setShowDetails] = useState(true);
   const [sidebarWidth, setSidebarWidth] = useState(260);
   const [resolving, setResolving] = useState(false);
+  const [sendingReply, setSendingReply] = useState(false);
 
   const fileRef = useRef<HTMLInputElement>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -102,13 +103,15 @@ export default function TicketDetailPage() {
   };
 
   const handleReply = async () => {
-    if (!reply.trim()) return;
+    if (!reply.trim() || sendingReply) return;
 
     const formData = new FormData();
     formData.append("message", reply);
     attachments.forEach((file) => formData.append("attachments", file));
 
     try {
+      setSendingReply(true);
+
       const res = await fetch(apiUrl(`/api/support/${id}/reply`), {
         method: "POST",
         credentials: "include",
@@ -119,7 +122,7 @@ export default function TicketDetailPage() {
 
       setReply("");
       setAttachments([]);
-      fetchTicket();
+      await fetchTicket();
 
       if (textareaRef.current) {
         textareaRef.current.style.height = "auto";
@@ -127,6 +130,8 @@ export default function TicketDetailPage() {
     } catch (err) {
       console.error(err);
       alert("Reply failed");
+    } finally {
+      setSendingReply(false);
     }
   };
 
@@ -440,6 +445,7 @@ export default function TicketDetailPage() {
                       placeholder="Type your reply here... (Press Enter to send, Shift+Enter for new line)"
                       className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-transparent resize-none transition-all text-gray-700 placeholder-gray-400"
                       rows={3}
+                       disabled={sendingReply}
                     />
                   </div>
 
@@ -473,6 +479,8 @@ export default function TicketDetailPage() {
                     <div className="flex gap-2">
                       <button
                         onClick={() => fileRef.current?.click()}
+                          disabled={sendingReply}
+
                         className="flex items-center gap-2 px-4 py-2 text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-xl transition-colors"
                       >
                         <Paperclip className="w-4 h-4" />
@@ -482,7 +490,7 @@ export default function TicketDetailPage() {
 
                     <button
                       onClick={handleReply}
-                      disabled={!reply.trim()}
+                      disabled={!reply.trim() || sendingReply}
                       className="flex items-center gap-2 px-6 py-2 bg-indigo-600 hover:bg-indigo-700 disabled:bg-gray-300 disabled:cursor-not-allowed text-white rounded-xl transition-all transform hover:scale-105 disabled:transform-none"
                     >
                       <Send className="w-4 h-4" />
