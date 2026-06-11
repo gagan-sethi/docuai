@@ -13,6 +13,7 @@ const navLinks = [
   { name: "WhatsApp", href: "#whatsapp", highlight: true },
   { name: "Demo", href: "#demo" },
   { name: "Pricing", href: "/pricing" },
+  { name: "Faq", href: "/faq" },
   { name: "Partners", href: "#partners" },
 ];
 
