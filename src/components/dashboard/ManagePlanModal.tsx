@@ -335,7 +335,7 @@ export default function ManagePlanModal({ open, onClose, planData }: Props) {
                       )} */}
 
                       {/* Campaign Discount Badge - Top Center */}
-                      {hasCampaignDiscount && p.campaignDiscount && (
+                      {!isCurrent && hasCampaignDiscount && p.campaignDiscount && (
                         <span className="absolute -top-2.5 left-1/2 transform -translate-x-1/2 px-3 py-0.5 text-[10px] font-bold bg-gradient-to-r from-orange-500 to-red-500 text-white rounded-full shadow-sm flex items-center gap-1 whitespace-nowrap">
                           <Tag className="w-3 h-3" /> 
                           {p.campaignDiscount.label || formatCampaignDiscount(p.campaignDiscount)}
@@ -392,7 +392,7 @@ export default function ManagePlanModal({ open, onClose, planData }: Props) {
                       </div>
 
                       {/* Campaign Info Section */}
-                      {hasCampaignDiscount && p.campaignDiscount && (
+                      {!isCurrent && hasCampaignDiscount && p.campaignDiscount && (
                         <div className="mb-3 p-2 bg-gradient-to-r from-orange-50 to-red-50 rounded-lg border border-orange-200">
                           <div className="flex items-start gap-2">
                             <Tag className="w-3.5 h-3.5 text-orange-600 mt-0.5 flex-shrink-0" />
