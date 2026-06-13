@@ -24,6 +24,7 @@ import {
   Gift,
   Activity,
   Wallet,
+  Play,
 } from "lucide-react";
 
 const mainNav = [
@@ -99,6 +100,11 @@ const bottomNav = [
     name: "Help & Support",
     href: "/dashboard/support",
     icon: HelpCircle,
+  },
+  {
+    name: "Video Tutorials",
+    href: "/dashboard/video-tutorials",
+    icon: Play,
   },
   {
     name: "Activity",
