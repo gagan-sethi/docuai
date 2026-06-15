@@ -15,6 +15,9 @@ const navLinks = [
   { name: "Pricing", href: "/pricing" },
   { name: "Faq", href: "/faq" },
   { name: "Partners", href: "#partners" },
+  // Find navLinks array, add Blog between Pricing and Faq:
+{ name: "Blog", href: "/blog" },
+
 ];
 
 export default function Navbar() {

@@ -33,6 +33,7 @@ const footerLinks = {
     { name: "Status", href: "#" },
     { name: "Changelog", href: "#" },
     { name: "faq", href: "/faq" },
+    { name: "Blog", href: "/blog" },
 
   ],
   Legal: [
