@@ -244,6 +244,10 @@ export default function DashboardPage() {
     pagesRemaining: number | string;
     pagesUsagePercent: number;
 
+    storageUsed: string;
+    storageLimit: string;
+    storageRemaining: string;
+    storageUsagePercent: number
     resetsAt: string;
   } | null>(null);
   const [showUpgradeModal, setShowUpgradeModal] = useState(false);
@@ -878,6 +882,7 @@ export default function DashboardPage() {
           </div>
 
           {/* Usage & Plan Banner */}
+          {/* Usage & Plan Banner */}
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
@@ -906,6 +911,15 @@ export default function DashboardPage() {
                 ? "∞"
                 : Math.max(0, pagesLimit - pagesUsed);
               const resetsAt = planData?.resetsAt ? new Date(planData.resetsAt).toLocaleDateString("en-US", { month: "short", day: "numeric" }) : "";
+
+              // Storage data
+              const storageUsed = planData?.storageUsed || "0 B";
+              const storageLimit = planData?.storageLimit || "Unlimited";
+              const storageUsagePercent = planData?.storageUsagePercent || 0;
+              const storageRemaining = planData?.storageRemaining || "Unlimited";
+              const isStorageUnlimited = storageLimit === "Unlimited";
+              const isStorageNearLimit = !isStorageUnlimited && storageUsagePercent >= 80;
+              const isStorageAtLimit = !isStorageUnlimited && storageUsagePercent >= 100;
 
               return (
                 <div className="space-y-4">
@@ -967,7 +981,79 @@ export default function DashboardPage() {
                     </div>
                   </div>
 
-                  {/* Warning when near/at limit */}
+                  {/* Storage Usage Section */}
+                  <div className="pt-4 border-t border-slate-100">
+                    <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+                      <div className="flex items-center gap-3 w-full sm:w-auto">
+                        <div className="p-1.5 rounded-lg bg-slate-50">
+                          <FileText className="w-4 h-4 text-slate-500" />
+                        </div>
+                        <div className="flex-1 sm:flex-none">
+                          <p className="text-xs font-medium text-slate-700">
+                            Storage Usage
+                          </p>
+                          <p className="text-[10px] text-muted">
+                            {storageUsed} used{!isStorageUnlimited && ` · ${storageRemaining} remaining`}
+                          </p>
+                        </div>
+                      </div>
+                      <div className="flex-1 sm:w-48 w-full">
+                        <div className="flex items-center justify-between text-xs mb-1.5">
+                          <span className="text-muted">
+                            {isStorageUnlimited ? "Unlimited" : `${storageRemaining} left`}
+                          </span>
+                          {!isStorageUnlimited && (
+                            <span className={`font-semibold ${isStorageAtLimit ? "text-red-500" : isStorageNearLimit ? "text-amber-500" : "text-slate-700"}`}>
+                              {storageUsagePercent.toFixed(0)}%
+                            </span>
+                          )}
+                        </div>
+                        <div className="h-2 bg-slate-100 rounded-full overflow-hidden">
+                          <div
+                            className={`h-full rounded-full transition-all duration-500 ${isStorageAtLimit
+                              ? "bg-gradient-to-r from-red-400 to-red-500"
+                              : isStorageNearLimit
+                                ? "bg-gradient-to-r from-amber-400 to-amber-500"
+                                : "bg-gradient-to-r from-slate-400 to-slate-500"
+                              }`}
+                            style={{ width: `${isStorageUnlimited ? 0 : storageUsagePercent}%` }}
+                          />
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Storage warning when near/at limit */}
+                    {isStorageAtLimit && (
+                      <div className="flex items-center gap-3 px-4 py-2.5 mt-3 bg-red-50 border border-red-100 rounded-xl">
+                        <AlertTriangle className="w-4 h-4 text-red-500 flex-shrink-0" />
+                        <p className="text-xs text-red-600 font-medium flex-1">
+                          Storage limit reached. Please upgrade your plan or free up space.
+                        </p>
+                        <button
+                          onClick={() => setShowUpgradeModal(true)}
+                          className="px-3 py-1.5 text-[10px] font-bold text-white bg-red-500 rounded-lg hover:bg-red-600 transition-colors whitespace-nowrap"
+                        >
+                          Upgrade
+                        </button>
+                      </div>
+                    )}
+                    {isStorageNearLimit && !isStorageAtLimit && (
+                      <div className="flex items-center gap-3 px-4 py-2.5 mt-3 bg-amber-50 border border-amber-100 rounded-xl">
+                        <AlertTriangle className="w-4 h-4 text-amber-500 flex-shrink-0" />
+                        <p className="text-xs text-amber-600 font-medium flex-1">
+                          Storage is running low — {storageRemaining} remaining.
+                        </p>
+                        <button
+                          onClick={() => setShowUpgradeModal(true)}
+                          className="px-3 py-1.5 text-[10px] font-bold text-amber-700 bg-amber-100 rounded-lg hover:bg-amber-200 transition-colors whitespace-nowrap"
+                        >
+                          View Plans
+                        </button>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Warning when near/at document limit */}
                   {isAtLimit && (
                     <div className="flex items-center gap-3 px-4 py-3 bg-red-50 border border-red-100 rounded-xl">
                       <AlertTriangle className="w-4 h-4 text-red-500 flex-shrink-0" />
