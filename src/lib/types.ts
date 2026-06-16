@@ -97,6 +97,15 @@ export interface ProcessedDocument {
   ocrEngine?: OcrEngine;   // which OCR engine was used
   status: DocumentStatus;
   source: DocumentSource;
+  batchId?: string;
+  batchLabel?: string;
+  batchNumber?: number;
+  batchUploadedAt?: string;
+  batchDocumentCount?: number;
+  companyId?: string;
+  companyName?: string;
+  createdBy?: string;
+  createdByName?: string;
   docType?: string;        // legacy free-text label (Invoice, PO, etc.) — kept for back-compat
   docTypeCode?: DocType;   // canonical classification used by the financial engine
   docTypeConfidence?: number; // 0-100, AI's confidence in the classification

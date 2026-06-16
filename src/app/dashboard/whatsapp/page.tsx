@@ -15,7 +15,6 @@ import {
   Search,
   Filter,
   RefreshCw,
-  Phone,
   Eye,
   Download,
   ChevronDown,
@@ -45,20 +44,34 @@ function timeAgo(dateStr: string): string {
   return new Date(dateStr).toLocaleDateString("en-GB", { day: "2-digit", month: "short" });
 }
 
-function formatDate(dateStr: string): string {
-  return new Date(dateStr).toLocaleDateString("en-GB", {
-    day: "2-digit",
-    month: "short",
-    year: "numeric",
-    hour: "2-digit",
-    minute: "2-digit",
-  });
-}
-
 function formatFileSize(bytes: number): string {
   if (bytes < 1024) return `${bytes} B`;
   if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+}
+
+function formatProcessingError(error?: string): string {
+  if (!error) return "Processing failed. Open the document for details.";
+
+  const normalized = error.toLowerCase();
+  if (normalized.includes("429") || normalized.includes("rate limit")) {
+    return "The extraction service was busy. Please retry this document.";
+  }
+  if (
+    normalized.includes("document limit") ||
+    normalized.includes("page limit") ||
+    normalized.includes("allowance")
+  ) {
+    return error;
+  }
+  if (normalized.includes("no readable text")) {
+    return "No readable text was found. Try a clearer scan or PDF.";
+  }
+  if (normalized.includes("not configured")) {
+    return "The extraction service is temporarily unavailable.";
+  }
+
+  return error.length > 110 ? `${error.slice(0, 107)}...` : error;
 }
 
 function FileTypeIcon({ fileType }: { fileType: string }) {
@@ -159,7 +172,7 @@ export default function WhatsAppInboxPage() {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [router]);
 
   // Persist preference change. Best-effort sync to backend; localStorage is the source of truth client-side.
   const saveAutoMerge = useCallback(async (next: boolean) => {
@@ -229,7 +242,7 @@ export default function WhatsAppInboxPage() {
     } catch {}
     setLoading(false);
     setRefreshing(false);
-  }, []);
+  }, [router]);
 
   useEffect(() => {
     fetchDocs();
@@ -368,12 +381,13 @@ export default function WhatsAppInboxPage() {
           </div>
 
           {/* Stats bar */}
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-6">
+          <div className="grid grid-cols-2 sm:grid-cols-5 gap-4 mb-6">
             {[
               { label: "Total Received", value: docs.length, color: "text-slate-700", bg: "bg-white" },
               { label: "Needs Review", value: docs.filter((d) => d.status === "review").length, color: "text-amber-600", bg: "bg-amber-50" },
               { label: "Approved", value: docs.filter((d) => d.status === "approved").length, color: "text-green-600", bg: "bg-green-50" },
               { label: "Processing", value: docs.filter((d) => ["processing", "structuring", "uploaded"].includes(d.status)).length, color: "text-blue-600", bg: "bg-blue-50" },
+              { label: "Errors", value: docs.filter((d) => d.status === "error").length, color: "text-red-600", bg: "bg-red-50" },
             ].map((s) => (
               <motion.div
                 key={s.label}
@@ -601,11 +615,21 @@ function DocRow({
       </td>
       <td className="px-4 py-3.5">
         <span className="text-xs font-medium text-slate-600 bg-slate-100 rounded-full px-2.5 py-1">
-          {doc.docType || "Processing…"}
+          {doc.docType || (doc.status === "error" ? "Not classified" : "Processing…")}
         </span>
       </td>
       <td className="px-4 py-3.5">
-        <StatusBadge status={doc.status} />
+        <div className="max-w-[240px]">
+          <StatusBadge status={doc.status} />
+          {doc.status === "error" && (
+            <p
+              className="mt-1 text-[11px] leading-4 text-red-600"
+              title={doc.error || "Processing failed"}
+            >
+              {formatProcessingError(doc.error)}
+            </p>
+          )}
+        </div>
       </td>
       <td className="px-4 py-3.5">
         {doc.overallConfidence > 0 ? (

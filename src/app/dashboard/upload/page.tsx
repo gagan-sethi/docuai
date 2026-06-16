@@ -25,7 +25,6 @@ import {
   Keyboard,
   Zap,
   Crown,
-  X,
 } from "lucide-react";
 import Link from "next/link";
 import Sidebar from "@/components/dashboard/Sidebar";
@@ -35,6 +34,13 @@ import UpgradeModal from "@/components/dashboard/UpgradeModal";
 import ManagePlanModal from "@/components/dashboard/ManagePlanModal";
 import { apiUrl } from "@/lib/api";
 import { handleUnauthorized } from "@/lib/api";
+import {
+  batchSummaryLine,
+  completeUploadBatch,
+  createUploadBatchFromApi,
+  recordBatchDocument,
+  type UploadBatchRecord,
+} from "@/lib/batches";
 
 // ─── Types ──────────────────────────────────────────────────────
 type FileStatus = "queued" | "detecting" | "ready" | "uploading" | "processing" | "structuring" | "done" | "error";
@@ -43,6 +49,8 @@ type DocInputType = "handwritten" | "typed" | "unknown";
 interface UploadFile {
   id: string;
   documentId?: string;
+  batchId?: string;
+  batchLabel?: string;
   name: string;
   size: number;
   type: string;
@@ -137,7 +145,8 @@ async function processFile(
   file: UploadFile,
   onUpdate: (updates: Partial<UploadFile>) => void,
   isHandwritten: boolean = false,
-  shouldCancel: () => boolean = () => false
+  shouldCancel: () => boolean = () => false,
+  batch?: UploadBatchRecord
 ): Promise<void> {
   try {
     if (shouldCancel()) {
@@ -150,6 +159,13 @@ async function processFile(
     formData.append("file", file.file);
     if (isHandwritten) {
       formData.append("isHandwritten", "true");
+    }
+    if (batch) {
+      formData.append("batchId", batch.id);
+      formData.append("batchLabel", batch.label);
+      formData.append("batchNumber", String(batch.number));
+      formData.append("batchUploadedAt", batch.uploadedAt);
+      formData.append("batchDocumentCount", String(batch.documentCount));
     }
     
     const companyId = localStorage.getItem("selected");
@@ -173,6 +189,21 @@ async function processFile(
     }
 
     const uploadData = await uploadRes.json();
+    if (batch) {
+      recordBatchDocument(batch.id, uploadData.documentId, file.name);
+      fetch(apiUrl(`/api/documents/${uploadData.documentId}`), {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({
+          batchId: batch.id,
+          batchLabel: batch.label,
+          batchNumber: batch.number,
+          batchUploadedAt: batch.uploadedAt,
+          batchDocumentCount: batch.documentCount,
+        }),
+      }).catch(() => {});
+    }
     onUpdate({ documentId: uploadData.documentId, status: "uploading", progress: 50 });
 
     onUpdate({ status: "processing", progress: 60 });
@@ -199,6 +230,8 @@ async function processFile(
       confidence: processData.overallConfidence,
       docType: processData.docType,
       documentId: uploadData.documentId,
+      batchId: batch?.id,
+      batchLabel: batch?.label,
     });
   } catch (error) {
     const message = error instanceof Error ? error.message : "Processing failed";
@@ -239,6 +272,7 @@ export default function UploadPage() {
   const [upgradeMessage, setUpgradeMessage] = useState("");
   const [upgradeOpen, setUpgradeOpen] = useState(false);
   const [managePlanOpen, setManagePlanOpen] = useState(false);
+  const [lastBatch, setLastBatch] = useState<UploadBatchRecord | null>(null);
   const [planInfo, setPlanInfo] = useState<{
     plan: string;
     label: string;
@@ -270,7 +304,8 @@ export default function UploadPage() {
   }, []);
 
   useEffect(() => {
-    refreshPlan();
+    const timer = window.setTimeout(() => refreshPlan(), 0);
+    return () => window.clearTimeout(timer);
   }, [refreshPlan]);
 
   /**
@@ -303,7 +338,11 @@ export default function UploadPage() {
     const sidebar = document.querySelector("aside");
     if (sidebar) {
       observer.observe(sidebar, { attributes: true, attributeFilter: ["style"] });
-      setSidebarWidth(sidebar.getBoundingClientRect().width);
+      const frame = requestAnimationFrame(() => setSidebarWidth(sidebar.getBoundingClientRect().width));
+      return () => {
+        cancelAnimationFrame(frame);
+        observer.disconnect();
+      };
     }
     return () => observer.disconnect();
   }, []);
@@ -363,7 +402,7 @@ export default function UploadPage() {
   }, []);
 
   // Start processing all ready files
-  const startProcessing = useCallback(() => {
+  const startProcessing = useCallback(async () => {
     const readyFiles = files.filter((f) => f.status === "ready" || f.status === "queued");
     if (readyFiles.length === 0) return;
 
@@ -389,18 +428,56 @@ export default function UploadPage() {
     setIsProcessing(true);
     setUpgradeMessage("");
     setUpgradeOpen(false);
+    const batch = await createUploadBatchFromApi(apiUrl("/api/batches"), readyFiles.map((f) => f.name));
+    setLastBatch(batch);
+    setFiles((prev) =>
+      prev.map((f) =>
+        readyFiles.some((ready) => ready.id === f.id)
+          ? { ...f, batchId: batch.id, batchLabel: batch.label }
+          : f
+      )
+    );
 
     readyFiles.forEach((uploadFile, i) => {
       setTimeout(() => {
         if (cancelUploadsRef.current) return;
         const isHandwritten = uploadFile.isHandwrittenOverride ?? (uploadFile.detectedType === "handwritten");
         processFile(
-          uploadFile,
+          { ...uploadFile, batchId: batch.id, batchLabel: batch.label },
           (updates) => {
             setFiles((prev) => {
-              const updated = prev.map((f) => (f.id === uploadFile.id ? { ...f, ...updates } : f));
+              const updated = prev.map((f) => (f.id === uploadFile.id ? { ...f, batchId: batch.id, batchLabel: batch.label, ...updates } : f));
               const anyActive = updated.some((f) => ["uploading", "processing", "structuring"].includes(f.status));
               if (!anyActive) setIsProcessing(false);
+              if (updates.documentId) {
+                setLastBatch((current) =>
+                  current?.id === batch.id
+                    ? {
+                        ...current,
+                        documentIds: Array.from(new Set([...current.documentIds, updates.documentId!])),
+                        fileNames: Array.from(new Set([...current.fileNames, uploadFile.name])),
+                      }
+                    : current
+                );
+              }
+              const batchFiles = updated.filter((f) => f.batchId === batch.id);
+              const batchSettled =
+                batchFiles.length > 0 &&
+                batchFiles.every((f) => f.status === "done" || f.status === "error");
+              if (batchSettled) {
+                completeUploadBatch(batch.id);
+                setLastBatch((current) =>
+                  current?.id === batch.id
+                    ? {
+                        ...current,
+                        status:
+                          batchFiles.filter((f) => f.status === "done").length >= current.documentCount
+                            ? "complete"
+                            : "partial",
+                      }
+                    : current
+                );
+              }
 
               // Detect upgrade-required errors → open the upgrade modal
               // and cancel the rest of the queued uploads so we don't
@@ -415,7 +492,8 @@ export default function UploadPage() {
             });
           },
           isHandwritten,
-          () => cancelUploadsRef.current
+          () => cancelUploadsRef.current,
+          batch
         );
       }, i * 500);
     });
@@ -529,6 +607,34 @@ export default function UploadPage() {
               >
                 Details
               </button>
+            </motion.div>
+          )}
+
+          {lastBatch && (
+            <motion.div
+              initial={{ opacity: 0, y: -10 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="flex flex-wrap items-center justify-between gap-4 rounded-2xl border border-emerald-200 bg-emerald-50 px-5 py-4"
+            >
+              <div className="flex items-center gap-3">
+                <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-white text-emerald-600 shadow-sm">
+                  <FileCheck2 className="h-5 w-5" />
+                </div>
+                <div>
+                  <p className="text-sm font-bold text-emerald-900">{batchSummaryLine(lastBatch)}</p>
+                  <p className="mt-0.5 text-xs text-emerald-700">
+                    {lastBatch.documentIds.length} of {lastBatch.documentCount} documents linked to {lastBatch.label}
+                    {lastBatch.status === "complete" ? " - ready for batch export" : ""}
+                  </p>
+                </div>
+              </div>
+              <Link
+                href={`/dashboard/documents?batch=${encodeURIComponent(lastBatch.id)}`}
+                className="inline-flex items-center gap-2 rounded-xl bg-white px-4 py-2 text-sm font-semibold text-emerald-700 shadow-sm ring-1 ring-emerald-200 hover:bg-emerald-100 transition"
+              >
+                View Batch
+                <ArrowRight className="h-4 w-4" />
+              </Link>
             </motion.div>
           )}
 
@@ -711,6 +817,11 @@ export default function UploadPage() {
                             {file.docType && (
                               <span className="px-1.5 py-0.5 text-[9px] font-bold bg-primary/10 text-primary rounded">{file.docType}</span>
                             )}
+                            {file.batchLabel && (
+                              <span className="px-1.5 py-0.5 text-[9px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200 rounded">
+                                {file.batchLabel}
+                              </span>
+                            )}
                           </div>
                           <div className="flex items-center gap-2 mt-0.5">
                             <span className="text-[11px] text-muted">{formatSize(file.size)}</span>
@@ -828,7 +939,9 @@ export default function UploadPage() {
                       transition={{ type: "spring", stiffness: 400, damping: 15 }}>
                       <CheckCircle2 className="w-5 h-5 text-success" />
                     </motion.div>
-                    <span className="text-sm font-semibold text-success">All documents processed and ready!</span>
+                    <span className="text-sm font-semibold text-success">
+                      All documents processed and ready{lastBatch ? ` in ${lastBatch.label}` : ""}!
+                    </span>
                   </div>
                   <div className="grid grid-cols-2 gap-3">
                     <a href={files.find(f => f.status === "done" && f.documentId)

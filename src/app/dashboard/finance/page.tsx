@@ -18,6 +18,7 @@ import {
   PieChart,
   FileSpreadsheet,
   Printer,
+  CalendarRange,
 } from "lucide-react";
 import Sidebar from "@/components/dashboard/Sidebar";
 import TopBar from "@/components/dashboard/TopBar";
@@ -41,6 +42,17 @@ import {
   downloadVatSummaryXlsx,
   printVatSummary,
 } from "@/lib/financeExport";
+import {
+  calculateFinancialPeriod,
+  dateToInputValue,
+  filterDocumentsByFinancialPeriod,
+  FINANCIAL_PERIOD_CUSTOM_STORAGE_KEY,
+  FINANCIAL_PERIOD_OPTIONS,
+  FINANCIAL_PERIOD_STORAGE_KEY,
+  formatDateRangeLabel,
+  type CustomDateRange,
+  type FinancialPeriodValue,
+} from "@/lib/periods";
 
 // ─── Sparkline ──────────────────────────────────────────────────
 
@@ -127,14 +139,24 @@ export default function FinanceDashboardPage() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [exportOpen, setExportOpen] = useState(false);
+  const [period, setPeriod] = useState<FinancialPeriodValue>("this_month");
+  const [customRange, setCustomRange] = useState<CustomDateRange>(() => {
+    const now = new Date();
+    const from = new Date(now);
+    from.setDate(now.getDate() - 13);
+    return { from: dateToInputValue(from), to: dateToInputValue(now) };
+  });
 
   useEffect(() => {
     const sidebar = document.querySelector("aside");
     if (!sidebar) return;
     const observer = new ResizeObserver(() => setSidebarWidth(sidebar.offsetWidth));
     observer.observe(sidebar);
-    setSidebarWidth(sidebar.offsetWidth);
-    return () => observer.disconnect();
+    const frame = requestAnimationFrame(() => setSidebarWidth(sidebar.offsetWidth));
+    return () => {
+      cancelAnimationFrame(frame);
+      observer.disconnect();
+    };
   }, []);
 
   const fetchDocs = async (showSpinner = false) => {
@@ -152,14 +174,45 @@ export default function FinanceDashboardPage() {
   };
 
   useEffect(() => {
-    fetchDocs();
-    const t = setInterval(() => fetchDocs(), 30000);
-    return () => clearInterval(t);
+    const first = window.setTimeout(() => fetchDocs(), 0);
+    const t = window.setInterval(() => fetchDocs(), 30000);
+    return () => {
+      window.clearTimeout(first);
+      window.clearInterval(t);
+    };
   }, []);
 
-  const totals = useMemo(() => aggregateTotals(docs), [docs]);
-  const monthly = useMemo(() => buildMonthlyBuckets(docs), [docs]);
-  const categories = useMemo(() => buildCategoryBuckets(docs), [docs]);
+  useEffect(() => {
+    try {
+      const savedPeriod = window.localStorage.getItem(FINANCIAL_PERIOD_STORAGE_KEY) as FinancialPeriodValue | null;
+      const savedCustom = window.localStorage.getItem(FINANCIAL_PERIOD_CUSTOM_STORAGE_KEY);
+      const parsedCustom = savedCustom ? JSON.parse(savedCustom) : null;
+      queueMicrotask(() => {
+        if (savedPeriod && FINANCIAL_PERIOD_OPTIONS.some((opt) => opt.value === savedPeriod)) {
+          setPeriod(savedPeriod);
+        }
+        if (parsedCustom?.from && parsedCustom?.to) setCustomRange(parsedCustom);
+      });
+    } catch { /* ignore local preference failures */ }
+  }, []);
+
+  useEffect(() => {
+    try {
+      window.localStorage.setItem(FINANCIAL_PERIOD_STORAGE_KEY, period);
+      window.localStorage.setItem(FINANCIAL_PERIOD_CUSTOM_STORAGE_KEY, JSON.stringify(customRange));
+    } catch { /* ignore local preference failures */ }
+  }, [period, customRange]);
+
+  const periodDocs = useMemo(
+    () => filterDocumentsByFinancialPeriod(docs, period, customRange),
+    [docs, period, customRange]
+  );
+  const periodRange = useMemo(() => calculateFinancialPeriod(period, customRange), [period, customRange]);
+  const periodRangeLabel = useMemo(() => formatDateRangeLabel(periodRange), [periodRange]);
+
+  const totals = useMemo(() => aggregateTotals(periodDocs), [periodDocs]);
+  const monthly = useMemo(() => buildMonthlyBuckets(periodDocs), [periodDocs]);
+  const categories = useMemo(() => buildCategoryBuckets(periodDocs), [periodDocs]);
 
   const revenueTrend = monthly.map((m) => m.salesAmount);
   const expenseTrend = monthly.map((m) => m.expenseAmount);
@@ -168,30 +221,30 @@ export default function FinanceDashboardPage() {
 
   const recentSales = useMemo(
     () =>
-      docs
+      periodDocs
         .filter((d) => resolveDocTypeCode(d) === "sales_invoice")
         .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
         .slice(0, 5),
-    [docs]
+    [periodDocs]
   );
   const recentExpenses = useMemo(
     () =>
-      docs
+      periodDocs
         .filter((d) => resolveDocTypeCode(d) === "expense_invoice" || resolveDocTypeCode(d) === "receipt")
         .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
         .slice(0, 5),
-    [docs]
+    [periodDocs]
   );
   const pendingPos = useMemo(
     () =>
-      docs
+      periodDocs
         .filter((d) => resolveDocTypeCode(d) === "purchase_order")
         .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
         .slice(0, 5),
-    [docs]
+    [periodDocs]
   );
 
-  const totalProcessed = docs.filter((d) => d.status === "approved" || d.status === "review").length;
+  const totalProcessed = periodDocs.filter((d) => d.status === "approved" || d.status === "review").length;
   const maxCategory = Math.max(...categories.map((c) => c.amount), 1);
 
   return (
@@ -210,10 +263,47 @@ export default function FinanceDashboardPage() {
               <h1 className="text-2xl font-bold text-slate-900">Financial Overview</h1>
               <p className="text-sm text-slate-500 mt-1">
                 Automatic P&amp;L and VAT computed from processed invoices &middot; Currency{" "}
-                <span className="font-semibold">{totals.currency}</span>
+                <span className="font-semibold">{totals.currency}</span> &middot; {periodRangeLabel}
               </p>
             </div>
-            <div className="flex items-center gap-2">
+            <div className="flex flex-wrap items-center justify-end gap-2">
+              <div className="flex flex-wrap items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2 shadow-sm">
+                <CalendarRange className="h-4 w-4 text-slate-400" />
+                <label htmlFor="financial-period" className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                  Financial Period
+                </label>
+                <select
+                  id="financial-period"
+                  value={period}
+                  onChange={(e) => setPeriod(e.target.value as FinancialPeriodValue)}
+                  className="min-w-[150px] bg-transparent text-sm font-semibold text-slate-800 outline-none"
+                >
+                  {FINANCIAL_PERIOD_OPTIONS.map((opt) => (
+                    <option key={opt.value} value={opt.value}>
+                      {opt.label}
+                    </option>
+                  ))}
+                </select>
+                {period === "custom" && (
+                  <div className="flex items-center gap-1 border-l border-slate-200 pl-2">
+                    <input
+                      type="date"
+                      value={customRange.from}
+                      onChange={(e) => setCustomRange((prev) => ({ ...prev, from: e.target.value }))}
+                      className="w-[132px] rounded-lg border border-slate-200 px-2 py-1 text-xs font-medium text-slate-700 outline-none focus:border-primary"
+                      aria-label="Custom period start date"
+                    />
+                    <span className="text-xs text-slate-400">to</span>
+                    <input
+                      type="date"
+                      value={customRange.to}
+                      onChange={(e) => setCustomRange((prev) => ({ ...prev, to: e.target.value }))}
+                      className="w-[132px] rounded-lg border border-slate-200 px-2 py-1 text-xs font-medium text-slate-700 outline-none focus:border-primary"
+                      aria-label="Custom period end date"
+                    />
+                  </div>
+                )}
+              </div>
               <button
                 onClick={() => fetchDocs(true)}
                 disabled={refreshing}
@@ -247,12 +337,12 @@ export default function FinanceDashboardPage() {
                 {exportOpen && (
                   <div className="absolute right-0 mt-2 z-30 min-w-[220px] rounded-xl border border-slate-200 bg-white shadow-xl overflow-hidden">
                     {[
-                      { label: "VAT Summary (Excel)", icon: FileSpreadsheet, run: () => downloadVatSummaryXlsx(docs) },
-                      { label: "VAT Summary (CSV)", icon: FileText, run: () => downloadVatSummaryCsv(docs) },
-                      { label: "VAT Summary (PDF)", icon: Printer, run: () => printVatSummary(docs) },
-                      { label: "P&L (Excel)", icon: FileSpreadsheet, run: () => downloadPnlXlsx(docs) },
-                      { label: "P&L (CSV)", icon: FileText, run: () => downloadPnlCsv(docs) },
-                      { label: "Accounting Ledger (CSV)", icon: FileText, run: () => downloadLedgerCsv(docs) },
+                      { label: "VAT Summary (Excel)", icon: FileSpreadsheet, run: () => downloadVatSummaryXlsx(periodDocs) },
+                      { label: "VAT Summary (CSV)", icon: FileText, run: () => downloadVatSummaryCsv(periodDocs) },
+                      { label: "VAT Summary (PDF)", icon: Printer, run: () => printVatSummary(periodDocs) },
+                      { label: "P&L (Excel)", icon: FileSpreadsheet, run: () => downloadPnlXlsx(periodDocs) },
+                      { label: "P&L (CSV)", icon: FileText, run: () => downloadPnlCsv(periodDocs) },
+                      { label: "Accounting Ledger (CSV)", icon: FileText, run: () => downloadLedgerCsv(periodDocs) },
                     ].map((item) => (
                       <button
                         key={item.label}

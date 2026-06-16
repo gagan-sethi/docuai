@@ -9,8 +9,10 @@ import {
   buildMonthlyBuckets,
   deriveFinancialSummary,
   formatMoney,
+  getDocTypeMeta,
   resolveDocTypeCode,
 } from "./finance";
+import { getDocumentBatchLabel } from "./batches";
 import type { ProcessedDocument } from "./types";
 
 // ─── CSV helpers ────────────────────────────────────────────────
@@ -38,6 +40,22 @@ function downloadBlob(content: string | Blob, filename: string, mime: string) {
   a.click();
   a.remove();
   setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+
+function safeFilename(value: string): string {
+  return value
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-|-$/g, "")
+    .slice(0, 80) || "documents";
+}
+
+function escapeHtml(value: unknown): string {
+  return String(value ?? "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;");
 }
 
 // ─── VAT Summary Report (CSV) ───────────────────────────────────
@@ -376,6 +394,192 @@ export function printVatSummary(docs: ProcessedDocument[]) {
   win.document.close();
   win.focus();
   setTimeout(() => win.print(), 300);
+}
+
+// ─── Document scoped exports ───────────────────────────────────
+
+export type DocumentExportFormat = "xlsx" | "csv" | "pdf";
+
+export interface DocumentExportResult {
+  filename: string;
+  count: number;
+}
+
+function getCompanyName(doc: ProcessedDocument): string {
+  return doc.companyName || doc.companyId || "";
+}
+
+function getCreatedBy(doc: ProcessedDocument): string {
+  return doc.createdByName || doc.createdBy || "";
+}
+
+function buildDocumentExportRows(docs: ProcessedDocument[]): Array<Array<unknown>> {
+  const rows: Array<Array<unknown>> = [
+    [
+      "Batch ID",
+      "Upload Date",
+      "Document Date",
+      "Company",
+      "Created By",
+      "Document Type",
+      "Status",
+      "Supplier / Customer",
+      "Invoice #",
+      "Currency",
+      "Subtotal",
+      "VAT Amount",
+      "Grand Total",
+      "File Name",
+    ],
+  ];
+
+  for (const doc of docs) {
+    const fin = deriveFinancialSummary(doc);
+    const code = resolveDocTypeCode(doc);
+    rows.push([
+      getDocumentBatchLabel(doc),
+      (doc.batchUploadedAt || doc.createdAt || "").slice(0, 10),
+      (fin.invoiceDate || doc.createdAt || "").slice(0, 10),
+      getCompanyName(doc),
+      getCreatedBy(doc),
+      getDocTypeMeta(code).label,
+      doc.status,
+      fin.counterparty || "",
+      fin.invoiceNumber || "",
+      fin.currency,
+      Number(fin.subtotal || 0),
+      Number(fin.vatAmount || 0),
+      Number(fin.grandTotal || 0),
+      doc.fileName,
+    ]);
+  }
+
+  return rows;
+}
+
+export function buildDocumentsCsv(docs: ProcessedDocument[]): string {
+  return rowsToCsv(buildDocumentExportRows(docs));
+}
+
+export function downloadDocumentsCsv(
+  docs: ProcessedDocument[],
+  filenameStem = "documents"
+): DocumentExportResult {
+  const stamp = new Date().toISOString().slice(0, 10);
+  const filename = `${safeFilename(filenameStem)}-${stamp}.csv`;
+  downloadBlob(buildDocumentsCsv(docs), filename, "text/csv");
+  return { filename, count: docs.length };
+}
+
+export async function downloadDocumentsXlsx(
+  docs: ProcessedDocument[],
+  filenameStem = "documents"
+): Promise<DocumentExportResult> {
+  const ExcelJS = (await import("exceljs")).default;
+  const wb = new ExcelJS.Workbook();
+  const s = wb.addWorksheet("Documents");
+  const rows = buildDocumentExportRows(docs);
+
+  s.columns = [
+    { header: "Batch ID", width: 16 },
+    { header: "Upload Date", width: 14 },
+    { header: "Document Date", width: 14 },
+    { header: "Company", width: 22 },
+    { header: "Created By", width: 18 },
+    { header: "Document Type", width: 20 },
+    { header: "Status", width: 14 },
+    { header: "Supplier / Customer", width: 28 },
+    { header: "Invoice #", width: 18 },
+    { header: "Currency", width: 10 },
+    { header: "Subtotal", width: 14 },
+    { header: "VAT Amount", width: 14 },
+    { header: "Grand Total", width: 14 },
+    { header: "File Name", width: 36 },
+  ];
+
+  rows.slice(1).forEach((row) => s.addRow(row));
+  s.getRow(1).font = { bold: true, color: { argb: "FFFFFFFF" } };
+  s.getRow(1).fill = {
+    type: "pattern",
+    pattern: "solid",
+    fgColor: { argb: "FF1E3A8A" },
+  };
+  s.getRow(1).alignment = { vertical: "middle" };
+  ["K", "L", "M"].forEach((col) => {
+    s.getColumn(col).numFmt = "#,##0.00";
+  });
+  s.autoFilter = {
+    from: "A1",
+    to: `N${Math.max(rows.length, 1)}`,
+  };
+
+  const buf = await wb.xlsx.writeBuffer();
+  const blob = new Blob([buf], {
+    type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+  });
+  const stamp = new Date().toISOString().slice(0, 10);
+  const filename = `${safeFilename(filenameStem)}-${stamp}.xlsx`;
+  downloadBlob(blob, filename, "application/vnd.ms-excel");
+  return { filename, count: docs.length };
+}
+
+export function printDocumentsPdf(
+  docs: ProcessedDocument[],
+  filenameStem = "documents"
+): DocumentExportResult {
+  const stamp = new Date().toISOString().slice(0, 10);
+  const filename = `${safeFilename(filenameStem)}-${stamp}.pdf`;
+  const win = window.open("", "_blank", "width=1100,height=760");
+  if (!win) return { filename, count: docs.length };
+
+  const rows = docs
+    .map((doc) => {
+      const fin = deriveFinancialSummary(doc);
+      const code = resolveDocTypeCode(doc);
+      return `<tr>
+        <td>${escapeHtml(getDocumentBatchLabel(doc))}</td>
+        <td>${escapeHtml((doc.batchUploadedAt || doc.createdAt || "").slice(0, 10))}</td>
+        <td>${escapeHtml(getDocTypeMeta(code).label)}</td>
+        <td>${escapeHtml(fin.counterparty || "")}</td>
+        <td>${escapeHtml(fin.invoiceNumber || "")}</td>
+        <td class="num">${escapeHtml(formatMoney(fin.grandTotal || 0, fin.currency))}</td>
+        <td>${escapeHtml(doc.status)}</td>
+        <td>${escapeHtml(doc.fileName)}</td>
+      </tr>`;
+    })
+    .join("");
+
+  win.document.write(`<!doctype html><html><head><title>${escapeHtml(filename)}</title>
+<style>
+  body { font-family: -apple-system, system-ui, sans-serif; padding: 28px; color: #0f172a; }
+  h1 { font-size: 22px; margin: 0 0 4px; }
+  .meta { color: #64748b; font-size: 12px; margin-bottom: 18px; }
+  table { width: 100%; border-collapse: collapse; font-size: 11px; }
+  th, td { border-bottom: 1px solid #e2e8f0; padding: 7px 8px; text-align: left; vertical-align: top; }
+  th { background: #f1f5f9; font-weight: 700; text-transform: uppercase; font-size: 9px; letter-spacing: 0.05em; }
+  .num { text-align: right; white-space: nowrap; font-variant-numeric: tabular-nums; }
+</style></head><body>
+<h1>Document Export</h1>
+<div class="meta">Generated ${escapeHtml(new Date().toLocaleString("en-GB"))} - ${docs.length} document${docs.length === 1 ? "" : "s"}</div>
+<table>
+  <thead><tr><th>Batch ID</th><th>Upload Date</th><th>Type</th><th>Supplier / Customer</th><th>Invoice #</th><th class="num">Amount</th><th>Status</th><th>File</th></tr></thead>
+  <tbody>${rows || '<tr><td colspan="8" style="color:#94a3b8">No documents in this export scope.</td></tr>'}</tbody>
+</table>
+</body></html>`);
+  win.document.close();
+  win.focus();
+  setTimeout(() => win.print(), 300);
+  return { filename, count: docs.length };
+}
+
+export async function exportDocuments(
+  docs: ProcessedDocument[],
+  format: DocumentExportFormat,
+  filenameStem = "documents"
+): Promise<DocumentExportResult> {
+  if (format === "xlsx") return downloadDocumentsXlsx(docs, filenameStem);
+  if (format === "pdf") return printDocumentsPdf(docs, filenameStem);
+  return downloadDocumentsCsv(docs, filenameStem);
 }
 
 export type { FinancialTotals, MonthlyBucket, CategoryBucket };
