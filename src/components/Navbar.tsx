@@ -7,14 +7,14 @@ import Link from "next/link";
 import BrandLogo from "@/components/BrandLogo";
 
 const navLinks = [
-  { name: "Features", href: "#features" },
-  { name: "Insights", href: "#financial-intelligence" },
-  { name: "How It Works", href: "#how-it-works" },
-  { name: "WhatsApp", href: "#whatsapp", highlight: true },
-  { name: "Demo", href: "#demo" },
+  { name: "Features", href: "/#features" },
+  { name: "Insights", href: "/#financial-intelligence" },
+  { name: "How It Works", href: "/#how-it-works" },
+  { name: "WhatsApp", href: "/#whatsapp", highlight: true },
+  { name: "Demo", href: "/#demo" },
   { name: "Pricing", href: "/pricing" },
   { name: "Faq", href: "/faq" },
-  { name: "Partners", href: "#partners" },
+  { name: "Partners", href: "/#partners" },
   // Find navLinks array, add Blog between Pricing and Faq:
 { name: "Blog", href: "/blog" },
 
