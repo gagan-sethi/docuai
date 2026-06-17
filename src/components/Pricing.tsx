@@ -3,14 +3,54 @@
 import { motion } from "framer-motion";
 import { Check, Sparkles, ArrowRight, Building2 } from "lucide-react";
 import Link from "next/link";
+import { useEffect, useState } from "react";
+import { apiUrl } from "@/lib/api";
 
-const plans = [
+// Define the PlanOption type (matching the modal)
+type PlanOption = {
+  _id?: string;
+  id?: string;
+  name?: string;
+  label?: string;
+  price?: number;
+  discountedPrice?: number;
+  discountApplied?: boolean;
+  appliedDiscountPercent?: number;
+  discountPercent?: number;
+  interval?: string;
+  documentsPerMonth?: number | string;
+  features?: string[];
+  visibility?: "public" | "hidden";
+  isTrial?: boolean;
+  trialDays?: number;
+  isTrialEligible?: boolean;
+  hasUsedTrial?: boolean;
+  campaignDiscount?: any | null;
+};
+
+// Define the display plan type
+type DisplayPlan = PlanOption & {
+  displayName: string;
+  displayPrice: string;
+  period: string;
+  positioning: string;
+  description: string;
+  features: string[];
+  cta: string;
+  popular: boolean;
+  docsDisplay: string;
+  isEnterprise: boolean;
+  isFree: boolean;
+  actualPrice: number;
+};
+
+// Hardcoded fallback plans if API fails
+const fallbackPlans: PlanOption[] = [
   {
     name: "Starter",
-    price: "$49",
-    period: "/month",
-    positioning: "For Small Businesses",
-    description: "Automate core invoice, receipt, and expense workflows.",
+    label: "Starter",
+    price: 49,
+    interval: "month",
     features: [
       "100 documents/month",
       "AI document extraction",
@@ -19,15 +59,12 @@ const plans = [
       "Basic financial dashboard",
       "1 user account",
     ],
-    cta: "Start Free Trial",
-    popular: false,
   },
   {
     name: "Professional",
-    price: "$149",
-    period: "/month",
-    positioning: "For Growing Businesses",
-    description: "Scale finance automation across teams and document channels.",
+    label: "Professional",
+    price: 149,
+    interval: "month",
     features: [
       "1,000 documents/month",
       "Everything in Starter",
@@ -38,15 +75,12 @@ const plans = [
       "5 user accounts",
       "Priority support",
     ],
-    cta: "Start Free Trial",
-    popular: true,
   },
   {
     name: "Accounting Firm",
-    price: "$299",
-    period: "/month",
-    positioning: "For Accountants & Bookkeepers",
-    description: "Manage client companies, referrals, and accounting-ready exports.",
+    label: "Accounting Firm",
+    price: 299,
+    interval: "month",
     features: [
       "Multi-company management",
       "Client workspaces",
@@ -56,15 +90,12 @@ const plans = [
       "Recurring commission support",
       "Team permissions",
     ],
-    cta: "Become a Partner",
-    popular: false,
   },
   {
     name: "Enterprise",
-    price: "Custom",
-    period: "",
-    positioning: "For Large Organizations",
-    description: "Advanced security, integrations, and workflows for high-volume finance teams.",
+    label: "Enterprise",
+    price: 0,
+    interval: "",
     features: [
       "Unlimited document volume",
       "Everything in Professional",
@@ -75,12 +106,140 @@ const plans = [
       "Dedicated account manager",
       "SLA support",
     ],
-    cta: "Contact Sales",
-    popular: false,
   },
 ];
 
 export default function Pricing() {
+  const [plans, setPlans] = useState<PlanOption[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  // Fetch plans from API
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        setLoading(true);
+        const res = await fetch(apiUrl("/api/plan/list"), {
+          credentials: "include",
+        });
+        const json = await res.json();
+        if (!cancelled && json?.success) {
+          console.log("Fetched plans:", json.data);
+          setPlans(json.data);
+        }
+      } catch (err) {
+        console.error("Failed to fetch plans", err);
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  // Helper to format price
+  const usdFormatter = new Intl.NumberFormat("en-US", {
+    style: "currency",
+    currency: "USD",
+  });
+
+  // Map API plans to display format
+  const displayPlans = plans.length > 0 ? plans : fallbackPlans;
+
+  // Map API plan to the display format
+  const mappedPlans: DisplayPlan[] = displayPlans.map((plan) => {
+    const price = plan.price ?? 0;
+    const isFree = price === 0;
+    const isEnterprise = plan.name?.toLowerCase().includes("enterprise") || false;
+    
+    // Determine if it's popular (you can set logic based on your data)
+    const isPopular = plan.name?.toLowerCase().includes("professional") || 
+                      plan.name?.toLowerCase().includes("popular") || false;
+
+    // Format positioning based on plan name
+    let positioning = "For Small Businesses";
+    if (plan.name?.toLowerCase().includes("professional")) {
+      positioning = "For Growing Businesses";
+    } else if (plan.name?.toLowerCase().includes("accounting") || plan.name?.toLowerCase().includes("firm")) {
+      positioning = "For Accountants & Bookkeepers";
+    } else if (plan.name?.toLowerCase().includes("enterprise")) {
+      positioning = "For Large Organizations";
+    }
+
+    // Format price display
+    let priceDisplay = isFree ? "Free" : usdFormatter.format(price);
+    if (isEnterprise) priceDisplay = "Custom";
+
+    // Format period - FIXED: Don't show /month for free plans
+    const period = isFree ? "" : (plan.interval ? `/${plan.interval}` : "");
+
+    // Format features - ensure it's an array
+    const features = plan.features || [
+      "AI document extraction",
+      "Excel & CSV export",
+      "Basic financial dashboard",
+    ];
+
+    // Determine CTA text
+    let cta = "Start Free Trial";
+    if (isFree) cta = "Get Started";
+    if (isEnterprise) cta = "Contact Sales";
+
+    // Format documents per month
+    const docsPerMonth = plan.documentsPerMonth ?? "Unlimited";
+    const docsDisplay = docsPerMonth === "Unlimited" 
+      ? "Unlimited documents" 
+      : `${docsPerMonth} documents/month`;
+
+    return {
+      ...plan,
+      displayName: plan.label || plan.name || "Plan",
+      displayPrice: priceDisplay,
+      period: period,
+      positioning: positioning,
+      description: `${
+        price === 0 
+          ? "Perfect for getting started with document automation" 
+          : `${plan.name} plan for growing finance operations`
+      }`,
+      features: features,
+      cta: cta,
+      popular: isPopular,
+      docsDisplay: docsDisplay,
+      isEnterprise: isEnterprise,
+      isFree: isFree,
+      actualPrice: price,
+    };
+  });
+
+  // Separate Enterprise plan if it exists
+  const enterprisePlan = mappedPlans.find(p => p.isEnterprise);
+  const regularPlans = mappedPlans.filter(p => !p.isEnterprise);
+
+  // Combine: regular plans first, then enterprise
+  const sortedPlans: DisplayPlan[] = [...regularPlans];
+  if (enterprisePlan) {
+    sortedPlans.push(enterprisePlan);
+  }
+
+  if (loading) {
+    return (
+      <section id="pricing" className="relative py-24 lg:py-32">
+        <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="text-center max-w-3xl mx-auto mb-16">
+            <span className="inline-block text-sm font-semibold text-primary tracking-wide uppercase mb-3">
+              Pricing
+            </span>
+            <h2 className="text-3xl sm:text-4xl lg:text-5xl font-bold tracking-tight">
+              Loading plans...
+            </h2>
+          </div>
+        </div>
+      </section>
+    );
+  }
+
   return (
     <section id="pricing" className="relative py-24 lg:py-32">
       <div className="absolute inset-0 bg-gradient-to-b from-white via-surface to-white" />
@@ -107,9 +266,9 @@ export default function Pricing() {
         </motion.div>
 
         <div className="grid md:grid-cols-2 xl:grid-cols-4 gap-8 lg:gap-6 max-w-7xl mx-auto">
-          {plans.map((plan, i) => (
+          {sortedPlans.map((plan, i) => (
             <motion.div
-              key={plan.name}
+              key={plan._id || plan.id || i}
               initial={{ opacity: 0, y: 30 }}
               whileInView={{ opacity: 1, y: 0 }}
               viewport={{ once: true }}
@@ -137,7 +296,7 @@ export default function Pricing() {
                   </p>
                 </div>
                 <h3 className="text-xl font-bold text-slate-900">
-                  {plan.name}
+                  {plan.displayName}
                 </h3>
                 <p className="text-sm text-muted mt-2 leading-relaxed">
                   {plan.description}
@@ -145,14 +304,22 @@ export default function Pricing() {
               </div>
 
               <div className="mb-8">
-                <span className="text-4xl font-extrabold text-slate-900">
-                  {plan.price}
-                </span>
-                <span className="text-muted">{plan.period}</span>
+                {/* FIXED: Added text wrapping and overflow handling for large prices */}
+                <div className="flex items-baseline gap-1 flex-wrap">
+                  <span className="text-4xl font-extrabold text-slate-900 break-words max-w-full">
+                    {plan.displayPrice}
+                  </span>
+                  <span className="text-muted whitespace-nowrap">{plan.period}</span>
+                </div>
+                {!plan.isFree && !plan.isEnterprise && plan.documentsPerMonth && (
+                  <div className="text-sm text-muted mt-1">
+                    {plan.docsDisplay}
+                  </div>
+                )}
               </div>
 
               <ul className="space-y-3 mb-8 flex-1">
-                {plan.features.map((feature) => (
+                {plan.features.slice(0, 8).map((feature: string) => (
                   <li key={feature} className="flex items-start gap-3">
                     <Check className="w-5 h-5 text-success mt-0.5 flex-shrink-0" />
                     <span className="text-sm text-slate-600">{feature}</span>
@@ -161,7 +328,7 @@ export default function Pricing() {
               </ul>
 
               <Link
-                href={plan.name === "Enterprise" ? "#demo" : "/signup"}
+                href={plan.isEnterprise ? "#demo" : "/signup"}
                 className={`btn-shine group w-full flex items-center justify-center gap-2 px-6 py-3.5 text-sm font-semibold rounded-2xl transition-all duration-200 ${
                   plan.popular
                     ? "text-white bg-gradient-to-r from-primary to-primary-dark shadow-lg shadow-primary/25 hover:shadow-primary/40 hover:scale-105"

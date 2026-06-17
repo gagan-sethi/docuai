@@ -26,41 +26,17 @@ import {
   SortDesc,
   X,
   BadgeCheck,
-  CalendarRange,
-  Building2,
-  UserRound,
-  DollarSign,
-  FileDown,
-  Table2,
+  Trash2,
 } from "lucide-react";
 import Link from "next/link";
+import { toast } from "react-toastify";
 import Sidebar from "@/components/dashboard/Sidebar";
 import TopBar from "@/components/dashboard/TopBar";
 import MergeBar from "@/components/dashboard/MergeBar";
 import { apiUrl, handleUnauthorized } from "@/lib/api";
 import type { ProcessedDocument, DocumentStatus, DocType, ExpenseCategory } from "@/lib/types";
 import { AiProcessingIndicators, DocTypeBadge, DocTypeDropdown } from "@/components/dashboard/DocTypeBadge";
-import { deriveFinancialSummary, formatMoney, resolveDocTypeCode, getDocTypeMeta, getCategoryMeta } from "@/lib/finance";
-import {
-  annotateDocumentsWithBatches,
-  batchDateLabel,
-  batchFileReference,
-  batchSummaryLine,
-  buildBatchSummaries,
-  getDocumentBatchId,
-  getDocumentBatchLabel,
-  getLatestBatch,
-  type BatchSummary,
-} from "@/lib/batches";
-import { exportDocuments, type DocumentExportFormat } from "@/lib/financeExport";
-import {
-  calculateFinancialPeriod,
-  dateToInputValue,
-  filterDocumentsByDateRange,
-  getDocumentUploadDate,
-} from "@/lib/periods";
-// import { useSearchParams } from "next/navigation";
-
+import { resolveDocTypeCode, getDocTypeMeta, getCategoryMeta } from "@/lib/finance";
 
 // ─── Helpers ────────────────────────────────────────────────────
 function timeAgo(dateStr: string): string {
@@ -272,7 +248,82 @@ const EXPORT_FORMATS: Array<{ value: DocumentExportFormat; label: string }> = [
   { value: "pdf", label: "PDF" },
 ];
 
+// ─── Delete Confirmation Modal ───────────────────────────────────
+function DeleteConfirmModal({
+  isOpen,
+  onClose,
+  onConfirm,
+  fileName,
+  isDeleting,
+}: {
+  isOpen: boolean;
+  onClose: () => void;
+  onConfirm: () => void;
+  fileName: string;
+  isDeleting: boolean;
+}) {
+  if (!isOpen) return null;
 
+  return (
+    <>
+      <motion.div
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        exit={{ opacity: 0 }}
+        className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50"
+        onClick={onClose}
+      />
+      <motion.div
+        initial={{ opacity: 0, scale: 0.95, y: 20 }}
+        animate={{ opacity: 1, scale: 1, y: 0 }}
+        exit={{ opacity: 0, scale: 0.95, y: 20 }}
+        className="fixed left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 z-50 w-full max-w-md bg-white rounded-2xl shadow-2xl p-6"
+      >
+        <div className="flex items-center gap-3 mb-4">
+          <div className="p-3 rounded-full bg-red-50">
+            <Trash2 className="w-6 h-6 text-red-500" />
+          </div>
+          <div>
+            <h3 className="text-lg font-bold text-slate-900">Delete Document</h3>
+            <p className="text-sm text-slate-500">This action cannot be undone</p>
+          </div>
+        </div>
+
+        <p className="text-sm text-slate-700 mb-6">
+          Are you sure you want to permanently delete <span className="font-semibold text-slate-900">&ldquo;{fileName}&rdquo;</span>?
+          This document will be removed from the system and cannot be recovered.
+        </p>
+
+        <div className="flex gap-3">
+          <button
+            onClick={onClose}
+            disabled={isDeleting}
+            className="flex-1 px-4 py-2.5 text-sm font-medium text-slate-600 bg-slate-100 rounded-xl hover:bg-slate-200 transition disabled:opacity-50"
+          >
+            Cancel
+          </button>
+          <button
+            onClick={onConfirm}
+            disabled={isDeleting}
+            className="flex-1 px-4 py-2.5 text-sm font-semibold text-white bg-red-500 rounded-xl hover:bg-red-600 transition disabled:opacity-50 flex items-center justify-center gap-2"
+          >
+            {isDeleting ? (
+              <>
+                <Loader2 className="w-4 h-4 animate-spin" />
+                Deleting...
+              </>
+            ) : (
+              <>
+                <Trash2 className="w-4 h-4" />
+                Delete Permanently
+              </>
+            )}
+          </button>
+        </div>
+      </motion.div>
+    </>
+  );
+}
 
 // ─── Page ────────────────────────────────────────────────────────
 export default function DocumentsPage() {
@@ -294,15 +345,11 @@ export default function DocumentsPage() {
   const [advancedFilters, setAdvancedFilters] = useState<AdvancedFilters>(EMPTY_ADVANCED_FILTERS);
   const [selectedDoc, setSelectedDoc] = useState<ProcessedDocument | null>(null);
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
-  const [exportPanelOpen, setExportPanelOpen] = useState(false);
-  const [exportScope, setExportScope] = useState<ExportScope>("latest_batch");
-  const [exportFormat, setExportFormat] = useState<DocumentExportFormat>("xlsx");
-  const [selectedBatchId, setSelectedBatchId] = useState("");
-  const [exportDateFrom, setExportDateFrom] = useState("");
-  const [exportDateTo, setExportDateTo] = useState("");
-  const [currentPeriodExport, setCurrentPeriodExport] = useState<CurrentPeriodExport>("current_month");
-  const [exporting, setExporting] = useState(false);
-  const [lastExport, setLastExport] = useState<ExportNotice | null>(null);
+  
+  // Delete states
+  const [deleteModalOpen, setDeleteModalOpen] = useState(false);
+  const [docToDelete, setDocToDelete] = useState<ProcessedDocument | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
 
   /** A document is mergeable once it has been processed (fields available). */
   const isMergeable = (d: ProcessedDocument) =>
@@ -314,16 +361,13 @@ export default function DocumentsPage() {
     );
 
   useEffect(() => {
-  if (docs.length === 0) return;
-
-  const params = new URLSearchParams(window.location.search);
-  const docId = params.get("doc");
-
-  if (!docId) return;
-
-  const found = docs.find((d) => d.id === docId);
-  if (found) setSelectedDoc(found);
-}, [docs]);
+    if (docs.length === 0) return;
+    const params = new URLSearchParams(window.location.search);
+    const docId = params.get("doc");
+    if (!docId) return;
+    const found = docs.find((d) => d.id === docId);
+    if (found) setSelectedDoc(found);
+  }, [docs]);
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
@@ -359,7 +403,6 @@ export default function DocumentsPage() {
   }, []);
 
   const updateDocType = useCallback(async (docId: string, code: DocType) => {
-    // Optimistic update
     setDocs((prev) =>
       prev.map((d) =>
         d.id === docId
@@ -382,6 +425,48 @@ export default function DocumentsPage() {
       });
     } catch { /* swallow; UI already updated */ }
   }, []);
+
+  const handleDelete = useCallback(async (doc: ProcessedDocument) => {
+    setDocToDelete(doc);
+    setDeleteModalOpen(true);
+  }, []);
+
+  const confirmDelete = useCallback(async () => {
+    if (!docToDelete) return;
+    setIsDeleting(true);
+    try {
+      const res = await fetch(apiUrl(`/api/upload/${docToDelete.id}`), {
+        method: "DELETE",
+        credentials: "include",
+      });
+      
+      if (await handleUnauthorized(res)) {
+        setIsDeleting(false);
+        setDeleteModalOpen(false);
+        return;
+      }
+
+      if (res.ok) {
+        // Remove from local state
+        setDocs((prev) => prev.filter((d) => d.id !== docToDelete.id));
+        setSelectedIds((prev) => prev.filter((id) => id !== docToDelete.id));
+        if (selectedDoc?.id === docToDelete.id) {
+          setSelectedDoc(null);
+        }
+        toast.success(`"${docToDelete.fileName}" deleted successfully`);
+      } else {
+        const error = await res.json();
+        console.error("Delete failed:", error);
+        toast.error(`Failed to delete document: ${error.message || "Unknown error"}`);
+      }
+    } catch (error) {
+      console.error("Delete error:", error);
+      toast.error("Failed to delete document. Please try again.");
+    }
+    setIsDeleting(false);
+    setDeleteModalOpen(false);
+    setDocToDelete(null);
+  }, [docToDelete, selectedDoc]);
 
   useEffect(() => {
     fetchDocs();
@@ -1036,11 +1121,11 @@ export default function DocumentsPage() {
               )}
             </motion.div>
           ) : viewMode === "list" ? (
-            <div className="bg-white rounded-2xl border border-slate-100 overflow-visible shadow-sm">
-              <table className="w-full text-sm">
+            <div className="bg-white rounded-2xl border border-slate-100 overflow-x-auto shadow-sm">
+              <table className="w-full text-sm min-w-[1000px]">
                 <thead className="bg-slate-50 border-b border-slate-100">
                   <tr>
-                    <th className="px-3 py-3 w-10">
+                    <th className="px-3 py-3 w-10 sticky left-0 bg-slate-50 z-10">
                       <input
                         type="checkbox"
                         aria-label="Select all visible mergeable documents"
@@ -1078,6 +1163,7 @@ export default function DocumentsPage() {
                         doc={doc}
                         index={i}
                         onPreview={() => setSelectedDoc(doc)}
+                        onDelete={() => handleDelete(doc)}
                         selectable={isMergeable(doc)}
                         selected={selectedIds.includes(doc.id)}
                         onToggleSelect={() => toggleSelected(doc.id)}
@@ -1097,6 +1183,7 @@ export default function DocumentsPage() {
                     doc={doc}
                     index={i}
                     onPreview={() => setSelectedDoc(doc)}
+                    onDelete={() => handleDelete(doc)}
                     selectable={isMergeable(doc)}
                     selected={selectedIds.includes(doc.id)}
                     onToggleSelect={() => toggleSelected(doc.id)}
@@ -1162,9 +1249,29 @@ export default function DocumentsPage() {
               transition={{ type: "spring", bounce: 0, duration: 0.35 }}
               className="fixed right-0 top-0 bottom-0 z-50 w-full max-w-md bg-white shadow-2xl flex flex-col"
             >
-              <DocDetailDrawer doc={selectedDoc} onClose={() => setSelectedDoc(null)} />
+              <DocDetailDrawer 
+                doc={selectedDoc} 
+                onClose={() => setSelectedDoc(null)}
+                onDelete={() => handleDelete(selectedDoc)}
+              />
             </motion.div>
           </>
+        )}
+      </AnimatePresence>
+
+      {/* Delete Confirmation Modal */}
+      <AnimatePresence>
+        {deleteModalOpen && docToDelete && (
+          <DeleteConfirmModal
+            isOpen={deleteModalOpen}
+            onClose={() => {
+              setDeleteModalOpen(false);
+              setDocToDelete(null);
+            }}
+            onConfirm={confirmDelete}
+            fileName={docToDelete.fileName}
+            isDeleting={isDeleting}
+          />
         )}
       </AnimatePresence>
     </div>
@@ -1519,6 +1626,7 @@ function ListRow({
   doc,
   index,
   onPreview,
+  onDelete,
   selectable,
   selected,
   onToggleSelect,
@@ -1527,6 +1635,7 @@ function ListRow({
   doc: ProcessedDocument;
   index: number;
   onPreview: () => void;
+  onDelete: () => void;
   selectable: boolean;
   selected: boolean;
   onToggleSelect: () => void;
@@ -1541,7 +1650,7 @@ function ListRow({
       transition={{ delay: Math.min(index * 0.02, 0.3) }}
       className={`group hover:bg-slate-50/80 transition-colors ${selected ? "bg-primary/5" : ""}`}
     >
-      <td className="px-3 py-3.5">
+      <td className="px-3 py-3.5 sticky left-0 bg-white group-hover:bg-slate-50/80 z-10">
         {selectable ? (
           <input
             type="checkbox"
@@ -1646,6 +1755,16 @@ function ListRow({
           >
             <Download className="w-4 h-4" />
           </a>
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              onDelete();
+            }}
+            className="p-1.5 rounded-lg text-slate-400 hover:text-red-600 hover:bg-red-50 transition-colors"
+            title="Delete document"
+          >
+            <Trash2 className="w-4 h-4" />
+          </button>
         </div>
       </td>
     </motion.tr>
@@ -1657,6 +1776,7 @@ function GridCard({
   doc,
   index,
   onPreview,
+  onDelete,
   selectable,
   selected,
   onToggleSelect,
@@ -1665,6 +1785,7 @@ function GridCard({
   doc: ProcessedDocument;
   index: number;
   onPreview: () => void;
+  onDelete: () => void;
   selectable: boolean;
   selected: boolean;
   onToggleSelect: () => void;
@@ -1752,6 +1873,16 @@ function GridCard({
           >
             <Download className="w-3.5 h-3.5" />
           </a>
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              onDelete();
+            }}
+            className="p-1.5 rounded-lg text-slate-400 hover:text-red-600 hover:bg-red-50 transition-colors"
+            title="Delete document"
+          >
+            <Trash2 className="w-3.5 h-3.5" />
+          </button>
         </div>
       </div>
     </motion.div>
@@ -1759,7 +1890,7 @@ function GridCard({
 }
 
 // ─── Detail Drawer ───────────────────────────────────────────────
-function DocDetailDrawer({ doc, onClose }: { doc: ProcessedDocument; onClose: () => void }) {
+function DocDetailDrawer({ doc, onClose, onDelete }: { doc: ProcessedDocument; onClose: () => void; onDelete: () => void }) {
   const conf = doc.overallConfidence > 1 ? Math.round(doc.overallConfidence) : Math.round(doc.overallConfidence * 100);
   const financial = deriveFinancialSummary(doc);
   const amount = getDocumentAmount(doc);
@@ -1897,6 +2028,13 @@ function DocDetailDrawer({ doc, onClose }: { doc: ProcessedDocument; onClose: ()
           <Download className="w-4 h-4" />
           Download
         </a>
+        <button
+          onClick={onDelete}
+          className="flex items-center justify-center gap-2 px-4 py-2.5 text-sm font-medium text-red-600 bg-red-50 border border-red-200 rounded-xl hover:bg-red-100 transition"
+        >
+          <Trash2 className="w-4 h-4" />
+          Delete
+        </button>
       </div>
     </>
   );
