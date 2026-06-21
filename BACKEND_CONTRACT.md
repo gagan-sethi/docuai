@@ -21,6 +21,13 @@ frontend already reads them and falls back gracefully if missing.
 | `expenseCategory`         | enum                                       | `logistics` \| `marketing` \| `printing` \| `utilities` \| `rent` \| `food_beverage` \| `transport` \| `raw_materials` \| `other` |
 | `expenseCategoryManual`   | boolean                                    | `true` if the user overrode the AI                               |
 | `financial`               | `FinancialSummary`                         | see below                                                        |
+| `batchId`                 | string                                     | upload-session identifier, e.g. `batch-001-2026-06-10`           |
+| `batchLabel`              | string                                     | display label, e.g. `Batch #001`                                 |
+| `batchNumber`             | number                                     | sequential per tenant/workspace                                  |
+| `batchUploadedAt`         | ISO datetime                               | when the batch was created                                       |
+| `batchDocumentCount`      | number                                     | number of documents in the upload session                        |
+| `companyId` / `companyName` | string                                   | optional denormalised company fields for filtering/export         |
+| `createdBy` / `createdByName` | string                                | uploader/reviewer identity for filtering/export                  |
 
 ### `FinancialSummary` shape
 
@@ -138,7 +145,12 @@ Already exists for `fields` / `lineItems` / `status`. Extend to accept any of:
   "docType": "Sales Invoice",
   "expenseCategory": "logistics",
   "expenseCategoryManual": true,
-  "financial": { /* FinancialSummary */ }
+  "financial": { /* FinancialSummary */ },
+  "batchId": "batch-001-2026-06-10",
+  "batchLabel": "Batch #001",
+  "batchNumber": 1,
+  "batchUploadedAt": "2026-06-10T08:30:00.000Z",
+  "batchDocumentCount": 3
 }
 ```
 
@@ -157,6 +169,10 @@ Frontend works without these but they make reporting cheaper:
 - `GET /api/finance/categories` → `CategoryBucket[]` (category, amount, vat, count).
 - `GET /api/finance/export?format=xlsx|csv|pdf&report=vat|pnl|ledger`
   → server-rendered file. Frontend already has client-side equivalents.
+- `GET /api/batches`
+  → returns upload batches with `{ id, number, label, uploadedAt, documentCount, documentIds, createdBy }`.
+- `POST /api/batches`
+  → creates the next sequential batch for the authenticated tenant and returns the batch metadata.
 
 ---
 

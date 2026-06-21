@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Menu, X, MessageCircle } from "lucide-react";
+import { ArrowRight, Menu, X, MessageCircle } from "lucide-react";
 import Link from "next/link";
 import BrandLogo from "@/components/BrandLogo";
 
@@ -38,7 +38,7 @@ export default function Navbar() {
       className="fixed left-0 right-0 top-4 z-50 px-3 sm:px-6 lg:px-8"
     >
       <div
-        className={`mx-auto max-w-6xl overflow-hidden rounded-[1.35rem] border transition-all duration-300 ${
+        className={`mx-auto max-w-7xl overflow-hidden rounded-[1.35rem] border transition-all duration-300 ${
           scrolled
             ? "border-slate-200/80 bg-white/95 shadow-xl shadow-slate-900/10 backdrop-blur-xl"
             : "border-white/80 bg-white/80 shadow-lg shadow-slate-900/5 backdrop-blur-xl"
@@ -74,15 +74,16 @@ export default function Navbar() {
             <div className="hidden lg:flex items-center gap-3">
               <Link
                 href="/login"
-                className="px-4 py-2 text-sm font-semibold text-slate-700 hover:text-primary transition-colors"
+                className="whitespace-nowrap px-3 py-2 text-sm font-semibold text-slate-700 hover:text-primary transition-colors"
               >
                 Log in
               </Link>
               <Link
                 href="/signup"
-                className="btn-shine rounded-xl bg-gradient-to-r from-primary-dark via-primary to-secondary px-5 py-2.5 text-sm font-semibold text-white shadow-lg shadow-primary/25 transition-all duration-200 hover:scale-105 hover:shadow-primary/40"
+                className="btn-shine group inline-flex h-10 shrink-0 items-center justify-center gap-2 whitespace-nowrap rounded-xl border border-primary/20 bg-gradient-to-r from-primary-dark via-primary to-secondary px-4 text-sm font-bold text-white shadow-lg shadow-primary/20 transition-all duration-200 hover:-translate-y-0.5 hover:shadow-primary/30 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
               >
-                Start Free Trial
+                <span>Start Free Trial</span>
+                <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-0.5" />
               </Link>
             </div>
 
@@ -128,9 +129,10 @@ export default function Navbar() {
                   </Link>
                   <Link
                     href="/signup"
-                    className="block w-full rounded-xl bg-gradient-to-r from-primary-dark via-primary to-secondary px-4 py-3 text-center text-base font-semibold text-white shadow-lg"
+                    className="btn-shine group flex w-full items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-primary-dark via-primary to-secondary px-4 py-3 text-base font-bold text-white shadow-lg shadow-primary/20 transition-all duration-200 hover:shadow-primary/30"
                   >
-                    Start Free Trial
+                    <span>Start Free Trial</span>
+                    <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-0.5" />
                   </Link>
                 </div>
               </div>

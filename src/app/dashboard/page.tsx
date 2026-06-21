@@ -23,6 +23,7 @@ import {
   MessageCircle,
   Smartphone,
   ExternalLink,
+  Building2,
 } from "lucide-react";
 import Link from "next/link";
 import Sidebar from "@/components/dashboard/Sidebar";
@@ -248,6 +249,10 @@ export default function DashboardPage() {
     storageLimit: string;
     storageRemaining: string;
     storageUsagePercent: number
+    companyLimit?: number | "Unlimited";
+    companiesUsed?: number;
+    companiesRemaining?: number | "Unlimited";
+    companiesUsagePercent?: number;
     resetsAt: string;
   } | null>(null);
   const [showUpgradeModal, setShowUpgradeModal] = useState(false);
@@ -921,6 +926,23 @@ export default function DashboardPage() {
               const isStorageNearLimit = !isStorageUnlimited && storageUsagePercent >= 80;
               const isStorageAtLimit = !isStorageUnlimited && storageUsagePercent >= 100;
 
+              const companyLimit = planData?.companyLimit ?? 0;
+              const companiesUsed = planData?.companiesUsed ?? 0;
+              const isCompanyUnlimited = companyLimit === "Unlimited";
+              const companiesRemaining =
+                planData?.companiesRemaining ??
+                (isCompanyUnlimited ? "Unlimited" : Math.max(0, Number(companyLimit) - companiesUsed));
+              const companiesUsagePercent =
+                planData?.companiesUsagePercent ??
+                (isCompanyUnlimited || Number(companyLimit) <= 0
+                  ? 0
+                  : Math.min((companiesUsed / Number(companyLimit)) * 100, 100));
+              const isCompanyAtLimit =
+                Boolean(planData) && !isCompanyUnlimited && Number(companyLimit) >= 0 && Number(companiesRemaining) <= 0;
+              const companyRemainingLabel = isCompanyUnlimited
+                ? "Unlimited company slots"
+                : `${companiesRemaining} ${Number(companiesRemaining) === 1 ? "company slot" : "company slots"} left`;
+
               return (
                 <div className="space-y-4">
                   <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
@@ -1022,6 +1044,47 @@ export default function DashboardPage() {
                       </div>
                     </div>
 
+                    <div className="mt-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+                      <div className="flex items-center gap-3 w-full sm:w-auto">
+                        <div className="p-1.5 rounded-lg bg-primary/5">
+                          <Building2 className="w-4 h-4 text-primary" />
+                        </div>
+                        <div className="flex-1 sm:flex-none">
+                          <p className="text-xs font-medium text-slate-700">
+                            Company Slots
+                          </p>
+                          <p className="text-[10px] text-muted">
+                            {isCompanyUnlimited
+                              ? `${companiesUsed} companies added`
+                              : `${companiesUsed} of ${companyLimit} companies added`}
+                          </p>
+                        </div>
+                      </div>
+                      <div className="flex-1 sm:w-48 w-full">
+                        <div className="flex items-center justify-between text-xs mb-1.5">
+                          <span className="text-muted">
+                            {companyRemainingLabel}
+                          </span>
+                          {!isCompanyUnlimited && Number(companyLimit) > 0 && (
+                            <span className={`font-semibold ${isCompanyAtLimit ? "text-red-500" : companiesUsagePercent >= 80 ? "text-amber-500" : "text-slate-700"}`}>
+                              {companiesUsagePercent.toFixed(0)}%
+                            </span>
+                          )}
+                        </div>
+                        <div className="h-2 bg-slate-100 rounded-full overflow-hidden">
+                          <div
+                            className={`h-full rounded-full transition-all duration-500 ${isCompanyAtLimit
+                              ? "bg-gradient-to-r from-red-400 to-red-500"
+                              : companiesUsagePercent >= 80
+                                ? "bg-gradient-to-r from-amber-400 to-amber-500"
+                                : "bg-gradient-to-r from-primary to-secondary"
+                              }`}
+                            style={{ width: `${isCompanyUnlimited ? 0 : companiesUsagePercent}%` }}
+                          />
+                        </div>
+                      </div>
+                    </div>
+
                     {/* Storage warning when near/at limit */}
                     {isStorageAtLimit && (
                       <div className="flex items-center gap-3 px-4 py-2.5 mt-3 bg-red-50 border border-red-100 rounded-xl">
@@ -1046,6 +1109,20 @@ export default function DashboardPage() {
                         <button
                           onClick={() => setShowUpgradeModal(true)}
                           className="px-3 py-1.5 text-[10px] font-bold text-amber-700 bg-amber-100 rounded-lg hover:bg-amber-200 transition-colors whitespace-nowrap"
+                        >
+                          View Plans
+                        </button>
+                      </div>
+                    )}
+                    {isCompanyAtLimit && (
+                      <div className="flex items-center gap-3 px-4 py-2.5 mt-3 bg-red-50 border border-red-100 rounded-xl">
+                        <AlertTriangle className="w-4 h-4 text-red-500 flex-shrink-0" />
+                        <p className="text-xs text-red-600 font-medium flex-1">
+                          No company slots left on this plan. Upgrade to add more companies.
+                        </p>
+                        <button
+                          onClick={() => setShowUpgradeModal(true)}
+                          className="px-3 py-1.5 text-[10px] font-bold text-white bg-red-500 rounded-lg hover:bg-red-600 transition-colors whitespace-nowrap"
                         >
                           View Plans
                         </button>

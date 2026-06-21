@@ -27,6 +27,12 @@ import {
   X,
   BadgeCheck,
   Trash2,
+  FileDown,
+  CalendarRange,
+  Table2,
+  Building2,
+  UserRound,
+  DollarSign,
 } from "lucide-react";
 import Link from "next/link";
 import { toast } from "react-toastify";
@@ -36,7 +42,26 @@ import MergeBar from "@/components/dashboard/MergeBar";
 import { apiUrl, handleUnauthorized } from "@/lib/api";
 import type { ProcessedDocument, DocumentStatus, DocType, ExpenseCategory } from "@/lib/types";
 import { AiProcessingIndicators, DocTypeBadge, DocTypeDropdown } from "@/components/dashboard/DocTypeBadge";
-import { resolveDocTypeCode, getDocTypeMeta, getCategoryMeta } from "@/lib/finance";
+import { deriveFinancialSummary, formatMoney, resolveDocTypeCode, getDocTypeMeta, getCategoryMeta } from "@/lib/finance";
+import type { BatchSummary } from "@/lib/batches";
+import {
+  annotateDocumentsWithBatches,
+  batchDateLabel,
+  batchFileReference,
+  batchSummaryLine,
+  buildBatchSummaries,
+  getDocumentBatchId,
+  getDocumentBatchLabel,
+  getLatestBatch,
+} from "@/lib/batches";
+import {
+  calculateFinancialPeriod,
+  dateToInputValue,
+  filterDocumentsByDateRange,
+  getDocumentUploadDate,
+} from "@/lib/periods";
+import type { DocumentExportFormat } from "@/lib/financeExport";
+import { exportDocuments } from "@/lib/financeExport";
 
 // ─── Helpers ────────────────────────────────────────────────────
 function timeAgo(dateStr: string): string {
@@ -345,6 +370,15 @@ export default function DocumentsPage() {
   const [advancedFilters, setAdvancedFilters] = useState<AdvancedFilters>(EMPTY_ADVANCED_FILTERS);
   const [selectedDoc, setSelectedDoc] = useState<ProcessedDocument | null>(null);
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
+  const [exportPanelOpen, setExportPanelOpen] = useState(false);
+  const [exportScope, setExportScope] = useState<ExportScope>("all");
+  const [exportFormat, setExportFormat] = useState<DocumentExportFormat>("xlsx");
+  const [selectedBatchId, setSelectedBatchId] = useState("");
+  const [exportDateFrom, setExportDateFrom] = useState("");
+  const [exportDateTo, setExportDateTo] = useState("");
+  const [currentPeriodExport, setCurrentPeriodExport] = useState<CurrentPeriodExport>("current_month");
+  const [exporting, setExporting] = useState(false);
+  const [lastExport, setLastExport] = useState<ExportNotice | null>(null);
   
   // Delete states
   const [deleteModalOpen, setDeleteModalOpen] = useState(false);
