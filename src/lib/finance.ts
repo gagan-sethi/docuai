@@ -78,6 +78,28 @@ export function getDocTypeMeta(code: DocType | string | undefined | null) {
   );
 }
 
+export const AUTO_CLASSIFICATION_CONFIDENCE_THRESHOLD = 95;
+
+export function normalizePercent(value: unknown): number | null {
+  const numeric = typeof value === "number" ? value : Number(value);
+  if (!Number.isFinite(numeric)) return null;
+  const scaled = numeric > 0 && numeric <= 1 ? numeric * 100 : numeric;
+  return Math.max(0, Math.min(100, Math.round(scaled)));
+}
+
+export function getClassificationConfidence(doc: Pick<ProcessedDocument, "docTypeConfidence">): number | null {
+  return normalizePercent(doc.docTypeConfidence);
+}
+
+export function isAutoClassified(doc: Pick<ProcessedDocument, "docTypeCode" | "docTypeConfidence">): boolean {
+  const code = normalizeDocTypeCode(doc.docTypeCode);
+  return (
+    !!code &&
+    code !== "unknown" &&
+    (getClassificationConfidence(doc) ?? 0) >= AUTO_CLASSIFICATION_CONFIDENCE_THRESHOLD
+  );
+}
+
 // ─── Expense category metadata ──────────────────────────────────
 
 export const EXPENSE_CATEGORY_OPTIONS: Array<{
@@ -149,6 +171,145 @@ export function parseAmount(value: string | number | undefined | null): number {
   return Number.isFinite(n) ? n : 0;
 }
 
+export const SUPPORTED_CURRENCIES = ["AED", "USD", "EUR", "GBP", "SAR"] as const;
+
+export type SupportedCurrency = (typeof SUPPORTED_CURRENCIES)[number];
+
+const DEFAULT_CURRENCY: SupportedCurrency = "AED";
+
+const CURRENCY_PATTERNS: Array<{ code: SupportedCurrency; patterns: RegExp[] }> = [
+  {
+    code: "AED",
+    patterns: [/\bAED\b/i, /\bDHS?\.?\b/i, /\bDIRHAMS?\b/i, /د\.?\s*إ|درهم/i],
+  },
+  {
+    code: "USD",
+    patterns: [/\bUSD\b/i, /\bU\.?S\.?D\.?\b/i, /\bUS\s*DOLLARS?\b/i, /US\s*\$/i, /\$/],
+  },
+  {
+    code: "EUR",
+    patterns: [/\bEUR\b/i, /\bEUROS?\b/i, /€/],
+  },
+  {
+    code: "GBP",
+    patterns: [/\bGBP\b/i, /\bPOUNDS?\b/i, /\bSTERLING\b/i, /£/],
+  },
+  {
+    code: "SAR",
+    patterns: [/\bSAR\b/i, /\bS\.?\s*R\.?\b/i, /\bSAUDI\s+RIYALS?\b/i, /\bRIYALS?\b/i],
+  },
+];
+
+const EXPLICIT_CURRENCY_LABEL = /\b(currency|curr|ccy)\b/i;
+const AMOUNT_LABEL =
+  /\b(sub\s*total|grand\s*total|total|amount|vat|tax|price|unit\s*price|balance|due|paid|payable|value)\b/i;
+
+export function detectCurrencyFromText(value: unknown): SupportedCurrency | undefined {
+  if (value == null) return undefined;
+  const text = String(value).trim();
+  if (!text) return undefined;
+
+  const exactCode = SUPPORTED_CURRENCIES.find((code) => new RegExp(`\\b${code}\\b`, "i").test(text));
+  if (exactCode) return exactCode;
+
+  for (const { code, patterns } of CURRENCY_PATTERNS) {
+    if (patterns.some((pattern) => pattern.test(text))) return code;
+  }
+
+  return undefined;
+}
+
+export function normalizeCurrency(
+  value: unknown,
+  fallback: SupportedCurrency = DEFAULT_CURRENCY
+): SupportedCurrency {
+  return detectCurrencyFromText(value) ?? fallback;
+}
+
+function detectCurrencyFromFields(fields: ExtractedField[] = []): SupportedCurrency | undefined {
+  for (const field of fields) {
+    if (!EXPLICIT_CURRENCY_LABEL.test(field.label)) continue;
+    const detected = detectCurrencyFromText(field.value);
+    if (detected) return detected;
+  }
+
+  for (const field of fields) {
+    if (!AMOUNT_LABEL.test(field.label)) continue;
+    const detected = detectCurrencyFromText(field.value);
+    if (detected) return detected;
+  }
+
+  for (const field of fields) {
+    const detected = detectCurrencyFromText(`${field.label} ${field.value}`);
+    if (detected) return detected;
+  }
+
+  return undefined;
+}
+
+export function detectDocumentCurrency(doc: ProcessedDocument): SupportedCurrency {
+  const fieldsCurrency = detectCurrencyFromFields(doc.fields ?? []);
+  if (fieldsCurrency) return fieldsCurrency;
+
+  const lineItemCurrency = detectCurrencyFromText(
+    (doc.lineItems ?? [])
+      .flatMap((item) => [item.unitPrice, item.total])
+      .filter(Boolean)
+      .join(" ")
+  );
+  if (lineItemCurrency) return lineItemCurrency;
+
+  const rawTextCurrency = detectCurrencyFromText(doc.rawOcrText);
+  if (rawTextCurrency) return rawTextCurrency;
+
+  return normalizeCurrency(doc.financial?.currency);
+}
+
+export function getPrimaryCurrency(docs: ProcessedDocument[]): SupportedCurrency {
+  const counts = new Map<SupportedCurrency, number>();
+  for (const doc of docs) {
+    const currency = detectDocumentCurrency(doc);
+    counts.set(currency, (counts.get(currency) ?? 0) + 1);
+  }
+
+  return (
+    Array.from(counts.entries()).sort((a, b) => b[1] - a[1])[0]?.[0] ??
+    DEFAULT_CURRENCY
+  );
+}
+
+function moneyPrefix(currency: unknown): string {
+  switch (normalizeCurrency(currency)) {
+    case "USD":
+      return "$";
+    case "EUR":
+      return "€";
+    case "GBP":
+      return "£";
+    case "SAR":
+      return "SAR ";
+    case "AED":
+    default:
+      return "AED ";
+  }
+}
+
+export function getCurrencyExcelFormat(currency: unknown = DEFAULT_CURRENCY): string {
+  switch (normalizeCurrency(currency)) {
+    case "USD":
+      return '"$"#,##0.00';
+    case "EUR":
+      return '"€"#,##0.00';
+    case "GBP":
+      return '"£"#,##0.00';
+    case "SAR":
+      return '"SAR "#,##0.00';
+    case "AED":
+    default:
+      return '"AED "#,##0.00';
+  }
+}
+
 const FIELD_ALIASES: Record<keyof FinancialSummary | "vatPercent", RegExp[]> = {
   currency: [/currency/i],
   subtotal: [/sub\s*total|net\s*amount|amount\s*before|excluding\s*vat|net\s*total/i],
@@ -175,7 +336,12 @@ function findField(fields: ExtractedField[], aliases: RegExp[]): string | undefi
  * backend hasn't supplied one. Best-effort — values default to 0 / undefined.
  */
 export function deriveFinancialSummary(doc: ProcessedDocument): FinancialSummary {
-  if (doc.financial) return doc.financial;
+  if (doc.financial) {
+    return {
+      ...doc.financial,
+      currency: detectDocumentCurrency(doc),
+    };
+  }
   const fields = doc.fields ?? [];
 
   const subtotal = parseAmount(findField(fields, FIELD_ALIASES.subtotal));
@@ -188,7 +354,7 @@ export function deriveFinancialSummary(doc: ProcessedDocument): FinancialSummary
   }
 
   return {
-    currency: (findField(fields, FIELD_ALIASES.currency) || "AED").toUpperCase().slice(0, 3),
+    currency: detectDocumentCurrency(doc),
     subtotal,
     vatRate,
     vatAmount,
@@ -222,6 +388,7 @@ export function isFinanciallyCounted(doc: ProcessedDocument): boolean {
 }
 
 export function aggregateTotals(docs: ProcessedDocument[]): FinancialTotals {
+  const currencyCounts = new Map<SupportedCurrency, number>();
   const totals: FinancialTotals = {
     revenue: 0,
     expenses: 0,
@@ -245,7 +412,8 @@ export function aggregateTotals(docs: ProcessedDocument[]): FinancialTotals {
     if (!isFinanciallyCounted(d)) continue;
 
     const fin = deriveFinancialSummary(d);
-    if (!totals.currency && fin.currency) totals.currency = fin.currency;
+    const currency = normalizeCurrency(fin.currency);
+    currencyCounts.set(currency, (currencyCounts.get(currency) ?? 0) + 1);
 
     if (code === "sales_invoice") {
       totals.revenue += fin.subtotal || fin.grandTotal - fin.vatAmount;
@@ -265,7 +433,9 @@ export function aggregateTotals(docs: ProcessedDocument[]): FinancialTotals {
 
   totals.netProfit = totals.revenue - totals.expenses;
   totals.vatPayable = totals.vatCollected - totals.vatPaid;
-  if (!totals.currency) totals.currency = "AED";
+  totals.currency =
+    Array.from(currencyCounts.entries()).sort((a, b) => b[1] - a[1])[0]?.[0] ??
+    DEFAULT_CURRENCY;
   return totals;
 }
 
@@ -372,15 +542,12 @@ export function buildCategoryBuckets(docs: ProcessedDocument[]): CategoryBucket[
 
 export function formatMoney(value: number, currency = "AED"): string {
   if (!Number.isFinite(value)) return "—";
-  try {
-    return new Intl.NumberFormat("en-AE", {
-      style: "currency",
-      currency,
-      maximumFractionDigits: 2,
-    }).format(value);
-  } catch {
-    return `${currency} ${value.toFixed(2)}`;
-  }
+  const sign = value < 0 ? "-" : "";
+  const formatted = new Intl.NumberFormat("en-AE", {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  }).format(Math.abs(value));
+  return `${sign}${moneyPrefix(currency)}${formatted}`;
 }
 
 export function formatNumber(value: number): string {
@@ -427,17 +594,17 @@ export function formatCompactMoney(
   let formatted = "";
 
   if (abs >= 1_000_000_000) {
-    formatted = `${truncate(amount / 1_000_000_000)}B`;
+    formatted = `${truncate(abs / 1_000_000_000)}B`;
   } else if (abs >= 1_000_000) {
-    formatted = `${truncate(amount / 1_000_000)}M`;
+    formatted = `${truncate(abs / 1_000_000)}M`;
   } else if (abs >= 1_000) {
-    formatted = `${truncate(amount / 1_000)}K`;
+    formatted = `${truncate(abs / 1_000)}K`;
   } else {
-    formatted = amount.toFixed(2);
+    formatted = abs.toFixed(2);
   }
 
   // Remove trailing .0
   formatted = formatted.replace(/\.0([KMB])$/, "$1");
 
-  return `${currency} ${formatted}`;
+  return `${amount < 0 ? "-" : ""}${moneyPrefix(currency)}${formatted}`;
 }

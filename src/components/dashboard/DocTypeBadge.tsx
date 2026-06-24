@@ -16,7 +16,15 @@ import {
 import type { LucideIcon } from "lucide-react";
 import type { DocType } from "@/lib/types";
 import type { ProcessedDocument } from "@/lib/types";
-import { DOC_TYPE_OPTIONS, getDocTypeMeta, normalizeDocTypeCode } from "@/lib/finance";
+import {
+  AUTO_CLASSIFICATION_CONFIDENCE_THRESHOLD,
+  DOC_TYPE_OPTIONS,
+  getClassificationConfidence,
+  getDocTypeMeta,
+  isAutoClassified,
+  normalizeDocTypeCode,
+  normalizePercent,
+} from "@/lib/finance";
 
 const BADGE_BASE =
   "inline-flex shrink-0 items-center gap-1 rounded-[20px] border px-[10px] py-[3px] text-[12px] font-medium leading-4";
@@ -96,6 +104,39 @@ export function AutoCategorizedBadge() {
     <span className={`${BADGE_BASE} bg-purple-50 text-purple-700 border-purple-200 dark:bg-purple-400/15 dark:text-purple-200 dark:border-purple-400/30`}>
       <WandSparkles className="h-3.5 w-3.5" aria-hidden />
       Auto-Categorized
+    </span>
+  );
+}
+
+export function ClassificationConfidenceBadge({
+  doc,
+  value,
+  className,
+  compact = false,
+}: {
+  doc?: Pick<ProcessedDocument, "docTypeCode" | "docTypeConfidence">;
+  value?: number | string | null;
+  className?: string;
+  compact?: boolean;
+}) {
+  const confidence = doc ? getClassificationConfidence(doc) : normalizePercent(value);
+  if (confidence === null) return null;
+
+  const auto =
+    doc ? isAutoClassified(doc) : confidence >= AUTO_CLASSIFICATION_CONFIDENCE_THRESHOLD;
+  const tone = auto
+    ? "bg-green-50 text-green-700 border-green-200 dark:bg-green-400/15 dark:text-green-200 dark:border-green-400/30"
+    : confidence >= 70
+      ? "bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-400/15 dark:text-amber-200 dark:border-amber-400/30"
+      : "bg-red-50 text-red-700 border-red-200 dark:bg-red-400/15 dark:text-red-200 dark:border-red-400/30";
+
+  return (
+    <span
+      className={`${BADGE_BASE} ${tone} ${className ?? ""}`}
+      title={`Document type confidence: ${confidence}%`}
+    >
+      {auto ? <ShieldCheck className="h-3.5 w-3.5" aria-hidden /> : <CircleHelp className="h-3.5 w-3.5" aria-hidden />}
+      {compact ? `${confidence}%` : `Type AI ${confidence}%`}
     </span>
   );
 }

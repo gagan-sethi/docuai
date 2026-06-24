@@ -9,6 +9,7 @@ import {
   buildMonthlyBuckets,
   deriveFinancialSummary,
   formatMoney,
+  getCurrencyExcelFormat,
   getDocTypeMeta,
   resolveDocTypeCode,
 } from "./finance";
@@ -201,6 +202,7 @@ export async function downloadVatSummaryXlsx(docs: ProcessedDocument[]) {
   const wb = new ExcelJS.Workbook();
   const totals = aggregateTotals(docs);
   const monthly = buildMonthlyBuckets(docs);
+  const currencyFormat = getCurrencyExcelFormat(totals.currency);
 
   const headerStyle = {
     font: { bold: true, color: { argb: "FFFFFFFF" } },
@@ -260,8 +262,8 @@ export async function downloadVatSummaryXlsx(docs: ProcessedDocument[]) {
   });
 
   // Format currency columns
-  s.getColumn(2).numFmt = "#,##0.00";
-  s.getColumn(3).numFmt = "#,##0.00";
+  s.getColumn(2).numFmt = currencyFormat;
+  s.getColumn(3).numFmt = currencyFormat;
 
   const buf = await wb.xlsx.writeBuffer();
   const blob = new Blob([buf], {
@@ -277,6 +279,7 @@ export async function downloadPnlXlsx(docs: ProcessedDocument[]) {
   const totals = aggregateTotals(docs);
   const monthly = buildMonthlyBuckets(docs);
   const categories = buildCategoryBuckets(docs);
+  const currencyFormat = getCurrencyExcelFormat(totals.currency);
 
   const s = wb.addWorksheet("Profit & Loss");
   s.columns = [
@@ -317,7 +320,7 @@ export async function downloadPnlXlsx(docs: ProcessedDocument[]) {
   }
 
   ["B", "C", "D"].forEach((col) => {
-    s.getColumn(col).numFmt = "#,##0.00";
+    s.getColumn(col).numFmt = currencyFormat;
   });
 
   const buf = await wb.xlsx.writeBuffer();
@@ -497,7 +500,13 @@ export async function downloadDocumentsXlsx(
     { header: "File Name", width: 36 },
   ];
 
-  rows.slice(1).forEach((row) => s.addRow(row));
+  rows.slice(1).forEach((row) => {
+    const added = s.addRow(row);
+    const currency = String(row[9] || "AED");
+    [11, 12, 13].forEach((cellNumber) => {
+      added.getCell(cellNumber).numFmt = getCurrencyExcelFormat(currency);
+    });
+  });
   s.getRow(1).font = { bold: true, color: { argb: "FFFFFFFF" } };
   s.getRow(1).fill = {
     type: "pattern",
@@ -505,9 +514,6 @@ export async function downloadDocumentsXlsx(
     fgColor: { argb: "FF1E3A8A" },
   };
   s.getRow(1).alignment = { vertical: "middle" };
-  ["K", "L", "M"].forEach((col) => {
-    s.getColumn(col).numFmt = "#,##0.00";
-  });
   s.autoFilter = {
     from: "A1",
     to: `N${Math.max(rows.length, 1)}`,

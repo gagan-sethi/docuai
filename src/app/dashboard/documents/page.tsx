@@ -33,6 +33,7 @@ import {
   Building2,
   UserRound,
   DollarSign,
+  ExternalLink,
 } from "lucide-react";
 import Link from "next/link";
 import { toast } from "react-toastify";
@@ -41,8 +42,8 @@ import TopBar from "@/components/dashboard/TopBar";
 import MergeBar from "@/components/dashboard/MergeBar";
 import { apiUrl, handleUnauthorized } from "@/lib/api";
 import type { ProcessedDocument, DocumentStatus, DocType, ExpenseCategory } from "@/lib/types";
-import { AiProcessingIndicators, DocTypeBadge, DocTypeDropdown } from "@/components/dashboard/DocTypeBadge";
-import { deriveFinancialSummary, formatMoney, resolveDocTypeCode, getDocTypeMeta, getCategoryMeta } from "@/lib/finance";
+import { AiProcessingIndicators, ClassificationConfidenceBadge, DocTypeBadge, DocTypeDropdown } from "@/components/dashboard/DocTypeBadge";
+import { deriveFinancialSummary, formatMoney, getClassificationConfidence, resolveDocTypeCode, getDocTypeMeta, getCategoryMeta } from "@/lib/finance";
 import type { BatchSummary } from "@/lib/batches";
 import {
   annotateDocumentsWithBatches,
@@ -89,6 +90,108 @@ function FileTypeIcon({ fileType, large }: { fileType: string; large?: boolean }
   if (fileType?.includes("spreadsheet") || fileType?.includes("excel") || fileType?.includes("csv"))
     return <FileSpreadsheet className={`${cls} text-green-600`} />;
   return <File className={`${cls} text-slate-400`} />;
+}
+
+function DocumentPreviewFrame({
+  doc,
+  compact = false,
+}: {
+  doc: ProcessedDocument;
+  compact?: boolean;
+}) {
+  const previewUrl = apiUrl(`/api/documents/${doc.id}/preview`);
+  const isImage = doc.fileType?.startsWith("image/");
+  const isPdf = doc.fileType === "application/pdf" || doc.fileName.toLowerCase().endsWith(".pdf");
+
+  if (isPdf) {
+    return (
+      <iframe
+        src={`${previewUrl}#toolbar=0&navpanes=0`}
+        title={`Preview: ${doc.fileName}`}
+        className="h-full w-full border-0 bg-white"
+        loading="lazy"
+      />
+    );
+  }
+
+  if (isImage) {
+    return (
+      <div className="flex h-full w-full items-center justify-center bg-slate-100">
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img
+          src={previewUrl}
+          alt={`Preview: ${doc.fileName}`}
+          className={`${compact ? "max-h-full max-w-full" : "max-h-full max-w-full rounded-lg shadow-sm"} object-contain`}
+          loading="lazy"
+          draggable={false}
+        />
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex h-full flex-col items-center justify-center gap-2 bg-slate-50 text-center text-slate-400">
+      <FileTypeIcon fileType={doc.fileType} large />
+      <p className="text-xs font-semibold">Preview unavailable</p>
+      {!compact && <p className="max-w-xs text-[11px] text-slate-400">Download the file to inspect this format.</p>}
+    </div>
+  );
+}
+
+function HoverThumbnail({
+  doc,
+  children,
+}: {
+  doc: ProcessedDocument;
+  children: React.ReactNode;
+}) {
+  const [position, setPosition] = useState<{ x: number; y: number } | null>(null);
+  const typeConfidence = getClassificationConfidence(doc);
+
+  const updatePosition = (clientX: number, clientY: number) => {
+    const width = 288;
+    const height = 350;
+    const left = Math.min(clientX + 18, window.innerWidth - width - 12);
+    const top = Math.min(clientY + 18, window.innerHeight - height - 12);
+    setPosition({
+      x: Math.max(12, left),
+      y: Math.max(12, top),
+    });
+  };
+
+  return (
+    <div
+      className="inline-flex max-w-full"
+      onMouseEnter={(e) => updatePosition(e.clientX, e.clientY)}
+      onMouseMove={(e) => updatePosition(e.clientX, e.clientY)}
+      onMouseLeave={() => setPosition(null)}
+      onFocus={(e) => updatePosition(e.currentTarget.getBoundingClientRect().right, e.currentTarget.getBoundingClientRect().top)}
+      onBlur={() => setPosition(null)}
+    >
+      {children}
+      {position && (
+        <div
+          className="pointer-events-none fixed z-[80] w-72 overflow-hidden rounded-xl border border-slate-200 bg-white shadow-2xl shadow-slate-900/20"
+          style={{ left: position.x, top: position.y }}
+        >
+          <div className="h-56 border-b border-slate-100 bg-slate-100">
+            <DocumentPreviewFrame doc={doc} compact />
+          </div>
+          <div className="space-y-2 p-3">
+            <p className="truncate text-xs font-bold text-slate-800">{doc.fileName}</p>
+            <div className="flex flex-wrap items-center gap-1.5">
+              <DocTypeBadge code={resolveDocTypeCode(doc)} />
+              {typeConfidence !== null && (
+                <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-bold text-slate-600">
+                  AI {typeConfidence}%
+                </span>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
 }
 
 function getFieldValue(doc: ProcessedDocument, patterns: RegExp[]): string {
@@ -590,8 +693,8 @@ export default function DocumentsPage() {
       if (sort === "oldest") return new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime();
       if (sort === "name_asc") return a.fileName.localeCompare(b.fileName);
       if (sort === "name_desc") return b.fileName.localeCompare(a.fileName);
-      const ca = a.overallConfidence > 1 ? a.overallConfidence : a.overallConfidence * 100;
-      const cb = b.overallConfidence > 1 ? b.overallConfidence : b.overallConfidence * 100;
+      const ca = getClassificationConfidence(a) ?? (a.overallConfidence > 1 ? a.overallConfidence : a.overallConfidence * 100);
+      const cb = getClassificationConfidence(b) ?? (b.overallConfidence > 1 ? b.overallConfidence : b.overallConfidence * 100);
       if (sort === "conf_asc") return ca - cb;
       if (sort === "conf_desc") return cb - ca;
       return 0;
@@ -1184,7 +1287,7 @@ export default function DocumentsPage() {
                     <th className="text-left px-4 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wide">Batch ID</th>
                     <th className="text-left px-4 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wide">Status</th>
                     <th className="text-left px-4 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wide">AI</th>
-                    <th className="text-left px-4 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wide">Confidence</th>
+                    <th className="text-left px-4 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wide">Type Confidence</th>
                     <th className="text-left px-4 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wide">Added</th>
                     <th className="px-4 py-3" />
                   </tr>
@@ -1281,7 +1384,7 @@ export default function DocumentsPage() {
               animate={{ x: 0 }}
               exit={{ x: "100%" }}
               transition={{ type: "spring", bounce: 0, duration: 0.35 }}
-              className="fixed right-0 top-0 bottom-0 z-50 w-full max-w-md bg-white shadow-2xl flex flex-col"
+              className="fixed right-0 top-0 bottom-0 z-50 w-full max-w-6xl bg-white shadow-2xl flex flex-col"
             >
               <DocDetailDrawer 
                 doc={selectedDoc} 
@@ -1675,7 +1778,7 @@ function ListRow({
   onToggleSelect: () => void;
   onChangeType: (code: DocType) => void;
 }) {
-  const conf = doc.overallConfidence > 1 ? Math.round(doc.overallConfidence) : Math.round(doc.overallConfidence * 100);
+  const conf = getClassificationConfidence(doc);
 
   return (
     <motion.tr
@@ -1699,13 +1802,21 @@ function ListRow({
         )}
       </td>
       <td className="px-5 py-3.5">
-        <div className="flex items-center gap-3">
-          <FileTypeIcon fileType={doc.fileType} />
-          <div className="min-w-0">
-            <p className="text-sm font-medium text-slate-800 truncate max-w-[220px]">{doc.fileName}</p>
-            <p className="text-xs text-slate-400">{formatFileSize(doc.fileSize)}</p>
+        <HoverThumbnail doc={doc}>
+          <div className="flex min-w-0 items-center gap-3">
+            <FileTypeIcon fileType={doc.fileType} />
+            <div className="min-w-0">
+              <p className="max-w-[220px] truncate text-sm font-medium text-slate-800">{doc.fileName}</p>
+              <div className="mt-0.5 flex flex-wrap items-center gap-2">
+                <span className="text-xs text-slate-400">{formatFileSize(doc.fileSize)}</span>
+                <span className="inline-flex items-center gap-1 rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-semibold text-slate-500 ring-1 ring-slate-200">
+                  <Eye className="h-3 w-3" />
+                  Hover preview
+                </span>
+              </div>
+            </div>
           </div>
-        </div>
+        </HoverThumbnail>
       </td>
       <td className="px-4 py-3.5 relative overflow-visible">
         <div onClick={(e) => e.stopPropagation()}>
@@ -1749,7 +1860,7 @@ function ListRow({
         <AiProcessingIndicators doc={doc} />
       </td>
       <td className="px-4 py-3.5">
-        {doc.overallConfidence > 0 ? (
+        {conf !== null ? (
           <div className="flex items-center gap-2">
             <div className="w-16 h-1.5 bg-slate-100 rounded-full overflow-hidden">
               <div
@@ -1825,7 +1936,7 @@ function GridCard({
   onToggleSelect: () => void;
   onChangeType: (code: DocType) => void;
 }) {
-  const conf = doc.overallConfidence > 1 ? Math.round(doc.overallConfidence) : Math.round(doc.overallConfidence * 100);
+  const conf = getClassificationConfidence(doc);
 
   return (
     <motion.div
@@ -1846,19 +1957,27 @@ function GridCard({
           className="absolute top-3 left-3 w-4 h-4 rounded border-slate-300 text-primary focus:ring-primary"
         />
       )}
-      <div className="flex items-start justify-between mb-3">
-        <div className="p-2.5 rounded-xl bg-slate-50">
-          <FileTypeIcon fileType={doc.fileType} large />
-        </div>
+      <div className="mb-3 flex items-start justify-between">
+        <HoverThumbnail doc={doc}>
+          <div className="rounded-xl bg-slate-50 p-2.5">
+            <FileTypeIcon fileType={doc.fileType} large />
+          </div>
+        </HoverThumbnail>
         {doc.source === "whatsapp" && (
           <span className="inline-flex items-center gap-1 text-[10px] font-medium text-green-700 bg-green-50 border border-green-200 rounded-full px-2 py-0.5">
             <MessageSquare className="w-3 h-3" /> WA
           </span>
         )}
       </div>
-      <p className="text-sm font-semibold text-slate-800 truncate mb-1">{doc.fileName}</p>
+      <HoverThumbnail doc={doc}>
+        <p className="mb-1 max-w-full truncate text-sm font-semibold text-slate-800">{doc.fileName}</p>
+      </HoverThumbnail>
       <div className="mb-2 flex items-center gap-2">
         <p className="text-xs text-slate-400">{formatFileSize(doc.fileSize)}</p>
+        <span className="inline-flex items-center gap-1 rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-semibold text-slate-500 ring-1 ring-slate-200">
+          <Eye className="h-3 w-3" />
+          Hover preview
+        </span>
         {getDocumentBatchId(doc) && (
           <span className="rounded-full bg-emerald-50 px-2 py-0.5 text-[10px] font-bold text-emerald-700 ring-1 ring-emerald-200">
             {getDocumentBatchLabel(doc)}
@@ -1872,6 +1991,7 @@ function GridCard({
           size="sm"
         />
       </div>
+      <ClassificationConfidenceBadge doc={doc} className="mb-3" />
       {doc.expenseCategory && (
         <div className="mb-3">
           <ExpenseCategoryChip
@@ -1884,7 +2004,7 @@ function GridCard({
       <AiProcessingIndicators doc={doc} className="mb-3" />
       <div className="flex items-center justify-between">
         <StatusBadge status={doc.status} />
-        {doc.overallConfidence > 0 && (
+        {conf !== null && (
           <span className={`text-xs font-bold ${conf >= 90 ? "text-green-600" : conf >= 70 ? "text-amber-600" : "text-red-600"}`}>
             {conf}%
           </span>
@@ -1925,9 +2045,12 @@ function GridCard({
 
 // ─── Detail Drawer ───────────────────────────────────────────────
 function DocDetailDrawer({ doc, onClose, onDelete }: { doc: ProcessedDocument; onClose: () => void; onDelete: () => void }) {
-  const conf = doc.overallConfidence > 1 ? Math.round(doc.overallConfidence) : Math.round(doc.overallConfidence * 100);
+  const suggestedType = resolveDocTypeCode(doc);
+  const conf = getClassificationConfidence(doc);
+  const extractionConf = doc.overallConfidence > 1 ? Math.round(doc.overallConfidence) : Math.round(doc.overallConfidence * 100);
   const financial = deriveFinancialSummary(doc);
   const amount = getDocumentAmount(doc);
+  const previewUrl = apiUrl(`/api/documents/${doc.id}/preview`);
 
   return (
     <>
@@ -1940,7 +2063,8 @@ function DocDetailDrawer({ doc, onClose, onDelete }: { doc: ProcessedDocument; o
             <h3 className="text-sm font-bold text-slate-800 truncate max-w-[240px]">{doc.fileName}</h3>
             <p className="text-xs text-slate-400">{formatFileSize(doc.fileSize)}</p>
             <div className="mt-2 flex flex-wrap items-center gap-1.5">
-              <DocTypeBadge code={resolveDocTypeCode(doc)} />
+              <DocTypeBadge code={suggestedType} />
+              <ClassificationConfidenceBadge doc={doc} />
               <ExpenseCategoryChip
                 category={doc.expenseCategory}
                 confidence={doc.expenseCategoryConfidence}
@@ -1955,95 +2079,133 @@ function DocDetailDrawer({ doc, onClose, onDelete }: { doc: ProcessedDocument; o
         </button>
       </div>
 
-      <div className="flex-1 overflow-y-auto p-5 space-y-5">
-        {/* Status + confidence */}
-        <div className="flex items-center gap-3">
-          <StatusBadge status={doc.status} />
-          {doc.overallConfidence > 0 && (
-            <div className="flex items-center gap-2">
-              <div className="w-24 h-2 bg-slate-100 rounded-full overflow-hidden">
+      <div className="flex-1 overflow-y-auto bg-slate-50 lg:grid lg:grid-cols-[minmax(0,1.15fr)_minmax(380px,0.85fr)] lg:overflow-hidden">
+        <section className="border-b border-slate-200 p-4 lg:h-full lg:border-b-0 lg:border-r">
+          <div className="mb-3 flex items-center justify-between gap-3">
+            <div>
+              <p className="text-xs font-bold uppercase tracking-wide text-slate-500">Original Document</p>
+              <p className="mt-0.5 truncate text-xs text-slate-400">{doc.fileType}</p>
+            </div>
+            <a
+              href={previewUrl}
+              target="_blank"
+              rel="noreferrer"
+              className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-600 transition hover:bg-slate-50"
+            >
+              <ExternalLink className="h-3.5 w-3.5" />
+              Open
+            </a>
+          </div>
+          <div className="h-[52vh] min-h-[320px] overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm lg:h-[calc(100vh-9.5rem)]">
+            <DocumentPreviewFrame doc={doc} />
+          </div>
+        </section>
+
+        <section className="space-y-5 bg-white p-5 lg:h-full lg:overflow-y-auto">
+          <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div>
+                <p className="text-xs font-bold uppercase tracking-wide text-slate-500">Suggested Document Type</p>
+                <div className="mt-2 flex flex-wrap items-center gap-2">
+                  <DocTypeBadge code={suggestedType} />
+                  <StatusBadge status={doc.status} />
+                </div>
+              </div>
+              <div className="text-right">
+                <p className="text-xs font-bold uppercase tracking-wide text-slate-500">AI Confidence</p>
+                <p className={`mt-1 text-2xl font-black tabular-nums ${conf === null ? "text-slate-400" : conf >= 95 ? "text-emerald-600" : conf >= 70 ? "text-amber-600" : "text-red-600"}`}>
+                  {conf === null ? "--" : `${conf}%`}
+                </p>
+              </div>
+            </div>
+            {conf !== null && (
+              <div className="mt-4 h-2 overflow-hidden rounded-full bg-slate-100">
                 <div
-                  className={`h-full rounded-full ${conf >= 90 ? "bg-green-500" : conf >= 70 ? "bg-amber-500" : "bg-red-500"}`}
+                  className={`h-full rounded-full ${conf >= 95 ? "bg-emerald-500" : conf >= 70 ? "bg-amber-500" : "bg-red-500"}`}
                   style={{ width: `${conf}%` }}
                 />
               </div>
-              <span className={`text-sm font-bold ${conf >= 90 ? "text-green-600" : conf >= 70 ? "text-amber-600" : "text-red-600"}`}>
-                {conf}% confidence
-              </span>
+            )}
+          </div>
+
+          <div className="rounded-xl bg-slate-50 p-4 space-y-2.5">
+            {[
+              { label: "Suggested Type", value: getDocTypeMeta(suggestedType).label },
+              ...(conf !== null ? [{ label: "Type Confidence", value: `${conf}%` }] : []),
+              ...(doc.overallConfidence > 0 ? [{ label: "OCR / Extraction Confidence", value: `${extractionConf}%` }] : []),
+              { label: "Batch ID", value: getDocumentBatchId(doc) ? getDocumentBatchLabel(doc) : "Unbatched" },
+              { label: "Source", value: doc.source === "whatsapp" ? "WhatsApp" : "Manual Upload" },
+              ...(getCompanyName(doc) ? [{ label: "Company", value: getCompanyName(doc) }] : []),
+              ...(getCreatedByName(doc) ? [{ label: "Created By", value: getCreatedByName(doc) }] : []),
+              ...(amount > 0 ? [{ label: "Amount", value: formatMoney(amount, financial.currency) }] : []),
+              { label: "OCR Engine", value: doc.ocrEngine || "None" },
+              { label: "File Type", value: doc.fileType },
+              { label: "Received", value: new Date(doc.createdAt).toLocaleString("en-GB") },
+              ...(doc.processedAt ? [{ label: "Processed", value: new Date(doc.processedAt).toLocaleString("en-GB") }] : []),
+              ...(doc.approvedAt ? [{ label: "Approved", value: new Date(doc.approvedAt).toLocaleString("en-GB") }] : []),
+            ].map(({ label, value }) => (
+              <div key={label} className="flex items-center justify-between gap-3">
+                <span className="text-xs font-medium text-slate-500">{label}</span>
+                <span className="truncate text-right text-xs font-semibold text-slate-700">{value}</span>
+              </div>
+            ))}
+          </div>
+
+          {doc.fields && doc.fields.length > 0 ? (
+            <div>
+              <p className="text-xs font-bold uppercase tracking-wider text-slate-500 mb-3">
+                OCR Extracted Data ({doc.fields.length})
+              </p>
+              <div className="space-y-2">
+                {doc.fields.slice(0, 12).map((field) => (
+                  <div key={field.id} className="grid grid-cols-[minmax(96px,0.8fr)_minmax(0,1fr)_auto] items-center gap-2 rounded-lg bg-slate-50 px-3 py-2">
+                    <span className="truncate text-xs font-medium text-slate-500">{field.label}</span>
+                    <span className="truncate text-xs font-semibold text-slate-800" title={field.value}>{field.value || "--"}</span>
+                    <span className="rounded-full bg-white px-2 py-0.5 text-[10px] font-bold text-slate-500 ring-1 ring-slate-200">
+                      {Math.round(field.confidence)}%
+                    </span>
+                  </div>
+                ))}
+                {doc.fields.length > 12 && (
+                  <p className="text-xs text-center text-slate-400">+{doc.fields.length - 12} more fields</p>
+                )}
+              </div>
+            </div>
+          ) : (
+            <div className="rounded-xl border border-dashed border-slate-200 bg-slate-50 p-6 text-center">
+              <FileText className="mx-auto h-8 w-8 text-slate-300" />
+              <p className="mt-2 text-sm font-semibold text-slate-500">No OCR fields available yet</p>
             </div>
           )}
-        </div>
 
-        {/* Meta info */}
-        <div className="bg-slate-50 rounded-xl p-4 space-y-2.5">
-          {[
-            { label: "Document Type", value: getDocTypeMeta(resolveDocTypeCode(doc)).label },
-            { label: "Batch ID", value: getDocumentBatchId(doc) ? getDocumentBatchLabel(doc) : "Unbatched" },
-            { label: "Source", value: doc.source === "whatsapp" ? "WhatsApp" : "Manual Upload" },
-            ...(getCompanyName(doc) ? [{ label: "Company", value: getCompanyName(doc) }] : []),
-            ...(getCreatedByName(doc) ? [{ label: "Created By", value: getCreatedByName(doc) }] : []),
-            ...(amount > 0 ? [{ label: "Amount", value: formatMoney(amount, financial.currency) }] : []),
-            { label: "OCR Engine", value: doc.ocrEngine || "None" },
-            { label: "File Type", value: doc.fileType },
-            { label: "Received", value: new Date(doc.createdAt).toLocaleString("en-GB") },
-            ...(doc.processedAt ? [{ label: "Processed", value: new Date(doc.processedAt).toLocaleString("en-GB") }] : []),
-            ...(doc.approvedAt ? [{ label: "Approved", value: new Date(doc.approvedAt).toLocaleString("en-GB") }] : []),
-          ].map(({ label, value }) => (
-            <div key={label} className="flex items-center justify-between">
-              <span className="text-xs font-medium text-slate-500">{label}</span>
-              <span className="text-xs text-slate-700 font-semibold">{value}</span>
-            </div>
-          ))}
-        </div>
-
-        {/* Extracted fields */}
-        {doc.fields && doc.fields.length > 0 && (
-          <div>
-            <p className="text-xs font-bold uppercase tracking-wider text-slate-500 mb-3">
-              Extracted Fields ({doc.fields.length})
-            </p>
-            <div className="space-y-2">
-              {doc.fields.slice(0, 10).map((field) => (
-                <div key={field.id} className="flex items-center justify-between bg-slate-50 rounded-lg px-3 py-2">
-                  <span className="text-xs font-medium text-slate-500 truncate pr-2">{field.label}</span>
-                  <span className="text-xs font-semibold text-slate-800 truncate max-w-[150px]">{field.value}</span>
-                </div>
-              ))}
-              {doc.fields.length > 10 && (
-                <p className="text-xs text-center text-slate-400">+{doc.fields.length - 10} more fields</p>
-              )}
-            </div>
-          </div>
-        )}
-
-        {/* Line items */}
-        {doc.lineItems && doc.lineItems.length > 0 && (
-          <div>
-            <p className="text-xs font-bold uppercase tracking-wider text-slate-500 mb-3">
-              Line Items ({doc.lineItems.length})
-            </p>
-            <div className="overflow-x-auto rounded-xl border border-slate-100">
-              <table className="w-full text-xs">
-                <thead className="bg-slate-50">
-                  <tr>
-                    <th className="text-left px-3 py-2 font-semibold text-slate-500">Description</th>
-                    <th className="text-right px-3 py-2 font-semibold text-slate-500">Qty</th>
-                    <th className="text-right px-3 py-2 font-semibold text-slate-500">Total</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-50">
-                  {doc.lineItems.slice(0, 8).map((item) => (
-                    <tr key={item.id}>
-                      <td className="px-3 py-2 text-slate-700 truncate max-w-[180px]">{item.description}</td>
-                      <td className="px-3 py-2 text-right text-slate-600">{item.qty}</td>
-                      <td className="px-3 py-2 text-right font-semibold text-slate-800">{item.total}</td>
+          {doc.lineItems && doc.lineItems.length > 0 && (
+            <div>
+              <p className="text-xs font-bold uppercase tracking-wider text-slate-500 mb-3">
+                Line Items ({doc.lineItems.length})
+              </p>
+              <div className="overflow-x-auto rounded-xl border border-slate-100">
+                <table className="w-full text-xs">
+                  <thead className="bg-slate-50">
+                    <tr>
+                      <th className="text-left px-3 py-2 font-semibold text-slate-500">Description</th>
+                      <th className="text-right px-3 py-2 font-semibold text-slate-500">Qty</th>
+                      <th className="text-right px-3 py-2 font-semibold text-slate-500">Total</th>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
+                  </thead>
+                  <tbody className="divide-y divide-slate-50">
+                    {doc.lineItems.slice(0, 8).map((item) => (
+                      <tr key={item.id}>
+                        <td className="px-3 py-2 text-slate-700 truncate max-w-[180px]">{item.description}</td>
+                        <td className="px-3 py-2 text-right text-slate-600">{item.qty}</td>
+                        <td className="px-3 py-2 text-right font-semibold text-slate-800">{item.total}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
             </div>
-          </div>
-        )}
+          )}
+        </section>
       </div>
 
       {/* Actions */}

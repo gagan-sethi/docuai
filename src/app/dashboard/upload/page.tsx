@@ -63,6 +63,8 @@ interface UploadFile {
   detectedType?: DocInputType;
   detectedConfidence?: number;
   isHandwrittenOverride?: boolean;
+  docTypeConfidence?: number;
+  processedStatus?: "approved" | "review" | "rejected" | "error";
 }
 
 // ─── Helpers ────────────────────────────────────────────────────
@@ -227,7 +229,9 @@ async function processFile(
     onUpdate({
       status: "done",
       progress: 100,
-      confidence: processData.overallConfidence,
+      confidence: processData.docTypeConfidence ?? processData.overallConfidence,
+      docTypeConfidence: processData.docTypeConfidence,
+      processedStatus: processData.status,
       docType: processData.docType,
       documentId: uploadData.documentId,
       batchId: batch?.id,
@@ -817,6 +821,15 @@ export default function UploadPage() {
                             {file.docType && (
                               <span className="px-1.5 py-0.5 text-[9px] font-bold bg-primary/10 text-primary rounded">{file.docType}</span>
                             )}
+                            {file.docTypeConfidence !== undefined && (
+                              <span className={`px-1.5 py-0.5 text-[9px] font-bold rounded ${
+                                file.docTypeConfidence >= 95
+                                  ? "bg-emerald-50 text-emerald-700 border border-emerald-200"
+                                  : "bg-amber-50 text-amber-700 border border-amber-200"
+                              }`}>
+                                Type AI {file.docTypeConfidence}%
+                              </span>
+                            )}
                             {file.batchLabel && (
                               <span className="px-1.5 py-0.5 text-[9px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200 rounded">
                                 {file.batchLabel}
@@ -829,7 +842,7 @@ export default function UploadPage() {
                               <>
                                 <span className="text-[11px] text-muted">&middot;</span>
                                 <span className={`text-[11px] font-semibold ${file.confidence >= 90 ? "text-success" : "text-amber-500"}`}>
-                                  {file.confidence}% confidence
+                                  {file.confidence}% type confidence
                                 </span>
                               </>
                             )}
@@ -860,7 +873,11 @@ export default function UploadPage() {
                           {(file.status === "processing" || file.status === "structuring") && <Sparkles className="w-3 h-3 animate-pulse" />}
                           {file.status === "done" && <CheckCircle2 className="w-3 h-3" />}
                           {file.status === "error" && <AlertTriangle className="w-3 h-3" />}
-                          {cfg.label}
+                          {file.status === "done" && file.processedStatus === "approved"
+                            ? "Auto-approved"
+                            : file.status === "done" && file.processedStatus === "review"
+                              ? "Needs Review"
+                              : cfg.label}
                         </span>
 
                         {/* Selection checkbox (only for completed docs) */}
@@ -952,7 +969,7 @@ export default function UploadPage() {
                     </a>
                     <Link href="/dashboard/review"
                       className="flex items-center justify-center gap-2 px-5 py-3 text-sm font-semibold text-primary bg-white border-2 border-primary/20 rounded-xl hover:bg-primary/5 hover:border-primary/40 transition-all">
-                      Review &amp; Approve<ArrowRight className="w-4 h-4" />
+                      Open Review Queue<ArrowRight className="w-4 h-4" />
                     </Link>
                   </div>
                   {stats.done > 1 && (

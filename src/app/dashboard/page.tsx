@@ -34,7 +34,7 @@ import AiInsightsWidget from "@/components/dashboard/AiInsightsWidget";
 import { apiUrl } from "@/lib/api";
 import type { ProcessedDocument } from "@/lib/types";
 import type { FinancialInsight } from "@/lib/financialIntelligence";
-import { getCategoryMeta, resolveDocTypeCode } from "@/lib/finance";
+import { getCategoryMeta, getClassificationConfidence, resolveDocTypeCode } from "@/lib/finance";
 import { useRouter } from "next/navigation";
 import ManagePlanModal from "@/components/dashboard/ManagePlanModal";
 
@@ -553,7 +553,7 @@ export default function DashboardPage() {
     displayId: d.id.slice(0, 8).toUpperCase(),
     name: d.fileName,
     status: String(d.status),
-    confidence: Math.round(d.overallConfidence),
+    confidence: getClassificationConfidence(d) ?? Math.round(d.overallConfidence),
     date: getRelativeTime(d.createdAt),
     source: d.source || "upload",
   }));
