@@ -133,6 +133,17 @@ export interface ProcessedDocument {
 
 export interface UploadResponse {
   documentId: string;
+  documentIds?: string[];
+  documents?: Array<{
+    documentId: string;
+    fileName: string;
+    pageNumber?: number;
+    totalPages?: number;
+    s3Key?: string;
+  }>;
+  splitFromPdf?: boolean;
+  totalDocuments?: number;
+  pageCount?: number;
   s3Key?: string;
   status: DocumentStatus;
 }
