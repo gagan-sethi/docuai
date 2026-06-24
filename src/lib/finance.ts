@@ -171,7 +171,7 @@ export function parseAmount(value: string | number | undefined | null): number {
   return Number.isFinite(n) ? n : 0;
 }
 
-export const SUPPORTED_CURRENCIES = ["AED", "USD", "EUR", "GBP", "SAR"] as const;
+export const SUPPORTED_CURRENCIES = ["AED", "USD", "EUR", "GBP", "SAR", "INR"] as const;
 
 export type SupportedCurrency = (typeof SUPPORTED_CURRENCIES)[number];
 
@@ -197,6 +197,10 @@ const CURRENCY_PATTERNS: Array<{ code: SupportedCurrency; patterns: RegExp[] }> 
   {
     code: "SAR",
     patterns: [/\bSAR\b/i, /\bS\.?\s*R\.?\b/i, /\bSAUDI\s+RIYALS?\b/i, /\bRIYALS?\b/i],
+  },
+  {
+    code: "INR",
+    patterns: [/\bINR\b/i, /\bRS\.?\b/i, /\bRUPEES?\b/i, /\bINDIAN\s+RUPEES?\b/i, /₹/],
   },
 ];
 
@@ -288,10 +292,16 @@ function moneyPrefix(currency: unknown): string {
       return "£";
     case "SAR":
       return "SAR ";
+    case "INR":
+      return "₹";
     case "AED":
     default:
       return "AED ";
   }
+}
+
+function currencyLocale(currency: unknown): string {
+  return normalizeCurrency(currency) === "INR" ? "en-IN" : "en-AE";
 }
 
 export function getCurrencyExcelFormat(currency: unknown = DEFAULT_CURRENCY): string {
@@ -304,6 +314,8 @@ export function getCurrencyExcelFormat(currency: unknown = DEFAULT_CURRENCY): st
       return '"£"#,##0.00';
     case "SAR":
       return '"SAR "#,##0.00';
+    case "INR":
+      return '"₹"#,##0.00';
     case "AED":
     default:
       return '"AED "#,##0.00';
@@ -543,7 +555,7 @@ export function buildCategoryBuckets(docs: ProcessedDocument[]): CategoryBucket[
 export function formatMoney(value: number, currency = "AED"): string {
   if (!Number.isFinite(value)) return "—";
   const sign = value < 0 ? "-" : "";
-  const formatted = new Intl.NumberFormat("en-AE", {
+  const formatted = new Intl.NumberFormat(currencyLocale(currency), {
     minimumFractionDigits: 2,
     maximumFractionDigits: 2,
   }).format(Math.abs(value));
