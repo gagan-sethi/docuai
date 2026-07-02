@@ -21,6 +21,8 @@ import {
   HelpCircle,
   LogOut,
   Shield,
+  Building2,
+  Plus,
 } from "lucide-react";
 
 interface Notification {
@@ -30,6 +32,27 @@ interface Notification {
   message: string;
   isRead: boolean;
   createdAt: string;
+}
+
+interface CompanyOption {
+  _id: string;
+  name: string;
+  legalName?: string;
+}
+
+interface SearchResult {
+  id: string;
+  type: "document" | "team" | string;
+  title: string;
+  subtitle?: string;
+  documentId?: string;
+}
+
+interface CurrentUser {
+  fullName: string;
+  email?: string;
+  role?: string;
+  teamRole?: "owner" | "admin" | "member";
 }
 
 const typeConfig: Record<string, { icon: typeof CheckCircle2; color: string; bg: string }> = {
@@ -86,13 +109,13 @@ export default function TopBar({ title }: { title: string }) {
   const [showProfile, setShowProfile] = useState(false);
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [unreadCount, setUnreadCount] = useState(0);
-  const [user, setUser] = useState<{ fullName: string; email?: string; role?: string } | null>(null);
+  const [user, setUser] = useState<CurrentUser | null>(null);
 
-  const [companies, setCompanies] = useState<any[]>([]);
-  const [selectedCompany, setSelectedCompany] = useState<any | null>(null);
+  const [companies, setCompanies] = useState<CompanyOption[]>([]);
+  const [selectedCompany, setSelectedCompany] = useState<CompanyOption | null>(null);
   const [showCompanyMenu, setShowCompanyMenu] = useState(false);
   const [searchText, setSearchText] = useState("");
-  const [searchResults, setSearchResults] = useState<any[]>([]);
+  const [searchResults, setSearchResults] = useState<SearchResult[]>([]);
   const [searchLoading, setSearchLoading] = useState(false);
 
 
@@ -136,7 +159,7 @@ export default function TopBar({ title }: { title: string }) {
     return () => clearTimeout(timer);
   }, [searchText, showSearch]);
 
-  const handleSearchSelect = (item: any) => {
+  const handleSearchSelect = (item: SearchResult) => {
     setShowSearch(false);
     setSearchText("");
     setSearchResults([]);
@@ -164,7 +187,7 @@ export default function TopBar({ title }: { title: string }) {
 
         if (data.selectedCompanyId) {
           const exists = data.companies.find(
-            (c: any) => c._id === data.selectedCompanyId
+            (c: CompanyOption) => c._id === data.selectedCompanyId
           );
 
           if (exists) {
@@ -214,6 +237,7 @@ export default function TopBar({ title }: { title: string }) {
       .toUpperCase()
       .slice(0, 2)
     : "U";
+  const canCreateCompanies = user?.teamRole === "owner";
 
   return (
     <header className="sticky top-0 z-30 bg-white/80 backdrop-blur-xl border-b border-slate-100">
@@ -375,8 +399,8 @@ export default function TopBar({ title }: { title: string }) {
                       })}
                     </div>
                     <div onClick={() => {
-                      setShowNotif(false),
-                        router.push('/dashboard/notifications')
+                      setShowNotif(false);
+                      router.push("/dashboard/notifications");
                     }} className="px-5 py-3 bg-slate-50 border-t border-slate-100">
                       <button className="w-full text-center text-xs font-medium text-primary hover:underline">
                         View all notifications
@@ -415,39 +439,91 @@ export default function TopBar({ title }: { title: string }) {
                     initial={{ opacity: 0, y: 10, scale: 0.95 }}
                     animate={{ opacity: 1, y: 0, scale: 1 }}
                     exit={{ opacity: 0, y: 10, scale: 0.95 }}
-                    className="absolute right-0 top-full mt-2 w-64 bg-white rounded-2xl shadow-xl border border-slate-100 overflow-hidden z-50"
+                    className="absolute right-0 top-full mt-2 w-72 bg-white rounded-2xl shadow-xl border border-slate-100 overflow-hidden z-50"
                   >
-                    <button
-                      onClick={async () => {
-                        await deleteCookie();
-                        setSelectedCompany(null);
-                        setShowCompanyMenu(false);
-                        window.location.reload();
-                      }}
-                      className="w-full text-left px-4 py-3 text-sm hover:bg-slate-50 border-b"
-                    >
-                      Unselect Company
-                    </button>
-
-                    <div className="max-h-72 overflow-y-auto">
-                      {companies.map((company) => (
-                        <button
-                          key={company._id}
-                          onClick={() => {
-                            setCookie(company._id);
-                            setSelectedCompany(company);
-                            setShowCompanyMenu(false);
-                            // window.location.reload();
-                          }}
-                          className={`w-full text-left px-4 py-3 text-sm hover:bg-slate-50 ${selectedCompany?._id === company._id
-                            ? "bg-primary/5 text-primary font-semibold"
-                            : "text-slate-700"
-                            }`}
-                        >
-                          {company.name}
-                        </button>
-                      ))}
+                    <div className="border-b border-slate-100 bg-slate-50 px-4 py-3">
+                      <p className="text-xs font-bold uppercase tracking-wide text-slate-400">Company</p>
+                      <p className="mt-0.5 text-sm font-semibold text-slate-800">
+                        {selectedCompany?.name || "All documents"}
+                      </p>
                     </div>
+
+                    {companies.length === 0 ? (
+                      <div className="px-5 py-6 text-center">
+                        <div className="mx-auto mb-3 flex h-11 w-11 items-center justify-center rounded-xl bg-primary/10 text-primary">
+                          <Building2 className="h-5 w-5" />
+                        </div>
+                        <p className="text-sm font-bold text-slate-900">No companies yet</p>
+                        <p className="mt-1 text-xs leading-5 text-slate-500">
+                          Add a company to keep uploads, documents, and reports organized by business entity.
+                        </p>
+                        {canCreateCompanies ? (
+                          <Link
+                            href="/dashboard/company?new=1"
+                            onClick={() => setShowCompanyMenu(false)}
+                            className="mt-4 inline-flex w-full items-center justify-center gap-2 rounded-xl bg-primary px-3 py-2.5 text-sm font-semibold text-white shadow-md shadow-primary/20 transition hover:bg-primary-dark"
+                          >
+                            <Plus className="h-4 w-4" />
+                            Add Company
+                          </Link>
+                        ) : (
+                          <p className="mt-4 rounded-xl bg-amber-50 px-3 py-2 text-xs font-medium text-amber-700">
+                            Ask your workspace owner to add a company.
+                          </p>
+                        )}
+                      </div>
+                    ) : (
+                      <>
+                        <button
+                          onClick={async () => {
+                            await deleteCookie();
+                            setSelectedCompany(null);
+                            setShowCompanyMenu(false);
+                            window.location.reload();
+                          }}
+                          className={`w-full text-left px-4 py-3 text-sm hover:bg-slate-50 ${
+                            selectedCompany ? "text-slate-700" : "bg-primary/5 font-semibold text-primary"
+                          }`}
+                        >
+                          All companies
+                        </button>
+
+                        <div className="max-h-72 overflow-y-auto border-t border-slate-100">
+                          {companies.map((company) => (
+                            <button
+                              key={company._id}
+                              onClick={() => {
+                                setCookie(company._id);
+                                setSelectedCompany(company);
+                                setShowCompanyMenu(false);
+                              }}
+                              className={`w-full text-left px-4 py-3 text-sm hover:bg-slate-50 ${selectedCompany?._id === company._id
+                                ? "bg-primary/5 text-primary font-semibold"
+                                : "text-slate-700"
+                                }`}
+                            >
+                              <span className="block truncate">{company.name}</span>
+                              {company.legalName && company.legalName !== company.name && (
+                                <span className="mt-0.5 block truncate text-xs font-normal text-slate-400">
+                                  {company.legalName}
+                                </span>
+                              )}
+                            </button>
+                          ))}
+                        </div>
+
+                        <div className="border-t border-slate-100 p-2">
+                          <Link
+                            href={canCreateCompanies ? "/dashboard/company?new=1" : "/dashboard/company"}
+                            onClick={() => setShowCompanyMenu(false)}
+                            className="flex w-full items-center justify-center gap-2 rounded-xl px-3 py-2 text-sm font-semibold text-primary transition hover:bg-primary/5"
+                          >
+                            {canCreateCompanies && <Plus className="h-4 w-4" />}
+                            {canCreateCompanies ? "Add Company" : "View Companies"}
+                          </Link>
+                        </div>
+                      </>
+                    )}
                   </motion.div>
                 </>
               )}

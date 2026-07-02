@@ -13,7 +13,7 @@ import {
 } from "lucide-react";
 import type { ProcessedDocument, ExtractedField, LineItem, DocType, ExpenseCategory } from "@/lib/types";
 import { apiUrl } from "@/lib/api";
-import { AiProcessingIndicators, DocTypeBadge, DocTypeDropdown } from "@/components/dashboard/DocTypeBadge";
+import { AiProcessingIndicators, ClassificationConfidenceBadge, DocTypeBadge, DocTypeDropdown } from "@/components/dashboard/DocTypeBadge";
 import {
   EXPENSE_CATEGORY_OPTIONS,
   deriveFinancialSummary,
@@ -103,11 +103,34 @@ function DocumentPreview({ docId, fileType, fileName }: { docId: string; fileTyp
   const [rotation, setRotation] = useState(0);
   const [previewError, setPreviewError] = useState(false);
   const [loading, setLoading] = useState(true);
+  const imageRef = useRef<HTMLImageElement | null>(null);
   const previewUrl = apiUrl(`/api/documents/${docId}/preview`);
   const isImage = fileType.startsWith("image/");
   const isPdf = fileType === "application/pdf" || fileName.toLowerCase().endsWith(".pdf");
 
   useEffect(() => { setPreviewError(false); setLoading(true); setZoom(100); setRotation(0); }, [docId]);
+  useEffect(() => {
+    if (!loading || previewError) return;
+
+    const frame = window.requestAnimationFrame(() => {
+      const image = imageRef.current;
+      if (image?.complete && image.naturalWidth > 0) {
+        setLoading(false);
+      }
+    });
+
+    const fallback = window.setTimeout(() => {
+      const image = imageRef.current;
+      if (isPdf || (image?.complete && image.naturalWidth > 0)) {
+        setLoading(false);
+      }
+    }, 3500);
+
+    return () => {
+      window.cancelAnimationFrame(frame);
+      window.clearTimeout(fallback);
+    };
+  }, [docId, isPdf, loading, previewError]);
 
   if (previewError) {
     return (
@@ -139,10 +162,10 @@ function DocumentPreview({ docId, fileType, fileName }: { docId: string; fileTyp
         <div className="h-full w-full">
           {loading && (<div className="absolute inset-0 flex items-center justify-center z-10"><div className="flex flex-col items-center gap-3 rounded-xl bg-white/80 backdrop-blur-sm px-6 py-4 shadow-sm"><Loader2 className="h-6 w-6 animate-spin text-indigo-500" /><span className="text-xs text-gray-500">Loading preview...</span></div></div>)}
           {isPdf ? (
-            <iframe src={`${previewUrl}#toolbar=0&navpanes=0`} className="w-full h-full bg-white border-0" style={{ transform: `scale(${zoom / 100}) rotate(${rotation}deg)`, transformOrigin: "top center", transition: "transform 0.2s ease" }} onLoad={() => setLoading(false)} onError={() => { setLoading(false); setPreviewError(true); }} title={`Preview: ${fileName}`} />
+            <iframe key={docId} src={`${previewUrl}#toolbar=0&navpanes=0`} className="w-full h-full bg-white border-0" style={{ transform: `scale(${zoom / 100}) rotate(${rotation}deg)`, transformOrigin: "top center", transition: "transform 0.2s ease" }} onLoad={() => setLoading(false)} onError={() => { setLoading(false); setPreviewError(true); }} title={`Preview: ${fileName}`} />
           ) : isImage ? (
             <div className="flex items-start justify-center p-4 min-h-full">
-            <img src={previewUrl} alt={`Preview: ${fileName}`} className="max-w-full rounded-lg shadow-lg bg-white border border-gray-300" style={{ transform: `scale(${zoom / 100}) rotate(${rotation}deg)`, transformOrigin: "top center", transition: "transform 0.2s ease" }} onLoad={() => setLoading(false)} onError={() => { setLoading(false); setPreviewError(true); }} draggable={false} />
+            <img key={docId} ref={imageRef} src={previewUrl} alt={`Preview: ${fileName}`} className="max-w-full rounded-lg shadow-lg bg-white border border-gray-300" style={{ transform: `scale(${zoom / 100}) rotate(${rotation}deg)`, transformOrigin: "top center", transition: "transform 0.2s ease" }} onLoad={() => setLoading(false)} onLoadCapture={() => setLoading(false)} onError={() => { setLoading(false); setPreviewError(true); }} draggable={false} />
             </div>
           ) : (
             <div className="flex flex-col items-center gap-3 p-8 rounded-xl bg-white shadow-sm"><FileText className="h-16 w-16 text-gray-300" /><p className="text-sm text-gray-500">Preview not supported for {fileType}</p></div>
@@ -420,7 +443,11 @@ function ReviewPageContent() {
             {filteredDocs.length === 0 ? (<div className="p-6 text-center text-xs text-gray-400"><Filter className="mx-auto h-6 w-6 mb-2" />No documents match</div>) : filteredDocs.map((doc) => (
               <button key={doc.id} onClick={() => { setSelectedDocId(doc.id); setIsEditing(false); }} className={`w-full border-b border-gray-100 p-3 text-left transition hover:bg-gray-50 ${selectedDocId === doc.id ? "bg-indigo-50 border-l-4 border-l-indigo-600" : ""}`}>
                 <div className="flex items-start justify-between gap-2"><div className="flex-1 min-w-0"><p className="truncate text-xs font-medium text-gray-900">{doc.fileName}</p><p className="mt-0.5 text-[10px] text-gray-500">{doc.docType || "Unknown"} &middot; {(doc.fileSize / 1024).toFixed(0)} KB</p></div><ChevronRight className={`h-3.5 w-3.5 flex-shrink-0 text-gray-400 transition ${selectedDocId === doc.id ? "text-indigo-600" : ""}`} /></div>
-                <div className="mt-1.5 flex items-center gap-1.5"><StatusBadge status={doc.status} />{doc.overallConfidence > 0 && <ConfidenceBadge value={doc.overallConfidence} />}</div>
+                <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
+                  <StatusBadge status={doc.status} />
+                  <ClassificationConfidenceBadge doc={doc} compact />
+                  {doc.overallConfidence > 0 && <ConfidenceBadge value={doc.overallConfidence} />}
+                </div>
               </button>))}
           </div>
           <div className="border-t border-gray-200 p-2.5"><a href="/dashboard/upload" className="flex w-full items-center justify-center gap-2 rounded-lg bg-indigo-600 px-3 py-2 text-xs font-medium text-white hover:bg-indigo-700 transition"><Upload className="h-3.5 w-3.5" /> Upload New</a></div>
@@ -457,6 +484,7 @@ function ReviewPageContent() {
                     disabled={!isEditable}
                     size="sm"
                   />
+                  <ClassificationConfidenceBadge doc={currentDoc} />
                   {currentDoc.docTypeManual && (
                     <span className="text-[9px] font-medium text-slate-400 uppercase tracking-wide">manual</span>
                   )}

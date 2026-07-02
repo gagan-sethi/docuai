@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   FileText,
@@ -23,6 +23,8 @@ import {
   MessageCircle,
   Smartphone,
   ExternalLink,
+  Building2,
+  X,
 } from "lucide-react";
 import Link from "next/link";
 import Sidebar from "@/components/dashboard/Sidebar";
@@ -32,7 +34,7 @@ import AiInsightsWidget from "@/components/dashboard/AiInsightsWidget";
 import { apiUrl } from "@/lib/api";
 import type { ProcessedDocument } from "@/lib/types";
 import type { FinancialInsight } from "@/lib/financialIntelligence";
-import { getCategoryMeta, resolveDocTypeCode } from "@/lib/finance";
+import { getCategoryMeta, getClassificationConfidence, resolveDocTypeCode } from "@/lib/finance";
 import { useRouter } from "next/navigation";
 import ManagePlanModal from "@/components/dashboard/ManagePlanModal";
 
@@ -131,7 +133,70 @@ const activityActionConfig: Record<string, { label: string; color: string; Icon:
   doc_deleted: { label: "Deleted", color: "text-red-500", Icon: AlertTriangle },
   doc_reviewed: { label: "Reviewed", color: "text-amber-500", Icon: Eye },
   plan_changed: { label: "Plan upgraded", color: "text-primary", Icon: Zap },
+  whatsapp_received: { label: "WhatsApp received", color: "text-green-600", Icon: MessageSquare },
 };
+
+type DashboardNotificationData = {
+  blocked?: boolean;
+  source?: string;
+  reason?: string;
+  count?: number;
+  fileNames?: unknown;
+  [key: string]: unknown;
+};
+
+type DashboardNotification = {
+  _id: string;
+  type: string;
+  title: string;
+  message: string;
+  isRead: boolean;
+  createdAt: string;
+  data?: DashboardNotificationData;
+};
+
+type DashboardActivity = {
+  action: string;
+  description: string;
+  createdAt: string;
+  metadata?: Record<string, unknown>;
+};
+
+function hasWorkspaceLimitText(value: string): boolean {
+  const normalized = value.toLowerCase();
+  return (
+    normalized.includes("workspace limit") ||
+    normalized.includes("workspace upload allowance") ||
+    normalized.includes("upload allowance") ||
+    normalized.includes("plan limit") ||
+    normalized.includes("document limit") ||
+    normalized.includes("page limit") ||
+    normalized.includes("storage limit") ||
+    normalized.includes("quota")
+  );
+}
+
+function isBlockedDocumentNotification(notification: DashboardNotification): boolean {
+  const text = `${notification.title} ${notification.message}`.toLowerCase();
+  const data = notification.data;
+
+  return (
+    data?.blocked === true ||
+    (text.includes("blocked") && hasWorkspaceLimitText(text)) ||
+    (text.includes("could not be processed") && hasWorkspaceLimitText(text)) ||
+    (notification.type === "whatsapp_received" && hasWorkspaceLimitText(text))
+  );
+}
+
+function isBlockedWorkspaceActivity(activity: DashboardActivity): boolean {
+  const text = activity.description.toLowerCase();
+  return (
+    activity.action === "whatsapp_received" &&
+    (activity.metadata?.blocked === true ||
+      (text.includes("blocked") && hasWorkspaceLimitText(text)) ||
+      hasWorkspaceLimitText(text))
+  );
+}
 
 // ─── Processing Pipeline (static defaults, overridden with real data) ──
 const pipelineDefaults = [
@@ -226,11 +291,10 @@ export default function DashboardPage() {
   const [aiInsights, setAiInsights] = useState<FinancialInsight[]>([]);
   const [insightsLoading, setInsightsLoading] = useState(true);
   const [insightsError, setInsightsError] = useState<string | null>(null);
-  const [apiActivities, setApiActivities] = useState<Array<{
-    action: string;
-    description: string;
-    createdAt: string;
-  }>>([]);
+  const [apiActivities, setApiActivities] = useState<DashboardActivity[]>([]);
+  const [limitAlertNotification, setLimitAlertNotification] = useState<DashboardNotification | null>(null);
+  const [dismissingLimitAlert, setDismissingLimitAlert] = useState(false);
+  const dismissedLimitAlertIds = useRef<Set<string>>(new Set());
   const [planData, setPlanData] = useState<{
     plan: string;
     label: string;
@@ -248,6 +312,10 @@ export default function DashboardPage() {
     storageLimit: string;
     storageRemaining: string;
     storageUsagePercent: number
+    companyLimit?: number | "Unlimited";
+    companiesUsed?: number;
+    companiesRemaining?: number | "Unlimited";
+    companiesUsagePercent?: number;
     resetsAt: string;
   } | null>(null);
   const [showUpgradeModal, setShowUpgradeModal] = useState(false);
@@ -288,18 +356,20 @@ export default function DashboardPage() {
   useEffect(() => {
     const fetchData = async () => {
       try {
-        const [docRes, actRes, planRes, insightsRes] = await Promise.all([
+        const [docRes, actRes, planRes, insightsRes, notifRes] = await Promise.all([
           fetch(apiUrl("/api/documents?limit=1000"), { credentials: "include" }),
           fetch(apiUrl("/api/activities?limit=5"), { credentials: "include" }),
           fetch(apiUrl("/api/plan"), { credentials: "include" }),
           fetch(apiUrl("/api/finance/insights?limit=1000"), { credentials: "include" }),
+          fetch(apiUrl("/api/notifications?limit=20&unread=true"), { credentials: "include" }),
         ]);
 
         if (
           docRes.status === 401 ||
           actRes.status === 401 ||
           planRes.status === 401 ||
-          insightsRes.status === 401
+          insightsRes.status === 401 ||
+          notifRes.status === 401
         ) {
           router.replace("/login");
           return;
@@ -326,6 +396,17 @@ export default function DashboardPage() {
           setAiInsights([]);
           setInsightsError("Unable to load AI insights right now.");
         }
+        if (notifRes.ok) {
+          const data = await notifRes.json();
+          const nextAlert = Array.isArray(data.notifications)
+            ? (data.notifications as DashboardNotification[]).find(
+              (notification) =>
+                !dismissedLimitAlertIds.current.has(notification._id) &&
+                isBlockedDocumentNotification(notification)
+            ) || null
+            : null;
+          setLimitAlertNotification(nextAlert);
+        }
       } catch {
         setInsightsError("Unable to refresh AI insights right now.");
       } finally {
@@ -337,6 +418,33 @@ export default function DashboardPage() {
     const interval = setInterval(fetchData, 10000);
     return () => clearInterval(interval);
   }, [router]);
+
+  const dismissLimitAlert = async () => {
+    if (!limitAlertNotification) return;
+
+    const notification = limitAlertNotification;
+    dismissedLimitAlertIds.current.add(notification._id);
+    setLimitAlertNotification(null);
+    setDismissingLimitAlert(true);
+
+    try {
+      const res = await fetch(apiUrl("/api/notifications"), {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ ids: [notification._id] }),
+      });
+
+      if (!res.ok) {
+        throw new Error("Failed to dismiss notification");
+      }
+    } catch {
+      dismissedLimitAlertIds.current.delete(notification._id);
+      setLimitAlertNotification(notification);
+    } finally {
+      setDismissingLimitAlert(false);
+    }
+  };
 
   // useEffect(() => {
   //   const fetchPlans = async () => {
@@ -445,10 +553,20 @@ export default function DashboardPage() {
     displayId: d.id.slice(0, 8).toUpperCase(),
     name: d.fileName,
     status: String(d.status),
-    confidence: Math.round(d.overallConfidence),
+    confidence: getClassificationConfidence(d) ?? Math.round(d.overallConfidence),
     date: getRelativeTime(d.createdAt),
     source: d.source || "upload",
   }));
+
+  const limitAlertFiles = Array.isArray(limitAlertNotification?.data?.fileNames)
+    ? limitAlertNotification.data.fileNames
+      .filter((fileName): fileName is string => typeof fileName === "string" && fileName.trim().length > 0)
+      .slice(0, 3)
+    : [];
+  const limitAlertReason =
+    typeof limitAlertNotification?.data?.reason === "string"
+      ? limitAlertNotification.data.reason
+      : "";
 
   return (
     <div className="min-h-screen bg-surface">
@@ -491,6 +609,76 @@ export default function DashboardPage() {
               </Link>
             </div>
           </motion.div>
+
+          <AnimatePresence>
+            {limitAlertNotification && (
+              <motion.div
+                initial={{ opacity: 0, y: -12 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -12 }}
+                className="relative overflow-hidden rounded-2xl border border-red-200 bg-gradient-to-r from-red-50 via-white to-amber-50 p-5 shadow-sm shadow-red-100/70"
+              >
+                <div className="absolute left-0 top-0 h-full w-1.5 bg-red-500" />
+                <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+                  <div className="flex items-start gap-4">
+                    <div className="flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-xl bg-red-100 text-red-600">
+                      <AlertTriangle className="h-6 w-6" />
+                    </div>
+                    <div className="min-w-0">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <span className="rounded-full bg-red-100 px-2.5 py-1 text-[10px] font-bold uppercase tracking-wide text-red-700">
+                          Action needed
+                        </span>
+                        <span className="text-xs font-semibold text-red-600">
+                          Workspace limit reached
+                        </span>
+                      </div>
+                      <h3 className="mt-2 text-base font-bold text-slate-950">
+                        {limitAlertNotification.title || "Document could not be processed"}
+                      </h3>
+                      <p className="mt-1 max-w-3xl text-sm leading-6 text-slate-700">
+                        {limitAlertNotification.message}
+                      </p>
+                      {(limitAlertFiles.length > 0 || limitAlertReason) && (
+                        <div className="mt-3 flex flex-wrap items-center gap-2">
+                          {limitAlertFiles.map((fileName) => (
+                            <span
+                              key={fileName}
+                              className="max-w-full rounded-lg border border-red-100 bg-white px-2.5 py-1 text-xs font-medium text-slate-700"
+                            >
+                              {fileName}
+                            </span>
+                          ))}
+                          {limitAlertReason && (
+                            <span className="rounded-lg bg-amber-100 px-2.5 py-1 text-xs font-semibold text-amber-800">
+                              {limitAlertReason}
+                            </span>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                  <div className="flex flex-col gap-2 sm:flex-row lg:flex-shrink-0">
+                    <button
+                      onClick={() => setShowUpgradeModal(true)}
+                      className="inline-flex items-center justify-center gap-2 rounded-xl bg-red-600 px-4 py-2.5 text-sm font-bold text-white shadow-md shadow-red-200 transition-colors hover:bg-red-700"
+                    >
+                      <Zap className="h-4 w-4" />
+                      Upgrade Plan
+                    </button>
+                    <button
+                      onClick={dismissLimitAlert}
+                      disabled={dismissingLimitAlert}
+                      className="inline-flex items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-600 transition-colors hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
+                    >
+                      <X className="h-4 w-4" />
+                      Dismiss
+                    </button>
+                  </div>
+                </div>
+              </motion.div>
+            )}
+          </AnimatePresence>
 
           {/* Stats Grid */}
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
@@ -840,17 +1028,25 @@ export default function DashboardPage() {
               <div className="divide-y divide-slate-50">
                 {apiActivities.length > 0
                   ? apiActivities.map((a, i) => {
-                    const cfg = activityActionConfig[a.action] || { label: a.action, color: "text-slate-500", Icon: FileText };
+                    const blockedActivity = isBlockedWorkspaceActivity(a);
+                    const cfg = blockedActivity
+                      ? { label: "Document blocked", color: "text-red-500", Icon: AlertTriangle }
+                      : activityActionConfig[a.action] || { label: a.action, color: "text-slate-500", Icon: FileText };
                     const ActivityIcon = cfg.Icon;
                     return (
-                      <div key={i} className="flex items-start gap-3 px-5 py-3.5 hover:bg-slate-50/50 transition-colors">
-                        <div className="p-1.5 rounded-lg bg-slate-50 flex-shrink-0 mt-0.5">
+                      <div
+                        key={`${a.action}-${a.createdAt}-${i}`}
+                        className={`flex items-start gap-3 px-5 py-3.5 transition-colors ${
+                          blockedActivity ? "bg-red-50/70 hover:bg-red-50" : "hover:bg-slate-50/50"
+                        }`}
+                      >
+                        <div className={`p-1.5 rounded-lg flex-shrink-0 mt-0.5 ${blockedActivity ? "bg-red-100" : "bg-slate-50"}`}>
                           <ActivityIcon className={`w-3.5 h-3.5 ${cfg.color}`} />
                         </div>
                         <div className="flex-1 min-w-0">
-                          <p className="text-xs text-slate-800">
+                          <p className={`text-xs ${blockedActivity ? "text-red-700" : "text-slate-800"}`}>
                             <span className="font-semibold">{cfg.label}</span>{" "}
-                            <span className="text-muted">{a.description}</span>
+                            <span className={blockedActivity ? "text-red-600/80" : "text-muted"}>{a.description}</span>
                           </p>
                         </div>
                         <span className="text-[10px] text-slate-400 whitespace-nowrap mt-0.5">
@@ -920,6 +1116,23 @@ export default function DashboardPage() {
               const isStorageUnlimited = storageLimit === "Unlimited";
               const isStorageNearLimit = !isStorageUnlimited && storageUsagePercent >= 80;
               const isStorageAtLimit = !isStorageUnlimited && storageUsagePercent >= 100;
+
+              const companyLimit = planData?.companyLimit ?? 0;
+              const companiesUsed = planData?.companiesUsed ?? 0;
+              const isCompanyUnlimited = companyLimit === "Unlimited";
+              const companiesRemaining =
+                planData?.companiesRemaining ??
+                (isCompanyUnlimited ? "Unlimited" : Math.max(0, Number(companyLimit) - companiesUsed));
+              const companiesUsagePercent =
+                planData?.companiesUsagePercent ??
+                (isCompanyUnlimited || Number(companyLimit) <= 0
+                  ? 0
+                  : Math.min((companiesUsed / Number(companyLimit)) * 100, 100));
+              const isCompanyAtLimit =
+                Boolean(planData) && !isCompanyUnlimited && Number(companyLimit) >= 0 && Number(companiesRemaining) <= 0;
+              const companyRemainingLabel = isCompanyUnlimited
+                ? "Unlimited company slots"
+                : `${companiesRemaining} ${Number(companiesRemaining) === 1 ? "company slot" : "company slots"} left`;
 
               return (
                 <div className="space-y-4">
@@ -1022,6 +1235,47 @@ export default function DashboardPage() {
                       </div>
                     </div>
 
+                    <div className="mt-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+                      <div className="flex items-center gap-3 w-full sm:w-auto">
+                        <div className="p-1.5 rounded-lg bg-primary/5">
+                          <Building2 className="w-4 h-4 text-primary" />
+                        </div>
+                        <div className="flex-1 sm:flex-none">
+                          <p className="text-xs font-medium text-slate-700">
+                            Company Slots
+                          </p>
+                          <p className="text-[10px] text-muted">
+                            {isCompanyUnlimited
+                              ? `${companiesUsed} companies added`
+                              : `${companiesUsed} of ${companyLimit} companies added`}
+                          </p>
+                        </div>
+                      </div>
+                      <div className="flex-1 sm:w-48 w-full">
+                        <div className="flex items-center justify-between text-xs mb-1.5">
+                          <span className="text-muted">
+                            {companyRemainingLabel}
+                          </span>
+                          {!isCompanyUnlimited && Number(companyLimit) > 0 && (
+                            <span className={`font-semibold ${isCompanyAtLimit ? "text-red-500" : companiesUsagePercent >= 80 ? "text-amber-500" : "text-slate-700"}`}>
+                              {companiesUsagePercent.toFixed(0)}%
+                            </span>
+                          )}
+                        </div>
+                        <div className="h-2 bg-slate-100 rounded-full overflow-hidden">
+                          <div
+                            className={`h-full rounded-full transition-all duration-500 ${isCompanyAtLimit
+                              ? "bg-gradient-to-r from-red-400 to-red-500"
+                              : companiesUsagePercent >= 80
+                                ? "bg-gradient-to-r from-amber-400 to-amber-500"
+                                : "bg-gradient-to-r from-primary to-secondary"
+                              }`}
+                            style={{ width: `${isCompanyUnlimited ? 0 : companiesUsagePercent}%` }}
+                          />
+                        </div>
+                      </div>
+                    </div>
+
                     {/* Storage warning when near/at limit */}
                     {isStorageAtLimit && (
                       <div className="flex items-center gap-3 px-4 py-2.5 mt-3 bg-red-50 border border-red-100 rounded-xl">
@@ -1046,6 +1300,20 @@ export default function DashboardPage() {
                         <button
                           onClick={() => setShowUpgradeModal(true)}
                           className="px-3 py-1.5 text-[10px] font-bold text-amber-700 bg-amber-100 rounded-lg hover:bg-amber-200 transition-colors whitespace-nowrap"
+                        >
+                          View Plans
+                        </button>
+                      </div>
+                    )}
+                    {isCompanyAtLimit && (
+                      <div className="flex items-center gap-3 px-4 py-2.5 mt-3 bg-red-50 border border-red-100 rounded-xl">
+                        <AlertTriangle className="w-4 h-4 text-red-500 flex-shrink-0" />
+                        <p className="text-xs text-red-600 font-medium flex-1">
+                          No company slots left on this plan. Upgrade to add more companies.
+                        </p>
+                        <button
+                          onClick={() => setShowUpgradeModal(true)}
+                          className="px-3 py-1.5 text-[10px] font-bold text-white bg-red-500 rounded-lg hover:bg-red-600 transition-colors whitespace-nowrap"
                         >
                           View Plans
                         </button>

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   FileText,
@@ -27,6 +27,13 @@ import {
   X,
   BadgeCheck,
   Trash2,
+  FileDown,
+  CalendarRange,
+  Table2,
+  Building2,
+  UserRound,
+  DollarSign,
+  ExternalLink,
 } from "lucide-react";
 import Link from "next/link";
 import { toast } from "react-toastify";
@@ -35,8 +42,27 @@ import TopBar from "@/components/dashboard/TopBar";
 import MergeBar from "@/components/dashboard/MergeBar";
 import { apiUrl, handleUnauthorized } from "@/lib/api";
 import type { ProcessedDocument, DocumentStatus, DocType, ExpenseCategory } from "@/lib/types";
-import { AiProcessingIndicators, DocTypeBadge, DocTypeDropdown } from "@/components/dashboard/DocTypeBadge";
-import { resolveDocTypeCode, getDocTypeMeta, getCategoryMeta } from "@/lib/finance";
+import { AiProcessingIndicators, ClassificationConfidenceBadge, DocTypeBadge, DocTypeDropdown } from "@/components/dashboard/DocTypeBadge";
+import { deriveFinancialSummary, formatMoney, getClassificationConfidence, resolveDocTypeCode, getDocTypeMeta, getCategoryMeta } from "@/lib/finance";
+import type { BatchSummary } from "@/lib/batches";
+import {
+  annotateDocumentsWithBatches,
+  batchDateLabel,
+  batchFileReference,
+  batchSummaryLine,
+  buildBatchSummaries,
+  getDocumentBatchId,
+  getDocumentBatchLabel,
+  getLatestBatch,
+} from "@/lib/batches";
+import {
+  calculateFinancialPeriod,
+  dateToInputValue,
+  filterDocumentsByDateRange,
+  getDocumentUploadDate,
+} from "@/lib/periods";
+import type { DocumentExportFormat } from "@/lib/financeExport";
+import { exportDocuments } from "@/lib/financeExport";
 
 // ─── Helpers ────────────────────────────────────────────────────
 function timeAgo(dateStr: string): string {
@@ -64,6 +90,163 @@ function FileTypeIcon({ fileType, large }: { fileType: string; large?: boolean }
   if (fileType?.includes("spreadsheet") || fileType?.includes("excel") || fileType?.includes("csv"))
     return <FileSpreadsheet className={`${cls} text-green-600`} />;
   return <File className={`${cls} text-slate-400`} />;
+}
+
+function DocumentPreviewFrame({
+  doc,
+  compact = false,
+}: {
+  doc: ProcessedDocument;
+  compact?: boolean;
+}) {
+  const previewUrl = apiUrl(`/api/documents/${doc.id}/preview`);
+  const isImage = doc.fileType?.startsWith("image/");
+  const isPdf = doc.fileType === "application/pdf" || doc.fileName.toLowerCase().endsWith(".pdf");
+
+  if (isPdf) {
+    return (
+      <iframe
+        src={`${previewUrl}#toolbar=0&navpanes=0`}
+        title={`Preview: ${doc.fileName}`}
+        className="h-full w-full border-0 bg-white"
+        loading="lazy"
+      />
+    );
+  }
+
+  if (isImage) {
+    return (
+      <div className="flex h-full w-full items-center justify-center bg-slate-100">
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img
+          src={previewUrl}
+          alt={`Preview: ${doc.fileName}`}
+          className={`${compact ? "max-h-full max-w-full" : "max-h-full max-w-full rounded-lg shadow-sm"} object-contain`}
+          loading="lazy"
+          draggable={false}
+        />
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex h-full flex-col items-center justify-center gap-2 bg-slate-50 text-center text-slate-400">
+      <FileTypeIcon fileType={doc.fileType} large />
+      <p className="text-xs font-semibold">Preview unavailable</p>
+      {!compact && <p className="max-w-xs text-[11px] text-slate-400">Download the file to inspect this format.</p>}
+    </div>
+  );
+}
+
+function HoverThumbnail({
+  doc,
+  children,
+}: {
+  doc: ProcessedDocument;
+  children: React.ReactNode;
+}) {
+  const [position, setPosition] = useState<{ x: number; y: number } | null>(null);
+  const typeConfidence = getClassificationConfidence(doc);
+
+  const updatePosition = (clientX: number, clientY: number) => {
+    const width = 288;
+    const height = 350;
+    const left = Math.min(clientX + 18, window.innerWidth - width - 12);
+    const top = Math.min(clientY + 18, window.innerHeight - height - 12);
+    setPosition({
+      x: Math.max(12, left),
+      y: Math.max(12, top),
+    });
+  };
+
+  return (
+    <div
+      className="inline-flex max-w-full"
+      onMouseEnter={(e) => updatePosition(e.clientX, e.clientY)}
+      onMouseMove={(e) => updatePosition(e.clientX, e.clientY)}
+      onMouseLeave={() => setPosition(null)}
+      onFocus={(e) => updatePosition(e.currentTarget.getBoundingClientRect().right, e.currentTarget.getBoundingClientRect().top)}
+      onBlur={() => setPosition(null)}
+    >
+      {children}
+      {position && (
+        <div
+          className="pointer-events-none fixed z-[80] w-72 overflow-hidden rounded-xl border border-slate-200 bg-white shadow-2xl shadow-slate-900/20"
+          style={{ left: position.x, top: position.y }}
+        >
+          <div className="h-56 border-b border-slate-100 bg-slate-100">
+            <DocumentPreviewFrame doc={doc} compact />
+          </div>
+          <div className="space-y-2 p-3">
+            <p className="truncate text-xs font-bold text-slate-800">{doc.fileName}</p>
+            <div className="flex flex-wrap items-center gap-1.5">
+              <DocTypeBadge code={resolveDocTypeCode(doc)} />
+              {typeConfidence !== null && (
+                <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-bold text-slate-600">
+                  AI {typeConfidence}%
+                </span>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function getFieldValue(doc: ProcessedDocument, patterns: RegExp[]): string {
+  const hit = doc.fields?.find((field) => patterns.some((rx) => rx.test(field.label)));
+  return hit?.value || "";
+}
+
+function getOptionalString(doc: ProcessedDocument, keys: string[]): string {
+  const record = doc as unknown as Record<string, unknown>;
+  for (const key of keys) {
+    const value = record[key];
+    if (typeof value === "string" && value.trim()) return value.trim();
+    if (value && typeof value === "object" && "name" in value) {
+      const name = (value as { name?: unknown }).name;
+      if (typeof name === "string" && name.trim()) return name.trim();
+    }
+  }
+  return "";
+}
+
+function getCompanyName(doc: ProcessedDocument): string {
+  return (
+    doc.companyName ||
+    getOptionalString(doc, ["company", "company_name", "tenantName", "workspaceName"]) ||
+    getFieldValue(doc, [/company/i, /business/i])
+  );
+}
+
+function getCreatedByName(doc: ProcessedDocument): string {
+  return doc.createdByName || doc.createdBy || getOptionalString(doc, ["createdByUser", "uploadedBy", "userName"]);
+}
+
+function getPartyName(doc: ProcessedDocument): string {
+  const fin = deriveFinancialSummary(doc);
+  return (
+    fin.counterparty ||
+    getOptionalString(doc, ["supplier", "customer", "vendor", "counterparty"]) ||
+    getFieldValue(doc, [/supplier/i, /customer/i, /vendor/i, /client/i, /seller/i, /buyer/i])
+  );
+}
+
+function getDocumentAmount(doc: ProcessedDocument): number {
+  const fin = deriveFinancialSummary(doc);
+  return fin.grandTotal || fin.subtotal || 0;
+}
+
+function parseDateInput(value: string, endOfDay = false): Date | null {
+  if (!value) return null;
+  const [year, month, day] = value.split("-").map(Number);
+  if (!year || !month || !day) return null;
+  return new Date(year, month - 1, day, endOfDay ? 23 : 0, endOfDay ? 59 : 0, endOfDay ? 59 : 0, endOfDay ? 999 : 0);
+}
+
+function includesText(value: string, needle: string): boolean {
+  return value.toLowerCase().includes(needle.trim().toLowerCase());
 }
 
 function statusConfig(status: DocumentStatus) {
@@ -136,6 +319,62 @@ type StatusFilter = (typeof STATUS_FILTERS)[number];
 type SourceFilter = (typeof SOURCE_FILTERS)[number];
 type SortValue = (typeof SORT_OPTIONS)[number]["value"];
 type ViewMode = "list" | "grid";
+type ApprovalFilter = "all" | "approved";
+type ExportScope =
+  | "all"
+  | "latest_batch"
+  | "selected_batch"
+  | "selected_docs"
+  | "custom_date"
+  | "current_period";
+type CurrentPeriodExport = "current_month" | "current_quarter" | "current_year";
+
+interface AdvancedFilters {
+  uploadFrom: string;
+  uploadTo: string;
+  batchId: string;
+  company: string;
+  docType: "all" | DocType;
+  approval: ApprovalFilter;
+  createdBy: string;
+  amountMin: string;
+  amountMax: string;
+  party: string;
+}
+
+interface ExportNotice {
+  filename: string;
+  count: number;
+  message?: string;
+}
+
+const EMPTY_ADVANCED_FILTERS: AdvancedFilters = {
+  uploadFrom: "",
+  uploadTo: "",
+  batchId: "",
+  company: "",
+  docType: "all",
+  approval: "all",
+  createdBy: "",
+  amountMin: "",
+  amountMax: "",
+  party: "",
+};
+
+const EXPORT_SCOPES: Array<{ value: ExportScope; label: string; description: string }> = [
+  { value: "latest_batch", label: "Latest Upload Batch", description: "Only documents from the most recent upload session." },
+  { value: "selected_batch", label: "Selected Batch by Batch ID", description: "Choose a specific Batch ID from the batch list." },
+  { value: "selected_docs", label: "Manually Selected Documents", description: "Use the documents currently ticked in the table or grid." },
+  { value: "custom_date", label: "Custom Date Range", description: "Export documents uploaded inside a chosen date window." },
+  { value: "current_period", label: "Current Month / Quarter / Year", description: "Use the current calendar month, quarter, or year." },
+  { value: "all", label: "All Documents", description: "Export the full document list available on this page." },
+];
+
+const EXPORT_FORMATS: Array<{ value: DocumentExportFormat; label: string }> = [
+  { value: "xlsx", label: "XLSX" },
+  { value: "csv", label: "CSV" },
+  { value: "pdf", label: "PDF" },
+];
 
 // ─── Delete Confirmation Modal ───────────────────────────────────
 function DeleteConfirmModal({
@@ -230,8 +469,19 @@ export default function DocumentsPage() {
   const [showSourceDd, setShowSourceDd] = useState(false);
   const [showTypeDd, setShowTypeDd] = useState(false);
   const [showSortDd, setShowSortDd] = useState(false);
+  const [showAdvancedFilters, setShowAdvancedFilters] = useState(false);
+  const [advancedFilters, setAdvancedFilters] = useState<AdvancedFilters>(EMPTY_ADVANCED_FILTERS);
   const [selectedDoc, setSelectedDoc] = useState<ProcessedDocument | null>(null);
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
+  const [exportPanelOpen, setExportPanelOpen] = useState(false);
+  const [exportScope, setExportScope] = useState<ExportScope>("all");
+  const [exportFormat, setExportFormat] = useState<DocumentExportFormat>("xlsx");
+  const [selectedBatchId, setSelectedBatchId] = useState("");
+  const [exportDateFrom, setExportDateFrom] = useState("");
+  const [exportDateTo, setExportDateTo] = useState("");
+  const [currentPeriodExport, setCurrentPeriodExport] = useState<CurrentPeriodExport>("current_month");
+  const [exporting, setExporting] = useState(false);
+  const [lastExport, setLastExport] = useState<ExportNotice | null>(null);
   
   // Delete states
   const [deleteModalOpen, setDeleteModalOpen] = useState(false);
@@ -257,6 +507,15 @@ export default function DocumentsPage() {
   }, [docs]);
 
   useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const batch = params.get("batch");
+    if (!batch) return;
+    setAdvancedFilters((prev) => ({ ...prev, batchId: batch }));
+    setSelectedBatchId(batch);
+    setShowAdvancedFilters(true);
+  }, []);
+
+  useEffect(() => {
     const sidebar = document.querySelector("aside");
     if (!sidebar) return;
     const observer = new ResizeObserver(() => setSidebarWidth(sidebar.offsetWidth));
@@ -273,7 +532,7 @@ export default function DocumentsPage() {
 
       if (res.ok) {
         const data = await res.json();
-        setDocs(data.documents || []);
+        setDocs(annotateDocumentsWithBatches(data.documents || []));
       }
     } catch { }
     setLoading(false);
@@ -352,13 +611,33 @@ export default function DocumentsPage() {
     return () => clearInterval(interval);
   }, [fetchDocs]);
 
+  const batchSummaries = useMemo(() => buildBatchSummaries(docs), [docs]);
+  const selectedDocs = useMemo(
+    () => docs.filter((doc) => selectedIds.includes(doc.id)),
+    [docs, selectedIds]
+  );
+
   // Filter + sort
-  const filtered = docs
+  const filtered = useMemo(() => docs
     .filter((d) => {
-      const matchSearch =
-        !search ||
-        d.fileName.toLowerCase().includes(search.toLowerCase()) ||
-        d.docType?.toLowerCase().includes(search.toLowerCase());
+      const fin = deriveFinancialSummary(d);
+      const party = getPartyName(d);
+      const company = getCompanyName(d);
+      const createdBy = getCreatedByName(d);
+      const batchLabel = getDocumentBatchLabel(d);
+      const batchId = getDocumentBatchId(d);
+      const searchText = [
+        d.fileName,
+        d.docType,
+        getDocTypeMeta(resolveDocTypeCode(d)).label,
+        party,
+        fin.invoiceNumber,
+        batchLabel,
+        batchId,
+      ]
+        .filter(Boolean)
+        .join(" ");
+      const matchSearch = !search || includesText(searchText, search);
       const matchStatus =
         statusFilter === "All" ||
         (statusFilter === "Needs Review" && d.status === "review") ||
@@ -371,19 +650,55 @@ export default function DocumentsPage() {
         (sourceFilter === "Uploaded" && d.source === "upload") ||
         (sourceFilter === "WhatsApp" && d.source === "whatsapp");
       const matchType = typeFilter === "all" || resolveDocTypeCode(d) === typeFilter;
-      return matchSearch && matchStatus && matchSource && matchType;
+      const advancedType =
+        advancedFilters.docType === "all" || resolveDocTypeCode(d) === advancedFilters.docType;
+      const approved =
+        advancedFilters.approval === "all" || d.status === "approved";
+      const uploadDate = getDocumentUploadDate(d);
+      const uploadFrom = parseDateInput(advancedFilters.uploadFrom);
+      const uploadTo = parseDateInput(advancedFilters.uploadTo, true);
+      const matchUploadFrom = !uploadFrom || uploadDate.getTime() >= uploadFrom.getTime();
+      const matchUploadTo = !uploadTo || uploadDate.getTime() <= uploadTo.getTime();
+      const matchBatch =
+        !advancedFilters.batchId ||
+        includesText(batchId, advancedFilters.batchId) ||
+        includesText(batchLabel, advancedFilters.batchId);
+      const matchCompany = !advancedFilters.company || includesText(company, advancedFilters.company);
+      const matchCreatedBy = !advancedFilters.createdBy || includesText(createdBy, advancedFilters.createdBy);
+      const amount = getDocumentAmount(d);
+      const min = advancedFilters.amountMin ? Number(advancedFilters.amountMin) : null;
+      const max = advancedFilters.amountMax ? Number(advancedFilters.amountMax) : null;
+      const matchMin = min == null || Number.isNaN(min) || amount >= min;
+      const matchMax = max == null || Number.isNaN(max) || amount <= max;
+      const matchParty = !advancedFilters.party || includesText(party, advancedFilters.party);
+      return (
+        matchSearch &&
+        matchStatus &&
+        matchSource &&
+        matchType &&
+        advancedType &&
+        approved &&
+        matchUploadFrom &&
+        matchUploadTo &&
+        matchBatch &&
+        matchCompany &&
+        matchCreatedBy &&
+        matchMin &&
+        matchMax &&
+        matchParty
+      );
     })
     .sort((a, b) => {
       if (sort === "newest") return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
       if (sort === "oldest") return new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime();
       if (sort === "name_asc") return a.fileName.localeCompare(b.fileName);
       if (sort === "name_desc") return b.fileName.localeCompare(a.fileName);
-      const ca = a.overallConfidence > 1 ? a.overallConfidence : a.overallConfidence * 100;
-      const cb = b.overallConfidence > 1 ? b.overallConfidence : b.overallConfidence * 100;
+      const ca = getClassificationConfidence(a) ?? (a.overallConfidence > 1 ? a.overallConfidence : a.overallConfidence * 100);
+      const cb = getClassificationConfidence(b) ?? (b.overallConfidence > 1 ? b.overallConfidence : b.overallConfidence * 100);
       if (sort === "conf_asc") return ca - cb;
       if (sort === "conf_desc") return cb - ca;
       return 0;
-    });
+    }), [advancedFilters, docs, search, sort, sourceFilter, statusFilter, typeFilter]);
 
   const statsItems = [
     { label: "Total Documents", value: docs.length, color: "text-slate-700", bg: "bg-white" },
@@ -394,7 +709,147 @@ export default function DocumentsPage() {
   ];
 
   const sortLabel = SORT_OPTIONS.find((s) => s.value === sort)?.label ?? "Sort";
-  const hasActiveFilters = statusFilter !== "All" || sourceFilter !== "All Sources" || typeFilter !== "all" || search;
+  const latestBatch = batchSummaries[0];
+
+  useEffect(() => {
+    if (!selectedBatchId && latestBatch) setSelectedBatchId(latestBatch.id);
+  }, [latestBatch, selectedBatchId]);
+
+  const updateAdvancedFilter = <K extends keyof AdvancedFilters>(key: K, value: AdvancedFilters[K]) => {
+    setAdvancedFilters((prev) => ({ ...prev, [key]: value }));
+  };
+
+  const resetFilters = () => {
+    setSearch("");
+    setStatusFilter("All");
+    setSourceFilter("All Sources");
+    setTypeFilter("all");
+    setAdvancedFilters(EMPTY_ADVANCED_FILTERS);
+  };
+
+  const openExportPanel = (scope: ExportScope) => {
+    setExportScope(scope);
+    setLastExport(null);
+    if ((scope === "selected_batch" || scope === "latest_batch") && latestBatch) {
+      setSelectedBatchId(scope === "latest_batch" ? latestBatch.id : selectedBatchId || latestBatch.id);
+    }
+    if (scope === "custom_date" && (!exportDateFrom || !exportDateTo)) {
+      const now = new Date();
+      const from = new Date(now);
+      from.setDate(now.getDate() - 13);
+      setExportDateFrom(dateToInputValue(from));
+      setExportDateTo(dateToInputValue(now));
+    }
+    setExportPanelOpen(true);
+  };
+
+  const documentsForBatch = (batchId: string) =>
+    docs.filter((doc) => {
+      const id = getDocumentBatchId(doc);
+      return id === batchId || getDocumentBatchLabel(doc) === batchId;
+    });
+
+  const resolveExportDocs = (): { exportDocs: ProcessedDocument[]; filenameStem: string } => {
+    if (exportScope === "latest_batch") {
+      const batch = getLatestBatch(docs);
+      const exportDocs = batch ? documentsForBatch(batch.id) : [];
+      return { exportDocs, filenameStem: `documents-${batchFileReference(batch)}` };
+    }
+
+    if (exportScope === "selected_batch") {
+      const batch = batchSummaries.find((b) => b.id === selectedBatchId);
+      return {
+        exportDocs: selectedBatchId ? documentsForBatch(selectedBatchId) : [],
+        filenameStem: `documents-${batchFileReference(batch || { id: selectedBatchId, label: selectedBatchId })}`,
+      };
+    }
+
+    if (exportScope === "selected_docs") {
+      return { exportDocs: selectedDocs, filenameStem: "documents-selected" };
+    }
+
+    if (exportScope === "custom_date") {
+      const from = parseDateInput(exportDateFrom);
+      const to = parseDateInput(exportDateTo, true);
+      if (!from || !to) return { exportDocs: [], filenameStem: "documents-custom-date" };
+      return {
+        exportDocs: filterDocumentsByDateRange(docs, { from, to }, "upload"),
+        filenameStem: `documents-${exportDateFrom}-to-${exportDateTo}`,
+      };
+    }
+
+    if (exportScope === "current_period") {
+      const period =
+        currentPeriodExport === "current_quarter"
+          ? "this_quarter"
+          : currentPeriodExport === "current_year"
+          ? "this_year"
+          : "this_month";
+      const range = calculateFinancialPeriod(period);
+      return {
+        exportDocs: filterDocumentsByDateRange(docs, range, "upload"),
+        filenameStem: `documents-${currentPeriodExport.replace("_", "-")}`,
+      };
+    }
+
+    return { exportDocs: docs, filenameStem: "documents-all" };
+  };
+
+  const handleExport = async () => {
+    const { exportDocs, filenameStem } = resolveExportDocs();
+    if (exportDocs.length === 0) {
+      setLastExport({
+        filename: "",
+        count: 0,
+        message: "No documents match this export scope.",
+      });
+      return;
+    }
+
+    setExporting(true);
+    try {
+      const result = await exportDocuments(exportDocs, exportFormat, filenameStem);
+      setLastExport(result);
+    } finally {
+      setExporting(false);
+    }
+  };
+
+  const activeFilterChips: Array<{ label: string; onClear: () => void }> = [];
+  if (search) activeFilterChips.push({ label: `Search: ${search}`, onClear: () => setSearch("") });
+  if (typeFilter !== "all") {
+    activeFilterChips.push({
+      label: `Type: ${getDocTypeMeta(typeFilter).label}`,
+      onClear: () => setTypeFilter("all"),
+    });
+  }
+  if (statusFilter !== "All") activeFilterChips.push({ label: `Status: ${statusFilter}`, onClear: () => setStatusFilter("All") });
+  if (sourceFilter !== "All Sources") activeFilterChips.push({ label: `Source: ${sourceFilter}`, onClear: () => setSourceFilter("All Sources") });
+  if (advancedFilters.uploadFrom || advancedFilters.uploadTo) {
+    activeFilterChips.push({
+      label: `Upload Date: ${advancedFilters.uploadFrom || "Any"} to ${advancedFilters.uploadTo || "Any"}`,
+      onClear: () => setAdvancedFilters((prev) => ({ ...prev, uploadFrom: "", uploadTo: "" })),
+    });
+  }
+  if (advancedFilters.batchId) activeFilterChips.push({ label: `Batch ID: ${advancedFilters.batchId}`, onClear: () => updateAdvancedFilter("batchId", "") });
+  if (advancedFilters.company) activeFilterChips.push({ label: `Company: ${advancedFilters.company}`, onClear: () => updateAdvancedFilter("company", "") });
+  if (advancedFilters.docType !== "all") {
+    activeFilterChips.push({
+      label: `Document Type: ${getDocTypeMeta(advancedFilters.docType).label}`,
+      onClear: () => updateAdvancedFilter("docType", "all"),
+    });
+  }
+  if (advancedFilters.approval === "approved") activeFilterChips.push({ label: "Status: Approved Only", onClear: () => updateAdvancedFilter("approval", "all") });
+  if (advancedFilters.createdBy) activeFilterChips.push({ label: `Created By: ${advancedFilters.createdBy}`, onClear: () => updateAdvancedFilter("createdBy", "") });
+  if (advancedFilters.amountMin || advancedFilters.amountMax) {
+    activeFilterChips.push({
+      label: `Amount: ${advancedFilters.amountMin || "0"} to ${advancedFilters.amountMax || "Any"}`,
+      onClear: () => setAdvancedFilters((prev) => ({ ...prev, amountMin: "", amountMax: "" })),
+    });
+  }
+  if (advancedFilters.party) activeFilterChips.push({ label: `Supplier / Customer: ${advancedFilters.party}`, onClear: () => updateAdvancedFilter("party", "") });
+
+  const hasActiveFilters = activeFilterChips.length > 0;
 
   return (
     <div className="min-h-screen bg-slate-50">
@@ -454,6 +909,45 @@ export default function DocumentsPage() {
               </motion.div>
             ))}
           </div>
+
+          {batchSummaries.length > 0 && (
+            <div className="mb-6 rounded-2xl border border-slate-100 bg-white p-4 shadow-sm">
+              <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
+                <div className="flex items-center gap-2">
+                  <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-emerald-50 text-emerald-600">
+                    <FolderOpen className="h-5 w-5" />
+                  </div>
+                  <div>
+                    <h3 className="text-sm font-bold text-slate-900">Upload Batches</h3>
+                    <p className="text-xs text-slate-500">Filter or export documents by upload session.</p>
+                  </div>
+                </div>
+                <span className="text-xs font-semibold text-slate-500">{batchSummaries.length} batch{batchSummaries.length === 1 ? "" : "es"}</span>
+              </div>
+              <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+                {batchSummaries.slice(0, 6).map((batch) => (
+                  <button
+                    key={batch.id}
+                    onClick={() => {
+                      setAdvancedFilters((prev) => ({ ...prev, batchId: batch.id }));
+                      setSelectedBatchId(batch.id);
+                      setShowAdvancedFilters(true);
+                    }}
+                    className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-3 text-left transition hover:border-emerald-200 hover:bg-emerald-50"
+                  >
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="text-sm font-bold text-slate-800">{batch.label}</span>
+                      <span className="rounded-full bg-white px-2 py-0.5 text-[10px] font-bold text-slate-500 ring-1 ring-slate-200">
+                        {batch.documentCount} docs
+                      </span>
+                    </div>
+                    <p className="mt-1 text-xs text-slate-500">{batchDateLabel(batch.uploadedAt)}</p>
+                    <p className="mt-2 truncate text-[11px] text-slate-400">{batch.fileNames.slice(0, 3).join(", ") || "Documents linked after upload"}</p>
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
 
           {/* Toolbar */}
           <div className="flex items-center gap-2 mb-4 flex-wrap">
@@ -552,15 +1046,185 @@ export default function DocumentsPage() {
               </button>
             </div>
 
+            <button
+              onClick={() => setShowAdvancedFilters((prev) => !prev)}
+              className={`flex items-center gap-2 px-3.5 py-2.5 text-sm font-semibold rounded-xl border transition whitespace-nowrap ${
+                showAdvancedFilters
+                  ? "bg-primary/10 text-primary border-primary/20"
+                  : "bg-white text-slate-600 border-slate-200 hover:bg-slate-50"
+              }`}
+            >
+              <Filter className="w-4 h-4" />
+              Advanced Filters
+            </button>
+
             {hasActiveFilters && (
               <button
-                onClick={() => { setSearch(""); setStatusFilter("All"); setSourceFilter("All Sources"); setTypeFilter("all"); }}
+                onClick={resetFilters}
                 className="flex items-center gap-1 text-xs font-medium text-slate-500 hover:text-red-500 transition-colors"
               >
                 <X className="w-3.5 h-3.5" /> Clear filters
               </button>
             )}
           </div>
+
+          <div className="mb-4 flex flex-wrap items-center gap-2">
+            <ExportButton
+              label="Export All Documents"
+              onClick={() => openExportPanel("all")}
+              icon={<FileDown className="h-4 w-4" />}
+            />
+            <ExportButton
+              label="Export Latest Upload"
+              onClick={() => openExportPanel("latest_batch")}
+              icon={<Upload className="h-4 w-4" />}
+              disabled={!latestBatch}
+            />
+            <ExportButton
+              label="Export Selected Documents"
+              onClick={() => openExportPanel("selected_docs")}
+              icon={<BadgeCheck className="h-4 w-4" />}
+              disabled={selectedIds.length === 0}
+              active={selectedIds.length > 0}
+              title={selectedIds.length > 0 ? `${selectedIds.length} documents selected` : "Select documents to enable this export"}
+            />
+            <ExportButton
+              label="Export by Date Range"
+              onClick={() => openExportPanel("custom_date")}
+              icon={<CalendarRange className="h-4 w-4" />}
+            />
+            <ExportButton
+              label="Export Current Period"
+              onClick={() => openExportPanel("current_period")}
+              icon={<Table2 className="h-4 w-4" />}
+            />
+          </div>
+
+          <AnimatePresence>
+            {showAdvancedFilters && (
+              <motion.div
+                initial={{ opacity: 0, y: -8 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -8 }}
+                className="mb-4 rounded-2xl border border-slate-100 bg-white p-4 shadow-sm"
+              >
+                <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+                  <FilterField label="Upload Date" icon={<CalendarRange className="h-4 w-4" />}>
+                    <div className="grid grid-cols-2 gap-2">
+                      <input
+                        type="date"
+                        value={advancedFilters.uploadFrom}
+                        onChange={(e) => updateAdvancedFilter("uploadFrom", e.target.value)}
+                        className="rounded-lg border border-slate-200 px-3 py-2 text-sm outline-none focus:border-primary"
+                        aria-label="Upload date from"
+                      />
+                      <input
+                        type="date"
+                        value={advancedFilters.uploadTo}
+                        onChange={(e) => updateAdvancedFilter("uploadTo", e.target.value)}
+                        className="rounded-lg border border-slate-200 px-3 py-2 text-sm outline-none focus:border-primary"
+                        aria-label="Upload date to"
+                      />
+                    </div>
+                  </FilterField>
+                  <FilterField label="Batch ID" icon={<FolderOpen className="h-4 w-4" />}>
+                    <input
+                      list="batch-id-options"
+                      value={advancedFilters.batchId}
+                      onChange={(e) => updateAdvancedFilter("batchId", e.target.value)}
+                      placeholder="Batch #001 or batch-001"
+                      className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm outline-none focus:border-primary"
+                    />
+                    <datalist id="batch-id-options">
+                      {batchSummaries.map((batch) => (
+                        <option key={batch.id} value={batch.id}>{batch.label}</option>
+                      ))}
+                    </datalist>
+                  </FilterField>
+                  <FilterField label="Company" icon={<Building2 className="h-4 w-4" />}>
+                    <input
+                      value={advancedFilters.company}
+                      onChange={(e) => updateAdvancedFilter("company", e.target.value)}
+                      placeholder="Company name"
+                      className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm outline-none focus:border-primary"
+                    />
+                  </FilterField>
+                  <FilterField label="Document Type" icon={<FileText className="h-4 w-4" />}>
+                    <select
+                      value={advancedFilters.docType}
+                      onChange={(e) => updateAdvancedFilter("docType", e.target.value as "all" | DocType)}
+                      className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm outline-none focus:border-primary"
+                    >
+                      {TYPE_FILTERS.map((opt) => (
+                        <option key={opt.value} value={opt.value}>{opt.label}</option>
+                      ))}
+                    </select>
+                  </FilterField>
+                  <FilterField label="Status" icon={<CheckCircle2 className="h-4 w-4" />}>
+                    <select
+                      value={advancedFilters.approval}
+                      onChange={(e) => updateAdvancedFilter("approval", e.target.value as ApprovalFilter)}
+                      className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm outline-none focus:border-primary"
+                    >
+                      <option value="all">All Documents</option>
+                      <option value="approved">Approved Only</option>
+                    </select>
+                  </FilterField>
+                  <FilterField label="Created By" icon={<UserRound className="h-4 w-4" />}>
+                    <input
+                      value={advancedFilters.createdBy}
+                      onChange={(e) => updateAdvancedFilter("createdBy", e.target.value)}
+                      placeholder="User name"
+                      className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm outline-none focus:border-primary"
+                    />
+                  </FilterField>
+                  <FilterField label="Amount Range" icon={<DollarSign className="h-4 w-4" />}>
+                    <div className="grid grid-cols-2 gap-2">
+                      <input
+                        type="number"
+                        min="0"
+                        value={advancedFilters.amountMin}
+                        onChange={(e) => updateAdvancedFilter("amountMin", e.target.value)}
+                        placeholder="Min"
+                        className="rounded-lg border border-slate-200 px-3 py-2 text-sm outline-none focus:border-primary"
+                      />
+                      <input
+                        type="number"
+                        min="0"
+                        value={advancedFilters.amountMax}
+                        onChange={(e) => updateAdvancedFilter("amountMax", e.target.value)}
+                        placeholder="Max"
+                        className="rounded-lg border border-slate-200 px-3 py-2 text-sm outline-none focus:border-primary"
+                      />
+                    </div>
+                  </FilterField>
+                  <FilterField label="Supplier / Customer" icon={<Building2 className="h-4 w-4" />}>
+                    <input
+                      value={advancedFilters.party}
+                      onChange={(e) => updateAdvancedFilter("party", e.target.value)}
+                      placeholder="Supplier or customer"
+                      className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm outline-none focus:border-primary"
+                    />
+                  </FilterField>
+                </div>
+              </motion.div>
+            )}
+          </AnimatePresence>
+
+          {activeFilterChips.length > 0 && (
+            <div className="mb-4 flex flex-wrap items-center gap-2">
+              {activeFilterChips.map((chip) => (
+                <button
+                  key={chip.label}
+                  onClick={chip.onClear}
+                  className="inline-flex items-center gap-1.5 rounded-full border border-primary/20 bg-primary/5 px-3 py-1 text-xs font-semibold text-primary hover:bg-primary/10"
+                >
+                  {chip.label}
+                  <X className="h-3 w-3" />
+                </button>
+              ))}
+            </div>
+          )}
 
           {/* Content */}
           {loading ? (
@@ -620,9 +1284,10 @@ export default function DocumentsPage() {
                     <th className="text-left px-5 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wide">Document</th>
                     <th className="text-left px-4 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wide">Type</th>
                     <th className="text-left px-4 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wide">Source</th>
+                    <th className="text-left px-4 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wide">Batch ID</th>
                     <th className="text-left px-4 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wide">Status</th>
                     <th className="text-left px-4 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wide">AI</th>
-                    <th className="text-left px-4 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wide">Confidence</th>
+                    <th className="text-left px-4 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wide">Type Confidence</th>
                     <th className="text-left px-4 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wide">Added</th>
                     <th className="px-4 py-3" />
                   </tr>
@@ -679,6 +1344,28 @@ export default function DocumentsPage() {
         </main>
       </div>
 
+      <ExportPanel
+        open={exportPanelOpen}
+        scope={exportScope}
+        format={exportFormat}
+        batchSummaries={batchSummaries}
+        selectedBatchId={selectedBatchId}
+        selectedCount={selectedIds.length}
+        exportDateFrom={exportDateFrom}
+        exportDateTo={exportDateTo}
+        currentPeriodExport={currentPeriodExport}
+        exporting={exporting}
+        lastExport={lastExport}
+        onClose={() => setExportPanelOpen(false)}
+        onScopeChange={(scope) => setExportScope(scope)}
+        onFormatChange={(format) => setExportFormat(format)}
+        onSelectedBatchChange={setSelectedBatchId}
+        onExportDateFromChange={setExportDateFrom}
+        onExportDateToChange={setExportDateTo}
+        onCurrentPeriodChange={setCurrentPeriodExport}
+        onExport={handleExport}
+      />
+
       {/* Document detail drawer */}
       <AnimatePresence>
         {selectedDoc && (
@@ -697,7 +1384,7 @@ export default function DocumentsPage() {
               animate={{ x: 0 }}
               exit={{ x: "100%" }}
               transition={{ type: "spring", bounce: 0, duration: 0.35 }}
-              className="fixed right-0 top-0 bottom-0 z-50 w-full max-w-md bg-white shadow-2xl flex flex-col"
+              className="fixed right-0 top-0 bottom-0 z-50 w-full max-w-6xl bg-white shadow-2xl flex flex-col"
             >
               <DocDetailDrawer 
                 doc={selectedDoc} 
@@ -779,6 +1466,298 @@ function DropdownItem({ active, onClick, children }: { active: boolean; onClick:
   );
 }
 
+function ExportButton({
+  label,
+  icon,
+  onClick,
+  disabled,
+  active,
+  title,
+}: {
+  label: string;
+  icon: React.ReactNode;
+  onClick: () => void;
+  disabled?: boolean;
+  active?: boolean;
+  title?: string;
+}) {
+  return (
+    <button
+      onClick={onClick}
+      disabled={disabled}
+      title={title || label}
+      className={`inline-flex items-center gap-2 rounded-xl border px-3.5 py-2 text-sm font-semibold transition disabled:cursor-not-allowed disabled:opacity-50 ${
+        active
+          ? "border-primary/30 bg-primary/10 text-primary"
+          : "border-slate-200 bg-white text-slate-700 hover:bg-slate-50"
+      }`}
+    >
+      {icon}
+      {label}
+    </button>
+  );
+}
+
+function FilterField({
+  label,
+  icon,
+  children,
+}: {
+  label: string;
+  icon: React.ReactNode;
+  children: React.ReactNode;
+}) {
+  return (
+    <label className="block">
+      <span className="mb-1.5 flex items-center gap-1.5 text-xs font-bold uppercase tracking-wide text-slate-500">
+        {icon}
+        {label}
+      </span>
+      {children}
+    </label>
+  );
+}
+
+function ExportPanel({
+  open,
+  scope,
+  format,
+  batchSummaries,
+  selectedBatchId,
+  selectedCount,
+  exportDateFrom,
+  exportDateTo,
+  currentPeriodExport,
+  exporting,
+  lastExport,
+  onClose,
+  onScopeChange,
+  onFormatChange,
+  onSelectedBatchChange,
+  onExportDateFromChange,
+  onExportDateToChange,
+  onCurrentPeriodChange,
+  onExport,
+}: {
+  open: boolean;
+  scope: ExportScope;
+  format: DocumentExportFormat;
+  batchSummaries: BatchSummary[];
+  selectedBatchId: string;
+  selectedCount: number;
+  exportDateFrom: string;
+  exportDateTo: string;
+  currentPeriodExport: CurrentPeriodExport;
+  exporting: boolean;
+  lastExport: ExportNotice | null;
+  onClose: () => void;
+  onScopeChange: (scope: ExportScope) => void;
+  onFormatChange: (format: DocumentExportFormat) => void;
+  onSelectedBatchChange: (batchId: string) => void;
+  onExportDateFromChange: (value: string) => void;
+  onExportDateToChange: (value: string) => void;
+  onCurrentPeriodChange: (value: CurrentPeriodExport) => void;
+  onExport: () => void;
+}) {
+  const selectedBatch = batchSummaries.find((batch) => batch.id === selectedBatchId);
+
+  return (
+    <AnimatePresence>
+      {open && (
+        <>
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-50 bg-slate-900/40 backdrop-blur-sm"
+            onClick={onClose}
+          />
+          <motion.div
+            initial={{ opacity: 0, y: 20, scale: 0.98 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: 20, scale: 0.98 }}
+            className="fixed left-1/2 top-1/2 z-50 max-h-[88vh] w-[calc(100vw-2rem)] max-w-3xl -translate-x-1/2 -translate-y-1/2 overflow-y-auto rounded-2xl bg-white shadow-2xl"
+          >
+            <div className="flex items-start justify-between gap-4 border-b border-slate-100 px-5 py-4">
+              <div>
+                <h3 className="text-base font-bold text-slate-900">Export Documents</h3>
+                <p className="mt-1 text-xs text-slate-500">Choose a scope, then download XLSX, CSV, or PDF.</p>
+              </div>
+              <button
+                onClick={onClose}
+                className="rounded-xl p-2 text-slate-400 transition hover:bg-slate-100 hover:text-slate-700"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+
+            <div className="space-y-5 p-5">
+              <div>
+                <p className="mb-2 text-xs font-bold uppercase tracking-wide text-slate-500">Scope</p>
+                <div className="grid gap-2 md:grid-cols-2">
+                  {EXPORT_SCOPES.map((opt) => (
+                    <button
+                      key={opt.value}
+                      onClick={() => onScopeChange(opt.value)}
+                      className={`rounded-xl border px-3 py-3 text-left transition ${
+                        scope === opt.value
+                          ? "border-primary/30 bg-primary/10"
+                          : "border-slate-200 bg-slate-50 hover:bg-white"
+                      }`}
+                    >
+                      <span className="flex items-center gap-2 text-sm font-bold text-slate-800">
+                        {scope === opt.value && <BadgeCheck className="h-4 w-4 text-primary" />}
+                        {opt.label}
+                      </span>
+                      <span className="mt-1 block text-xs text-slate-500">{opt.description}</span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {scope === "selected_batch" && (
+                <div>
+                  <label className="mb-1.5 block text-xs font-bold uppercase tracking-wide text-slate-500">
+                    Batch ID
+                  </label>
+                  <select
+                    value={selectedBatchId}
+                    onChange={(e) => onSelectedBatchChange(e.target.value)}
+                    className="w-full rounded-xl border border-slate-200 px-3 py-2.5 text-sm outline-none focus:border-primary"
+                  >
+                    {batchSummaries.length === 0 ? (
+                      <option value="">No batches available</option>
+                    ) : (
+                      batchSummaries.map((batch) => (
+                        <option key={batch.id} value={batch.id}>
+                          {batchSummaryLine(batch)}
+                        </option>
+                      ))
+                    )}
+                  </select>
+                </div>
+              )}
+
+              {scope === "latest_batch" && (
+                <div className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3">
+                  <p className="text-sm font-bold text-emerald-900">
+                    {batchSummaries[0] ? batchSummaryLine(batchSummaries[0]) : "No upload batch available"}
+                  </p>
+                  <p className="mt-1 text-xs text-emerald-700">Filename will include the batch reference.</p>
+                </div>
+              )}
+
+              {scope === "selected_docs" && (
+                <div className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm font-semibold text-slate-700">
+                  {selectedCount} selected document{selectedCount === 1 ? "" : "s"}
+                </div>
+              )}
+
+              {scope === "custom_date" && (
+                <div>
+                  <p className="mb-1.5 text-xs font-bold uppercase tracking-wide text-slate-500">Custom Date Range</p>
+                  <div className="grid gap-2 sm:grid-cols-2">
+                    <input
+                      type="date"
+                      value={exportDateFrom}
+                      onChange={(e) => onExportDateFromChange(e.target.value)}
+                      className="rounded-xl border border-slate-200 px-3 py-2.5 text-sm outline-none focus:border-primary"
+                      aria-label="Export date range from"
+                    />
+                    <input
+                      type="date"
+                      value={exportDateTo}
+                      onChange={(e) => onExportDateToChange(e.target.value)}
+                      className="rounded-xl border border-slate-200 px-3 py-2.5 text-sm outline-none focus:border-primary"
+                      aria-label="Export date range to"
+                    />
+                  </div>
+                </div>
+              )}
+
+              {scope === "current_period" && (
+                <div>
+                  <p className="mb-1.5 text-xs font-bold uppercase tracking-wide text-slate-500">Current Period</p>
+                  <div className="grid gap-2 sm:grid-cols-3">
+                    {[
+                      { value: "current_month" as const, label: "Current Month" },
+                      { value: "current_quarter" as const, label: "Current Quarter" },
+                      { value: "current_year" as const, label: "Current Year" },
+                    ].map((opt) => (
+                      <button
+                        key={opt.value}
+                        onClick={() => onCurrentPeriodChange(opt.value)}
+                        className={`rounded-xl border px-3 py-2.5 text-sm font-semibold transition ${
+                          currentPeriodExport === opt.value
+                            ? "border-primary/30 bg-primary/10 text-primary"
+                            : "border-slate-200 bg-white text-slate-700 hover:bg-slate-50"
+                        }`}
+                      >
+                        {opt.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              <div>
+                <p className="mb-2 text-xs font-bold uppercase tracking-wide text-slate-500">Format</p>
+                <div className="grid gap-2 sm:grid-cols-3">
+                  {EXPORT_FORMATS.map((opt) => (
+                    <button
+                      key={opt.value}
+                      onClick={() => onFormatChange(opt.value)}
+                      className={`inline-flex items-center justify-center gap-2 rounded-xl border px-3 py-3 text-sm font-bold transition ${
+                        format === opt.value
+                          ? "border-primary/30 bg-primary/10 text-primary"
+                          : "border-slate-200 bg-white text-slate-700 hover:bg-slate-50"
+                      }`}
+                    >
+                      {opt.value === "xlsx" ? <FileSpreadsheet className="h-4 w-4" /> : opt.value === "csv" ? <FileText className="h-4 w-4" /> : <Download className="h-4 w-4" />}
+                      {opt.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {selectedBatch && scope === "selected_batch" && (
+                <div className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-xs text-slate-600">
+                  {selectedBatch.label} includes {selectedBatch.documentCount} document{selectedBatch.documentCount === 1 ? "" : "s"} from {batchDateLabel(selectedBatch.uploadedAt)}.
+                </div>
+              )}
+
+              {lastExport && (
+                <div className={`rounded-xl px-4 py-3 text-sm font-semibold ${
+                  lastExport.count > 0 ? "bg-emerald-50 text-emerald-800 border border-emerald-200" : "bg-amber-50 text-amber-800 border border-amber-200"
+                }`}>
+                  {lastExport.message || `${lastExport.filename} prepared with ${lastExport.count} document${lastExport.count === 1 ? "" : "s"}.`}
+                </div>
+              )}
+            </div>
+
+            <div className="flex flex-wrap items-center justify-end gap-2 border-t border-slate-100 bg-slate-50 px-5 py-4">
+              <button
+                onClick={onClose}
+                className="rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-600 hover:bg-slate-50"
+              >
+                Close
+              </button>
+              <button
+                onClick={onExport}
+                disabled={exporting}
+                className="inline-flex items-center gap-2 rounded-xl bg-gradient-to-r from-primary to-primary-dark px-4 py-2 text-sm font-bold text-white shadow-md shadow-primary/20 transition hover:shadow-primary/40 disabled:opacity-60"
+              >
+                {exporting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
+                Export {format.toUpperCase()}
+              </button>
+            </div>
+          </motion.div>
+        </>
+      )}
+    </AnimatePresence>
+  );
+}
+
 // ─── List Row ────────────────────────────────────────────────────
 function ListRow({
   doc,
@@ -799,7 +1778,7 @@ function ListRow({
   onToggleSelect: () => void;
   onChangeType: (code: DocType) => void;
 }) {
-  const conf = doc.overallConfidence > 1 ? Math.round(doc.overallConfidence) : Math.round(doc.overallConfidence * 100);
+  const conf = getClassificationConfidence(doc);
 
   return (
     <motion.tr
@@ -823,13 +1802,21 @@ function ListRow({
         )}
       </td>
       <td className="px-5 py-3.5">
-        <div className="flex items-center gap-3">
-          <FileTypeIcon fileType={doc.fileType} />
-          <div className="min-w-0">
-            <p className="text-sm font-medium text-slate-800 truncate max-w-[220px]">{doc.fileName}</p>
-            <p className="text-xs text-slate-400">{formatFileSize(doc.fileSize)}</p>
+        <HoverThumbnail doc={doc}>
+          <div className="flex min-w-0 items-center gap-3">
+            <FileTypeIcon fileType={doc.fileType} />
+            <div className="min-w-0">
+              <p className="max-w-[220px] truncate text-sm font-medium text-slate-800">{doc.fileName}</p>
+              <div className="mt-0.5 flex flex-wrap items-center gap-2">
+                <span className="text-xs text-slate-400">{formatFileSize(doc.fileSize)}</span>
+                <span className="inline-flex items-center gap-1 rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-semibold text-slate-500 ring-1 ring-slate-200">
+                  <Eye className="h-3 w-3" />
+                  Hover preview
+                </span>
+              </div>
+            </div>
           </div>
-        </div>
+        </HoverThumbnail>
       </td>
       <td className="px-4 py-3.5 relative overflow-visible">
         <div onClick={(e) => e.stopPropagation()}>
@@ -857,13 +1844,23 @@ function ListRow({
         )}
       </td>
       <td className="px-4 py-3.5">
+        {getDocumentBatchId(doc) ? (
+          <span className="inline-flex items-center gap-1 rounded-full border border-emerald-200 bg-emerald-50 px-2 py-0.5 text-xs font-semibold text-emerald-700">
+            <FolderOpen className="h-3 w-3" />
+            {getDocumentBatchLabel(doc)}
+          </span>
+        ) : (
+          <span className="text-xs text-slate-400">Unbatched</span>
+        )}
+      </td>
+      <td className="px-4 py-3.5">
         <StatusBadge status={doc.status} />
       </td>
       <td className="px-4 py-3.5">
         <AiProcessingIndicators doc={doc} />
       </td>
       <td className="px-4 py-3.5">
-        {doc.overallConfidence > 0 ? (
+        {conf !== null ? (
           <div className="flex items-center gap-2">
             <div className="w-16 h-1.5 bg-slate-100 rounded-full overflow-hidden">
               <div
@@ -939,7 +1936,7 @@ function GridCard({
   onToggleSelect: () => void;
   onChangeType: (code: DocType) => void;
 }) {
-  const conf = doc.overallConfidence > 1 ? Math.round(doc.overallConfidence) : Math.round(doc.overallConfidence * 100);
+  const conf = getClassificationConfidence(doc);
 
   return (
     <motion.div
@@ -960,18 +1957,33 @@ function GridCard({
           className="absolute top-3 left-3 w-4 h-4 rounded border-slate-300 text-primary focus:ring-primary"
         />
       )}
-      <div className="flex items-start justify-between mb-3">
-        <div className="p-2.5 rounded-xl bg-slate-50">
-          <FileTypeIcon fileType={doc.fileType} large />
-        </div>
+      <div className="mb-3 flex items-start justify-between">
+        <HoverThumbnail doc={doc}>
+          <div className="rounded-xl bg-slate-50 p-2.5">
+            <FileTypeIcon fileType={doc.fileType} large />
+          </div>
+        </HoverThumbnail>
         {doc.source === "whatsapp" && (
           <span className="inline-flex items-center gap-1 text-[10px] font-medium text-green-700 bg-green-50 border border-green-200 rounded-full px-2 py-0.5">
             <MessageSquare className="w-3 h-3" /> WA
           </span>
         )}
       </div>
-      <p className="text-sm font-semibold text-slate-800 truncate mb-1">{doc.fileName}</p>
-      <p className="text-xs text-slate-400 mb-2">{formatFileSize(doc.fileSize)}</p>
+      <HoverThumbnail doc={doc}>
+        <p className="mb-1 max-w-full truncate text-sm font-semibold text-slate-800">{doc.fileName}</p>
+      </HoverThumbnail>
+      <div className="mb-2 flex items-center gap-2">
+        <p className="text-xs text-slate-400">{formatFileSize(doc.fileSize)}</p>
+        <span className="inline-flex items-center gap-1 rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-semibold text-slate-500 ring-1 ring-slate-200">
+          <Eye className="h-3 w-3" />
+          Hover preview
+        </span>
+        {getDocumentBatchId(doc) && (
+          <span className="rounded-full bg-emerald-50 px-2 py-0.5 text-[10px] font-bold text-emerald-700 ring-1 ring-emerald-200">
+            {getDocumentBatchLabel(doc)}
+          </span>
+        )}
+      </div>
       <div onClick={(e) => e.stopPropagation()} className="mb-2">
         <DocTypeDropdown
           value={resolveDocTypeCode(doc)}
@@ -979,6 +1991,7 @@ function GridCard({
           size="sm"
         />
       </div>
+      <ClassificationConfidenceBadge doc={doc} className="mb-3" />
       {doc.expenseCategory && (
         <div className="mb-3">
           <ExpenseCategoryChip
@@ -991,7 +2004,7 @@ function GridCard({
       <AiProcessingIndicators doc={doc} className="mb-3" />
       <div className="flex items-center justify-between">
         <StatusBadge status={doc.status} />
-        {doc.overallConfidence > 0 && (
+        {conf !== null && (
           <span className={`text-xs font-bold ${conf >= 90 ? "text-green-600" : conf >= 70 ? "text-amber-600" : "text-red-600"}`}>
             {conf}%
           </span>
@@ -1032,7 +2045,12 @@ function GridCard({
 
 // ─── Detail Drawer ───────────────────────────────────────────────
 function DocDetailDrawer({ doc, onClose, onDelete }: { doc: ProcessedDocument; onClose: () => void; onDelete: () => void }) {
-  const conf = doc.overallConfidence > 1 ? Math.round(doc.overallConfidence) : Math.round(doc.overallConfidence * 100);
+  const suggestedType = resolveDocTypeCode(doc);
+  const conf = getClassificationConfidence(doc);
+  const extractionConf = doc.overallConfidence > 1 ? Math.round(doc.overallConfidence) : Math.round(doc.overallConfidence * 100);
+  const financial = deriveFinancialSummary(doc);
+  const amount = getDocumentAmount(doc);
+  const previewUrl = apiUrl(`/api/documents/${doc.id}/preview`);
 
   return (
     <>
@@ -1045,7 +2063,8 @@ function DocDetailDrawer({ doc, onClose, onDelete }: { doc: ProcessedDocument; o
             <h3 className="text-sm font-bold text-slate-800 truncate max-w-[240px]">{doc.fileName}</h3>
             <p className="text-xs text-slate-400">{formatFileSize(doc.fileSize)}</p>
             <div className="mt-2 flex flex-wrap items-center gap-1.5">
-              <DocTypeBadge code={resolveDocTypeCode(doc)} />
+              <DocTypeBadge code={suggestedType} />
+              <ClassificationConfidenceBadge doc={doc} />
               <ExpenseCategoryChip
                 category={doc.expenseCategory}
                 confidence={doc.expenseCategoryConfidence}
@@ -1060,91 +2079,133 @@ function DocDetailDrawer({ doc, onClose, onDelete }: { doc: ProcessedDocument; o
         </button>
       </div>
 
-      <div className="flex-1 overflow-y-auto p-5 space-y-5">
-        {/* Status + confidence */}
-        <div className="flex items-center gap-3">
-          <StatusBadge status={doc.status} />
-          {doc.overallConfidence > 0 && (
-            <div className="flex items-center gap-2">
-              <div className="w-24 h-2 bg-slate-100 rounded-full overflow-hidden">
+      <div className="flex-1 overflow-y-auto bg-slate-50 lg:grid lg:grid-cols-[minmax(0,1.15fr)_minmax(380px,0.85fr)] lg:overflow-hidden">
+        <section className="border-b border-slate-200 p-4 lg:h-full lg:border-b-0 lg:border-r">
+          <div className="mb-3 flex items-center justify-between gap-3">
+            <div>
+              <p className="text-xs font-bold uppercase tracking-wide text-slate-500">Original Document</p>
+              <p className="mt-0.5 truncate text-xs text-slate-400">{doc.fileType}</p>
+            </div>
+            <a
+              href={previewUrl}
+              target="_blank"
+              rel="noreferrer"
+              className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-600 transition hover:bg-slate-50"
+            >
+              <ExternalLink className="h-3.5 w-3.5" />
+              Open
+            </a>
+          </div>
+          <div className="h-[52vh] min-h-[320px] overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm lg:h-[calc(100vh-9.5rem)]">
+            <DocumentPreviewFrame doc={doc} />
+          </div>
+        </section>
+
+        <section className="space-y-5 bg-white p-5 lg:h-full lg:overflow-y-auto">
+          <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div>
+                <p className="text-xs font-bold uppercase tracking-wide text-slate-500">Suggested Document Type</p>
+                <div className="mt-2 flex flex-wrap items-center gap-2">
+                  <DocTypeBadge code={suggestedType} />
+                  <StatusBadge status={doc.status} />
+                </div>
+              </div>
+              <div className="text-right">
+                <p className="text-xs font-bold uppercase tracking-wide text-slate-500">AI Confidence</p>
+                <p className={`mt-1 text-2xl font-black tabular-nums ${conf === null ? "text-slate-400" : conf >= 95 ? "text-emerald-600" : conf >= 70 ? "text-amber-600" : "text-red-600"}`}>
+                  {conf === null ? "--" : `${conf}%`}
+                </p>
+              </div>
+            </div>
+            {conf !== null && (
+              <div className="mt-4 h-2 overflow-hidden rounded-full bg-slate-100">
                 <div
-                  className={`h-full rounded-full ${conf >= 90 ? "bg-green-500" : conf >= 70 ? "bg-amber-500" : "bg-red-500"}`}
+                  className={`h-full rounded-full ${conf >= 95 ? "bg-emerald-500" : conf >= 70 ? "bg-amber-500" : "bg-red-500"}`}
                   style={{ width: `${conf}%` }}
                 />
               </div>
-              <span className={`text-sm font-bold ${conf >= 90 ? "text-green-600" : conf >= 70 ? "text-amber-600" : "text-red-600"}`}>
-                {conf}% confidence
-              </span>
+            )}
+          </div>
+
+          <div className="rounded-xl bg-slate-50 p-4 space-y-2.5">
+            {[
+              { label: "Suggested Type", value: getDocTypeMeta(suggestedType).label },
+              ...(conf !== null ? [{ label: "Type Confidence", value: `${conf}%` }] : []),
+              ...(doc.overallConfidence > 0 ? [{ label: "OCR / Extraction Confidence", value: `${extractionConf}%` }] : []),
+              { label: "Batch ID", value: getDocumentBatchId(doc) ? getDocumentBatchLabel(doc) : "Unbatched" },
+              { label: "Source", value: doc.source === "whatsapp" ? "WhatsApp" : "Manual Upload" },
+              ...(getCompanyName(doc) ? [{ label: "Company", value: getCompanyName(doc) }] : []),
+              ...(getCreatedByName(doc) ? [{ label: "Created By", value: getCreatedByName(doc) }] : []),
+              ...(amount > 0 ? [{ label: "Amount", value: formatMoney(amount, financial.currency) }] : []),
+              { label: "OCR Engine", value: doc.ocrEngine || "None" },
+              { label: "File Type", value: doc.fileType },
+              { label: "Received", value: new Date(doc.createdAt).toLocaleString("en-GB") },
+              ...(doc.processedAt ? [{ label: "Processed", value: new Date(doc.processedAt).toLocaleString("en-GB") }] : []),
+              ...(doc.approvedAt ? [{ label: "Approved", value: new Date(doc.approvedAt).toLocaleString("en-GB") }] : []),
+            ].map(({ label, value }) => (
+              <div key={label} className="flex items-center justify-between gap-3">
+                <span className="text-xs font-medium text-slate-500">{label}</span>
+                <span className="truncate text-right text-xs font-semibold text-slate-700">{value}</span>
+              </div>
+            ))}
+          </div>
+
+          {doc.fields && doc.fields.length > 0 ? (
+            <div>
+              <p className="text-xs font-bold uppercase tracking-wider text-slate-500 mb-3">
+                OCR Extracted Data ({doc.fields.length})
+              </p>
+              <div className="space-y-2">
+                {doc.fields.slice(0, 12).map((field) => (
+                  <div key={field.id} className="grid grid-cols-[minmax(96px,0.8fr)_minmax(0,1fr)_auto] items-center gap-2 rounded-lg bg-slate-50 px-3 py-2">
+                    <span className="truncate text-xs font-medium text-slate-500">{field.label}</span>
+                    <span className="truncate text-xs font-semibold text-slate-800" title={field.value}>{field.value || "--"}</span>
+                    <span className="rounded-full bg-white px-2 py-0.5 text-[10px] font-bold text-slate-500 ring-1 ring-slate-200">
+                      {Math.round(field.confidence)}%
+                    </span>
+                  </div>
+                ))}
+                {doc.fields.length > 12 && (
+                  <p className="text-xs text-center text-slate-400">+{doc.fields.length - 12} more fields</p>
+                )}
+              </div>
+            </div>
+          ) : (
+            <div className="rounded-xl border border-dashed border-slate-200 bg-slate-50 p-6 text-center">
+              <FileText className="mx-auto h-8 w-8 text-slate-300" />
+              <p className="mt-2 text-sm font-semibold text-slate-500">No OCR fields available yet</p>
             </div>
           )}
-        </div>
 
-        {/* Meta info */}
-        <div className="bg-slate-50 rounded-xl p-4 space-y-2.5">
-          {[
-            { label: "Document Type", value: getDocTypeMeta(resolveDocTypeCode(doc)).label },
-            { label: "Source", value: doc.source === "whatsapp" ? "WhatsApp" : "Manual Upload" },
-            { label: "OCR Engine", value: doc.ocrEngine || "None" },
-            { label: "File Type", value: doc.fileType },
-            { label: "Received", value: new Date(doc.createdAt).toLocaleString("en-GB") },
-            ...(doc.processedAt ? [{ label: "Processed", value: new Date(doc.processedAt).toLocaleString("en-GB") }] : []),
-            ...(doc.approvedAt ? [{ label: "Approved", value: new Date(doc.approvedAt).toLocaleString("en-GB") }] : []),
-          ].map(({ label, value }) => (
-            <div key={label} className="flex items-center justify-between">
-              <span className="text-xs font-medium text-slate-500">{label}</span>
-              <span className="text-xs text-slate-700 font-semibold">{value}</span>
-            </div>
-          ))}
-        </div>
-
-        {/* Extracted fields */}
-        {doc.fields && doc.fields.length > 0 && (
-          <div>
-            <p className="text-xs font-bold uppercase tracking-wider text-slate-500 mb-3">
-              Extracted Fields ({doc.fields.length})
-            </p>
-            <div className="space-y-2">
-              {doc.fields.slice(0, 10).map((field) => (
-                <div key={field.id} className="flex items-center justify-between bg-slate-50 rounded-lg px-3 py-2">
-                  <span className="text-xs font-medium text-slate-500 truncate pr-2">{field.label}</span>
-                  <span className="text-xs font-semibold text-slate-800 truncate max-w-[150px]">{field.value}</span>
-                </div>
-              ))}
-              {doc.fields.length > 10 && (
-                <p className="text-xs text-center text-slate-400">+{doc.fields.length - 10} more fields</p>
-              )}
-            </div>
-          </div>
-        )}
-
-        {/* Line items */}
-        {doc.lineItems && doc.lineItems.length > 0 && (
-          <div>
-            <p className="text-xs font-bold uppercase tracking-wider text-slate-500 mb-3">
-              Line Items ({doc.lineItems.length})
-            </p>
-            <div className="overflow-x-auto rounded-xl border border-slate-100">
-              <table className="w-full text-xs">
-                <thead className="bg-slate-50">
-                  <tr>
-                    <th className="text-left px-3 py-2 font-semibold text-slate-500">Description</th>
-                    <th className="text-right px-3 py-2 font-semibold text-slate-500">Qty</th>
-                    <th className="text-right px-3 py-2 font-semibold text-slate-500">Total</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-50">
-                  {doc.lineItems.slice(0, 8).map((item) => (
-                    <tr key={item.id}>
-                      <td className="px-3 py-2 text-slate-700 truncate max-w-[180px]">{item.description}</td>
-                      <td className="px-3 py-2 text-right text-slate-600">{item.qty}</td>
-                      <td className="px-3 py-2 text-right font-semibold text-slate-800">{item.total}</td>
+          {doc.lineItems && doc.lineItems.length > 0 && (
+            <div>
+              <p className="text-xs font-bold uppercase tracking-wider text-slate-500 mb-3">
+                Line Items ({doc.lineItems.length})
+              </p>
+              <div className="overflow-x-auto rounded-xl border border-slate-100">
+                <table className="w-full text-xs">
+                  <thead className="bg-slate-50">
+                    <tr>
+                      <th className="text-left px-3 py-2 font-semibold text-slate-500">Description</th>
+                      <th className="text-right px-3 py-2 font-semibold text-slate-500">Qty</th>
+                      <th className="text-right px-3 py-2 font-semibold text-slate-500">Total</th>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
+                  </thead>
+                  <tbody className="divide-y divide-slate-50">
+                    {doc.lineItems.slice(0, 8).map((item) => (
+                      <tr key={item.id}>
+                        <td className="px-3 py-2 text-slate-700 truncate max-w-[180px]">{item.description}</td>
+                        <td className="px-3 py-2 text-right text-slate-600">{item.qty}</td>
+                        <td className="px-3 py-2 text-right font-semibold text-slate-800">{item.total}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
             </div>
-          </div>
-        )}
+          )}
+        </section>
       </div>
 
       {/* Actions */}

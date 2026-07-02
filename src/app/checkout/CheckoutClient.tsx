@@ -21,6 +21,15 @@ type CachedPaymentInit = {
 const paymentInitCache = new Map<string, CachedPaymentInit>();
 const PAYMENT_INIT_CACHE_MS = 2 * 60 * 1000;
 
+function parsePaymentError(errorBody: string): string {
+  try {
+    const parsed = JSON.parse(errorBody) as { error?: string; message?: string };
+    return parsed.error || parsed.message || "Unable to initialize payment.";
+  } catch {
+    return errorBody || "Unable to initialize payment.";
+  }
+}
+
 function getPaymentInit(planId: string, inviteToken: string | null) {
   const cacheKey = `${planId}_${inviteToken || "no-invite"}`;
   const cached = paymentInitCache.get(cacheKey);
@@ -42,7 +51,7 @@ function getPaymentInit(planId: string, inviteToken: string | null) {
       if (!res.ok) {
         const errorBody = await res.text();
         console.error("Backend error response:", errorBody);
-        throw new Error(errorBody);
+        throw new Error(parsePaymentError(errorBody));
       }
 
       const data = await res.json();
@@ -95,13 +104,14 @@ export default function CheckoutClient() {
 
         setClientSecret(data.clientSecret);
         setAmount(data.amount);
-        setInterval(data.interval || "month")
+        setInterval(data.interval || "month");
       })
       .catch((err: Error) => {
         if (cancelled) return;
 
         console.error("Payment init error:", err.message);
-        router.replace("/dashboard");
+        sessionStorage.setItem("checkoutError", err.message);
+        router.replace("/checkout/failed");
       })
       .finally(() => {
         if (!cancelled) {

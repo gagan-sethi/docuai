@@ -15,7 +15,6 @@ import {
   Search,
   Filter,
   RefreshCw,
-  Phone,
   Eye,
   Download,
   ChevronDown,
@@ -29,8 +28,10 @@ import { useRouter } from "next/navigation";
 import Sidebar from "@/components/dashboard/Sidebar";
 import TopBar from "@/components/dashboard/TopBar";
 import MergeBar from "@/components/dashboard/MergeBar";
+import { DocTypeBadge } from "@/components/dashboard/DocTypeBadge";
 import { apiUrl } from "@/lib/api";
 import type { ProcessedDocument, DocumentStatus } from "@/lib/types";
+import { getClassificationConfidence, resolveDocTypeCode } from "@/lib/finance";
 
 // ─── Helpers ────────────────────────────────────────────────────
 function timeAgo(dateStr: string): string {
@@ -45,20 +46,34 @@ function timeAgo(dateStr: string): string {
   return new Date(dateStr).toLocaleDateString("en-GB", { day: "2-digit", month: "short" });
 }
 
-function formatDate(dateStr: string): string {
-  return new Date(dateStr).toLocaleDateString("en-GB", {
-    day: "2-digit",
-    month: "short",
-    year: "numeric",
-    hour: "2-digit",
-    minute: "2-digit",
-  });
-}
-
 function formatFileSize(bytes: number): string {
   if (bytes < 1024) return `${bytes} B`;
   if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+}
+
+function formatProcessingError(error?: string): string {
+  if (!error) return "Processing failed. Open the document for details.";
+
+  const normalized = error.toLowerCase();
+  if (normalized.includes("429") || normalized.includes("rate limit")) {
+    return "The extraction service was busy. Please retry this document.";
+  }
+  if (
+    normalized.includes("document limit") ||
+    normalized.includes("page limit") ||
+    normalized.includes("allowance")
+  ) {
+    return error;
+  }
+  if (normalized.includes("no readable text")) {
+    return "No readable text was found. Try a clearer scan or PDF.";
+  }
+  if (normalized.includes("not configured")) {
+    return "The extraction service is temporarily unavailable.";
+  }
+
+  return error.length > 110 ? `${error.slice(0, 107)}...` : error;
 }
 
 function FileTypeIcon({ fileType }: { fileType: string }) {
@@ -67,6 +82,105 @@ function FileTypeIcon({ fileType }: { fileType: string }) {
   if (fileType?.includes("spreadsheet") || fileType?.includes("excel") || fileType?.includes("csv"))
     return <FileSpreadsheet className="w-5 h-5 text-green-600" />;
   return <File className="w-5 h-5 text-slate-400" />;
+}
+
+function DocumentPreviewFrame({ doc }: { doc: ProcessedDocument }) {
+  const previewUrl = apiUrl(`/api/documents/${doc.id}/preview`);
+  const isImage = doc.fileType?.startsWith("image/");
+  const isPdf = doc.fileType === "application/pdf" || doc.fileName.toLowerCase().endsWith(".pdf");
+
+  if (isPdf) {
+    return (
+      <iframe
+        src={`${previewUrl}#toolbar=0&navpanes=0`}
+        title={`Preview: ${doc.fileName}`}
+        className="h-full w-full border-0 bg-white"
+        loading="lazy"
+      />
+    );
+  }
+
+  if (isImage) {
+    return (
+      <div className="flex h-full w-full items-center justify-center bg-slate-100">
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img
+          src={previewUrl}
+          alt={`Preview: ${doc.fileName}`}
+          className="max-h-full max-w-full object-contain"
+          loading="lazy"
+          draggable={false}
+        />
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex h-full flex-col items-center justify-center gap-2 bg-slate-50 text-center text-slate-400">
+      <FileTypeIcon fileType={doc.fileType} />
+      <p className="text-xs font-semibold">Preview unavailable</p>
+    </div>
+  );
+}
+
+function HoverPreview({
+  doc,
+  children,
+}: {
+  doc: ProcessedDocument;
+  children: React.ReactNode;
+}) {
+  const [position, setPosition] = useState<{ x: number; y: number } | null>(null);
+  const typeConfidence = getClassificationConfidence(doc);
+
+  const updatePosition = (clientX: number, clientY: number) => {
+    const width = 288;
+    const height = 350;
+    const left = Math.min(clientX + 18, window.innerWidth - width - 12);
+    const top = Math.min(clientY + 18, window.innerHeight - height - 12);
+    setPosition({
+      x: Math.max(12, left),
+      y: Math.max(12, top),
+    });
+  };
+
+  return (
+    <div
+      tabIndex={0}
+      className="inline-flex max-w-full cursor-zoom-in rounded-lg outline-none focus:ring-2 focus:ring-primary/30"
+      onMouseEnter={(e) => updatePosition(e.clientX, e.clientY)}
+      onMouseMove={(e) => updatePosition(e.clientX, e.clientY)}
+      onMouseLeave={() => setPosition(null)}
+      onFocus={(e) => {
+        const rect = e.currentTarget.getBoundingClientRect();
+        updatePosition(rect.right, rect.top);
+      }}
+      onBlur={() => setPosition(null)}
+    >
+      {children}
+      {position && (
+        <div
+          className="pointer-events-none fixed z-[80] w-72 overflow-hidden rounded-xl border border-slate-200 bg-white shadow-2xl shadow-slate-900/20"
+          style={{ left: position.x, top: position.y }}
+        >
+          <div className="h-56 border-b border-slate-100 bg-slate-100">
+            <DocumentPreviewFrame doc={doc} />
+          </div>
+          <div className="space-y-2 p-3">
+            <p className="truncate text-xs font-bold text-slate-800">{doc.fileName}</p>
+            <div className="flex flex-wrap items-center gap-1.5">
+              <DocTypeBadge code={resolveDocTypeCode(doc)} />
+              {typeConfidence !== null && (
+                <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-bold text-slate-600">
+                  AI {typeConfidence}%
+                </span>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
 }
 
 function StatusBadge({ status }: { status: DocumentStatus }) {
@@ -159,7 +273,7 @@ export default function WhatsAppInboxPage() {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [router]);
 
   // Persist preference change. Best-effort sync to backend; localStorage is the source of truth client-side.
   const saveAutoMerge = useCallback(async (next: boolean) => {
@@ -229,7 +343,7 @@ export default function WhatsAppInboxPage() {
     } catch {}
     setLoading(false);
     setRefreshing(false);
-  }, []);
+  }, [router]);
 
   useEffect(() => {
     fetchDocs();
@@ -242,7 +356,8 @@ export default function WhatsAppInboxPage() {
     const matchSearch =
       !search ||
       d.fileName.toLowerCase().includes(search.toLowerCase()) ||
-      d.docType?.toLowerCase().includes(search.toLowerCase());
+      d.docType?.toLowerCase().includes(search.toLowerCase()) ||
+      d.docTypeCode?.toLowerCase().includes(search.toLowerCase());
     const matchFilter =
       filter === "All" ||
       (filter === "Needs Review" && d.status === "review") ||
@@ -368,12 +483,13 @@ export default function WhatsAppInboxPage() {
           </div>
 
           {/* Stats bar */}
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-6">
+          <div className="grid grid-cols-2 sm:grid-cols-5 gap-4 mb-6">
             {[
               { label: "Total Received", value: docs.length, color: "text-slate-700", bg: "bg-white" },
               { label: "Needs Review", value: docs.filter((d) => d.status === "review").length, color: "text-amber-600", bg: "bg-amber-50" },
               { label: "Approved", value: docs.filter((d) => d.status === "approved").length, color: "text-green-600", bg: "bg-green-50" },
               { label: "Processing", value: docs.filter((d) => ["processing", "structuring", "uploaded"].includes(d.status)).length, color: "text-blue-600", bg: "bg-blue-50" },
+              { label: "Errors", value: docs.filter((d) => d.status === "error").length, color: "text-red-600", bg: "bg-red-50" },
             ].map((s) => (
               <motion.div
                 key={s.label}
@@ -506,7 +622,7 @@ export default function WhatsAppInboxPage() {
                       <th className="text-left px-5 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wide">File</th>
                       <th className="text-left px-4 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wide">Type</th>
                       <th className="text-left px-4 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wide">Status</th>
-                      <th className="text-left px-4 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wide">Confidence</th>
+                      <th className="text-left px-4 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wide">Type Confidence</th>
                       <th className="text-left px-4 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wide">Received</th>
                       <th className="px-4 py-3" />
                     </tr>
@@ -566,7 +682,7 @@ function DocRow({
   selected: boolean;
   onToggleSelect: () => void;
 }) {
-  const conf = doc.overallConfidence > 1 ? Math.round(doc.overallConfidence) : Math.round(doc.overallConfidence * 100);
+  const conf = getClassificationConfidence(doc);
   const isNew = doc.status === "uploaded" || doc.status === "processing" || doc.status === "structuring";
 
   return (
@@ -590,25 +706,47 @@ function DocRow({
         )}
       </td>
       <td className="px-5 py-3.5">
-        <div className="flex items-center gap-3">
-          {isNew && <Dot className="w-5 h-5 text-green-500 -ml-2 flex-shrink-0" />}
-          <FileTypeIcon fileType={doc.fileType} />
-          <div className="min-w-0">
-            <p className="text-sm font-medium text-slate-800 truncate max-w-[220px]">{doc.fileName}</p>
-            <p className="text-xs text-slate-400">{formatFileSize(doc.fileSize)}</p>
+        <HoverPreview doc={doc}>
+          <div className="flex min-w-0 items-center gap-3">
+            {isNew && <Dot className="w-5 h-5 text-green-500 -ml-2 flex-shrink-0" />}
+            <FileTypeIcon fileType={doc.fileType} />
+            <div className="min-w-0">
+              <p className="text-sm font-medium text-slate-800 truncate max-w-[220px]">{doc.fileName}</p>
+              <div className="mt-0.5 flex flex-wrap items-center gap-2">
+                <span className="text-xs text-slate-400">{formatFileSize(doc.fileSize)}</span>
+                <span className="inline-flex items-center gap-1 rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-semibold text-slate-500 ring-1 ring-slate-200">
+                  <Eye className="h-3 w-3" />
+                  Hover preview
+                </span>
+              </div>
+            </div>
           </div>
+        </HoverPreview>
+      </td>
+      <td className="px-4 py-3.5">
+        {doc.status === "error" || resolveDocTypeCode(doc) === "unknown" ? (
+          <span className="text-xs font-medium text-slate-600 bg-slate-100 rounded-full px-2.5 py-1">
+            {doc.docType || (doc.status === "error" ? "Not classified" : "Processing...")}
+          </span>
+        ) : (
+          <DocTypeBadge code={resolveDocTypeCode(doc)} />
+        )}
+      </td>
+      <td className="px-4 py-3.5">
+        <div className="max-w-[240px]">
+          <StatusBadge status={doc.status} />
+          {doc.status === "error" && (
+            <p
+              className="mt-1 text-[11px] leading-4 text-red-600"
+              title={doc.error || "Processing failed"}
+            >
+              {formatProcessingError(doc.error)}
+            </p>
+          )}
         </div>
       </td>
       <td className="px-4 py-3.5">
-        <span className="text-xs font-medium text-slate-600 bg-slate-100 rounded-full px-2.5 py-1">
-          {doc.docType || "Processing…"}
-        </span>
-      </td>
-      <td className="px-4 py-3.5">
-        <StatusBadge status={doc.status} />
-      </td>
-      <td className="px-4 py-3.5">
-        {doc.overallConfidence > 0 ? (
+        {conf !== null ? (
           <div className="flex items-center gap-2">
             <div className="w-16 h-1.5 bg-slate-100 rounded-full overflow-hidden">
               <div

@@ -25,7 +25,6 @@ import {
   Keyboard,
   Zap,
   Crown,
-  X,
 } from "lucide-react";
 import Link from "next/link";
 import Sidebar from "@/components/dashboard/Sidebar";
@@ -35,6 +34,13 @@ import UpgradeModal from "@/components/dashboard/UpgradeModal";
 import ManagePlanModal from "@/components/dashboard/ManagePlanModal";
 import { apiUrl } from "@/lib/api";
 import { handleUnauthorized } from "@/lib/api";
+import {
+  batchSummaryLine,
+  completeUploadBatch,
+  createUploadBatchFromApi,
+  recordBatchDocument,
+  type UploadBatchRecord,
+} from "@/lib/batches";
 
 // ─── Types ──────────────────────────────────────────────────────
 type FileStatus = "queued" | "detecting" | "ready" | "uploading" | "processing" | "structuring" | "done" | "error";
@@ -43,6 +49,9 @@ type DocInputType = "handwritten" | "typed" | "unknown";
 interface UploadFile {
   id: string;
   documentId?: string;
+  documentIds?: string[];
+  batchId?: string;
+  batchLabel?: string;
   name: string;
   size: number;
   type: string;
@@ -55,6 +64,24 @@ interface UploadFile {
   detectedType?: DocInputType;
   detectedConfidence?: number;
   isHandwrittenOverride?: boolean;
+  docTypeConfidence?: number;
+  processedStatus?: "approved" | "review" | "rejected" | "error";
+  splitDocumentCount?: number;
+}
+
+interface UploadedDocumentPart {
+  documentId: string;
+  fileName?: string;
+  pageNumber?: number;
+  totalPages?: number;
+}
+
+interface UploadApiResponse {
+  documentId: string;
+  documentIds?: string[];
+  documents?: UploadedDocumentPart[];
+  splitFromPdf?: boolean;
+  totalDocuments?: number;
 }
 
 // ─── Helpers ────────────────────────────────────────────────────
@@ -64,9 +91,35 @@ function formatSize(bytes: number): string {
   return `${(bytes / 1048576).toFixed(1)} MB`;
 }
 
+function fileStem(name: string): string {
+  return name.replace(/\.[^.]+$/, "");
+}
+
 function getFileIcon(type: string) {
   if (type.startsWith("image/")) return Image;
   return FileText;
+}
+
+function getProcessedDocumentIds(file: Pick<UploadFile, "documentId" | "documentIds">): string[] {
+  if (file.documentIds?.length) return file.documentIds;
+  return file.documentId ? [file.documentId] : [];
+}
+
+function getUploadedDocuments(uploadData: UploadApiResponse, fallbackName: string): UploadedDocumentPart[] {
+  const documents = Array.isArray(uploadData.documents)
+    ? uploadData.documents.filter((doc) => typeof doc.documentId === "string")
+    : [];
+
+  if (documents.length > 0) return documents;
+
+  const ids = Array.isArray(uploadData.documentIds) && uploadData.documentIds.length > 0
+    ? uploadData.documentIds
+    : [uploadData.documentId].filter((id): id is string => typeof id === "string" && id.length > 0);
+
+  return ids.map((documentId, index) => ({
+    documentId,
+    fileName: index === 0 ? fallbackName : `${fallbackName} - bill ${index + 1}`,
+  }));
 }
 
 const acceptedTypes = [
@@ -137,7 +190,8 @@ async function processFile(
   file: UploadFile,
   onUpdate: (updates: Partial<UploadFile>) => void,
   isHandwritten: boolean = false,
-  shouldCancel: () => boolean = () => false
+  shouldCancel: () => boolean = () => false,
+  batch?: UploadBatchRecord
 ): Promise<void> {
   try {
     if (shouldCancel()) {
@@ -150,6 +204,13 @@ async function processFile(
     formData.append("file", file.file);
     if (isHandwritten) {
       formData.append("isHandwritten", "true");
+    }
+    if (batch) {
+      formData.append("batchId", batch.id);
+      formData.append("batchLabel", batch.label);
+      formData.append("batchNumber", String(batch.number));
+      formData.append("batchUploadedAt", batch.uploadedAt);
+      formData.append("batchDocumentCount", String(batch.documentCount));
     }
     
     const companyId = localStorage.getItem("selected");
@@ -172,33 +233,89 @@ async function processFile(
       throw new Error(err.error || "Upload failed");
     }
 
-    const uploadData = await uploadRes.json();
-    onUpdate({ documentId: uploadData.documentId, status: "uploading", progress: 50 });
-
-    onUpdate({ status: "processing", progress: 60 });
-
-    const processRes = await fetch(apiUrl("/api/process"), {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      credentials: "include",
-      body: JSON.stringify({ documentId: uploadData.documentId }),
-    });
-
-    onUpdate({ status: "structuring", progress: 80 });
-
-    if (!processRes.ok) {
-      const err = await processRes.json();
-      throw new Error(err.error || "Processing failed");
+    const uploadData = (await uploadRes.json()) as UploadApiResponse;
+    const uploadedDocs = getUploadedDocuments(uploadData, file.name);
+    if (uploadedDocs.length === 0) {
+      throw new Error("Upload succeeded but no document ID was returned");
     }
 
-    const processData = await processRes.json();
+    const documentIds = uploadedDocs.map((doc) => doc.documentId);
+    if (batch) {
+      uploadedDocs.forEach((doc) => {
+        recordBatchDocument(batch.id, doc.documentId, doc.fileName || file.name);
+      });
+    }
+    onUpdate({
+      documentId: documentIds[0],
+      documentIds,
+      splitDocumentCount: uploadedDocs.length,
+      status: "uploading",
+      progress: 50,
+    });
+
+    const processedResults: Array<{
+      status?: UploadFile["processedStatus"];
+      docType?: string;
+      docTypeConfidence?: number;
+      overallConfidence?: number;
+    }> = [];
+
+    for (let index = 0; index < uploadedDocs.length; index++) {
+      if (shouldCancel()) {
+        onUpdate({ status: "queued", progress: 0 });
+        return;
+      }
+
+      const uploadedDoc = uploadedDocs[index];
+      const processingProgress = 55 + Math.round((index / uploadedDocs.length) * 25);
+      onUpdate({ status: "processing", progress: processingProgress });
+
+      const processRes = await fetch(apiUrl("/api/process"), {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ documentId: uploadedDoc.documentId }),
+      });
+
+      const structuringProgress = 80 + Math.round(((index + 1) / uploadedDocs.length) * 15);
+      onUpdate({ status: "structuring", progress: structuringProgress });
+
+      if (!processRes.ok) {
+        const err = await processRes.json().catch(() => ({}));
+        const prefix = uploadedDocs.length > 1 ? `Bill ${index + 1}: ` : "";
+        throw new Error(`${prefix}${err.error || "Processing failed"}`);
+      }
+
+      processedResults.push(await processRes.json());
+    }
+
+    const primaryResult = processedResults[0] || {};
+    const confidenceValues = processedResults
+      .map((result) => result.docTypeConfidence ?? result.overallConfidence)
+      .filter((value): value is number => typeof value === "number");
+    const averageConfidence =
+      confidenceValues.length > 0
+        ? Math.round(confidenceValues.reduce((sum, value) => sum + value, 0) / confidenceValues.length)
+        : undefined;
+    const processedStatus: UploadFile["processedStatus"] =
+      processedResults.some((result) => result.status === "review")
+        ? "review"
+        : processedResults.every((result) => result.status === "approved")
+          ? "approved"
+          : primaryResult.status || "review";
 
     onUpdate({
       status: "done",
       progress: 100,
-      confidence: processData.overallConfidence,
-      docType: processData.docType,
-      documentId: uploadData.documentId,
+      confidence: averageConfidence,
+      docTypeConfidence: averageConfidence,
+      processedStatus,
+      docType: uploadedDocs.length > 1 ? `${uploadedDocs.length} Bills` : primaryResult.docType,
+      documentId: documentIds[0],
+      documentIds,
+      splitDocumentCount: uploadedDocs.length,
+      batchId: batch?.id,
+      batchLabel: batch?.label,
     });
   } catch (error) {
     const message = error instanceof Error ? error.message : "Processing failed";
@@ -239,6 +356,7 @@ export default function UploadPage() {
   const [upgradeMessage, setUpgradeMessage] = useState("");
   const [upgradeOpen, setUpgradeOpen] = useState(false);
   const [managePlanOpen, setManagePlanOpen] = useState(false);
+  const [lastBatch, setLastBatch] = useState<UploadBatchRecord | null>(null);
   const [planInfo, setPlanInfo] = useState<{
     plan: string;
     label: string;
@@ -270,7 +388,8 @@ export default function UploadPage() {
   }, []);
 
   useEffect(() => {
-    refreshPlan();
+    const timer = window.setTimeout(() => refreshPlan(), 0);
+    return () => window.clearTimeout(timer);
   }, [refreshPlan]);
 
   /**
@@ -303,7 +422,11 @@ export default function UploadPage() {
     const sidebar = document.querySelector("aside");
     if (sidebar) {
       observer.observe(sidebar, { attributes: true, attributeFilter: ["style"] });
-      setSidebarWidth(sidebar.getBoundingClientRect().width);
+      const frame = requestAnimationFrame(() => setSidebarWidth(sidebar.getBoundingClientRect().width));
+      return () => {
+        cancelAnimationFrame(frame);
+        observer.disconnect();
+      };
     }
     return () => observer.disconnect();
   }, []);
@@ -363,7 +486,7 @@ export default function UploadPage() {
   }, []);
 
   // Start processing all ready files
-  const startProcessing = useCallback(() => {
+  const startProcessing = useCallback(async () => {
     const readyFiles = files.filter((f) => f.status === "ready" || f.status === "queued");
     if (readyFiles.length === 0) return;
 
@@ -389,18 +512,75 @@ export default function UploadPage() {
     setIsProcessing(true);
     setUpgradeMessage("");
     setUpgradeOpen(false);
+    const batch = await createUploadBatchFromApi(apiUrl("/api/batches"), readyFiles.map((f) => f.name));
+    setLastBatch(batch);
+    setFiles((prev) =>
+      prev.map((f) =>
+        readyFiles.some((ready) => ready.id === f.id)
+          ? { ...f, batchId: batch.id, batchLabel: batch.label }
+          : f
+      )
+    );
 
     readyFiles.forEach((uploadFile, i) => {
       setTimeout(() => {
         if (cancelUploadsRef.current) return;
         const isHandwritten = uploadFile.isHandwrittenOverride ?? (uploadFile.detectedType === "handwritten");
         processFile(
-          uploadFile,
+          { ...uploadFile, batchId: batch.id, batchLabel: batch.label },
           (updates) => {
             setFiles((prev) => {
-              const updated = prev.map((f) => (f.id === uploadFile.id ? { ...f, ...updates } : f));
+              const updated = prev.map((f) => (f.id === uploadFile.id ? { ...f, batchId: batch.id, batchLabel: batch.label, ...updates } : f));
               const anyActive = updated.some((f) => ["uploading", "processing", "structuring"].includes(f.status));
               if (!anyActive) setIsProcessing(false);
+              const updateDocumentIds = updates.documentIds?.length
+                ? updates.documentIds
+                : updates.documentId
+                  ? [updates.documentId]
+                  : [];
+
+              if (updateDocumentIds.length > 0) {
+                setLastBatch((current) =>
+                  current?.id === batch.id
+                    ? (() => {
+                        const documentIds = Array.from(new Set([...current.documentIds, ...updateDocumentIds]));
+                        return {
+                          ...current,
+                          documentCount: Math.max(current.documentCount, documentIds.length),
+                          documentIds,
+                          fileNames: Array.from(new Set([...current.fileNames, uploadFile.name])),
+                        };
+                      })()
+                    : current
+                );
+              }
+              const batchFiles = updated.filter((f) => f.batchId === batch.id);
+              const batchSettled =
+                batchFiles.length > 0 &&
+                batchFiles.every((f) => f.status === "done" || f.status === "error");
+              if (batchSettled) {
+                completeUploadBatch(batch.id);
+                setLastBatch((current) =>
+                  current?.id === batch.id
+                    ? (() => {
+                        const documentIds = Array.from(
+                          new Set([
+                            ...current.documentIds,
+                            ...batchFiles.flatMap((f) => getProcessedDocumentIds(f)),
+                          ])
+                        );
+                        const documentCount = Math.max(current.documentCount, documentIds.length);
+                        const hasErrors = batchFiles.some((f) => f.status === "error");
+                        return {
+                          ...current,
+                          documentCount,
+                          documentIds,
+                          status: !hasErrors && documentIds.length >= documentCount ? "complete" : "partial",
+                        };
+                      })()
+                    : current
+                );
+              }
 
               // Detect upgrade-required errors → open the upgrade modal
               // and cancel the rest of the queued uploads so we don't
@@ -415,7 +595,8 @@ export default function UploadPage() {
             });
           },
           isHandwritten,
-          () => cancelUploadsRef.current
+          () => cancelUploadsRef.current,
+          batch
         );
       }, i * 500);
     });
@@ -439,6 +620,19 @@ export default function UploadPage() {
   };
 
   const canStartProcessing = stats.ready > 0 && stats.detecting === 0 && !isProcessing;
+  const completedFiles = files.filter((f) => f.status === "done");
+  const selectableDocumentIds = completedFiles.flatMap((f) => getProcessedDocumentIds(f));
+  const firstProcessedDocumentId = selectableDocumentIds[0];
+  const processedDownloadLinks = completedFiles.flatMap((file) => {
+    const ids = getProcessedDocumentIds(file);
+    return ids.map((documentId, index) => ({
+      documentId,
+      label:
+        ids.length > 1
+          ? `${fileStem(file.name)} bill ${index + 1}.csv`
+          : `${fileStem(file.name)}.csv`,
+    }));
+  });
 
   return (
     <div className="flex h-screen bg-[#f8f9fb]">
@@ -529,6 +723,34 @@ export default function UploadPage() {
               >
                 Details
               </button>
+            </motion.div>
+          )}
+
+          {lastBatch && (
+            <motion.div
+              initial={{ opacity: 0, y: -10 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="flex flex-wrap items-center justify-between gap-4 rounded-2xl border border-emerald-200 bg-emerald-50 px-5 py-4"
+            >
+              <div className="flex items-center gap-3">
+                <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-white text-emerald-600 shadow-sm">
+                  <FileCheck2 className="h-5 w-5" />
+                </div>
+                <div>
+                  <p className="text-sm font-bold text-emerald-900">{batchSummaryLine(lastBatch)}</p>
+                  <p className="mt-0.5 text-xs text-emerald-700">
+                    {lastBatch.documentIds.length} of {lastBatch.documentCount} documents linked to {lastBatch.label}
+                    {lastBatch.status === "complete" ? " - ready for batch export" : ""}
+                  </p>
+                </div>
+              </div>
+              <Link
+                href={`/dashboard/documents?batch=${encodeURIComponent(lastBatch.id)}`}
+                className="inline-flex items-center gap-2 rounded-xl bg-white px-4 py-2 text-sm font-semibold text-emerald-700 shadow-sm ring-1 ring-emerald-200 hover:bg-emerald-100 transition"
+              >
+                View Batch
+                <ArrowRight className="h-4 w-4" />
+              </Link>
             </motion.div>
           )}
 
@@ -659,6 +881,7 @@ export default function UploadPage() {
                   {files.map((file) => {
                     const FileIcon = getFileIcon(file.type);
                     const cfg = statusConfig[file.status];
+                    const rowDocumentIds = getProcessedDocumentIds(file);
                     return (
                       <motion.div key={file.id} initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: "auto" }} exit={{ opacity: 0, height: 0 }}
                         className="flex items-center gap-4 px-5 py-4 group">
@@ -711,6 +934,25 @@ export default function UploadPage() {
                             {file.docType && (
                               <span className="px-1.5 py-0.5 text-[9px] font-bold bg-primary/10 text-primary rounded">{file.docType}</span>
                             )}
+                            {file.splitDocumentCount && file.splitDocumentCount > 1 && (
+                              <span className="px-1.5 py-0.5 text-[9px] font-bold bg-cyan-50 text-cyan-700 border border-cyan-200 rounded">
+                                Split into {file.splitDocumentCount} bills
+                              </span>
+                            )}
+                            {file.docTypeConfidence !== undefined && (
+                              <span className={`px-1.5 py-0.5 text-[9px] font-bold rounded ${
+                                file.docTypeConfidence >= 95
+                                  ? "bg-emerald-50 text-emerald-700 border border-emerald-200"
+                                  : "bg-amber-50 text-amber-700 border border-amber-200"
+                              }`}>
+                                Type AI {file.docTypeConfidence}%
+                              </span>
+                            )}
+                            {file.batchLabel && (
+                              <span className="px-1.5 py-0.5 text-[9px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200 rounded">
+                                {file.batchLabel}
+                              </span>
+                            )}
                           </div>
                           <div className="flex items-center gap-2 mt-0.5">
                             <span className="text-[11px] text-muted">{formatSize(file.size)}</span>
@@ -718,7 +960,7 @@ export default function UploadPage() {
                               <>
                                 <span className="text-[11px] text-muted">&middot;</span>
                                 <span className={`text-[11px] font-semibold ${file.confidence >= 90 ? "text-success" : "text-amber-500"}`}>
-                                  {file.confidence}% confidence
+                                  {file.confidence}% type confidence
                                 </span>
                               </>
                             )}
@@ -749,25 +991,28 @@ export default function UploadPage() {
                           {(file.status === "processing" || file.status === "structuring") && <Sparkles className="w-3 h-3 animate-pulse" />}
                           {file.status === "done" && <CheckCircle2 className="w-3 h-3" />}
                           {file.status === "error" && <AlertTriangle className="w-3 h-3" />}
-                          {cfg.label}
+                          {file.status === "done" && file.processedStatus === "approved"
+                            ? "Auto-approved"
+                            : file.status === "done" && file.processedStatus === "review"
+                              ? "Needs Review"
+                              : cfg.label}
                         </span>
 
                         {/* Selection checkbox (only for completed docs) */}
-                        {file.status === "done" && file.documentId && (
+                        {file.status === "done" && rowDocumentIds.length > 0 && (
                           <label
                             className="flex items-center justify-center w-6 h-6 rounded cursor-pointer hover:bg-slate-100 transition"
-                            title="Select for merge"
+                            title={rowDocumentIds.length > 1 ? "Select all split bills for merge" : "Select for merge"}
                             onClick={(e) => e.stopPropagation()}
                           >
                             <input
                               type="checkbox"
-                              checked={selectedIds.includes(file.documentId)}
+                              checked={rowDocumentIds.every((id) => selectedIds.includes(id))}
                               onChange={(e) => {
-                                const id = file.documentId!;
                                 setSelectedIds((prev) =>
                                   e.target.checked
-                                    ? Array.from(new Set([...prev, id]))
-                                    : prev.filter((x) => x !== id)
+                                    ? Array.from(new Set([...prev, ...rowDocumentIds]))
+                                    : prev.filter((x) => !rowDocumentIds.includes(x))
                                 );
                               }}
                               className="w-4 h-4 rounded border-slate-300 text-primary focus:ring-primary"
@@ -790,14 +1035,14 @@ export default function UploadPage() {
                               {file.isHandwrittenOverride ? <PenTool className="w-4 h-4" /> : <Keyboard className="w-4 h-4" />}
                             </motion.button>
                           )}
-                          {file.status === "done" && file.documentId && (
-                            <a href={apiUrl(`/api/documents/${file.documentId}/excel`)} download
+                          {file.status === "done" && rowDocumentIds[0] && (
+                            <a href={apiUrl(`/api/documents/${rowDocumentIds[0]}/excel`)} download
                               className="p-1.5 rounded-lg text-success hover:bg-success/10 transition-colors opacity-0 group-hover:opacity-100" title="Download Excel">
                               <FileSpreadsheet className="w-4 h-4" />
                             </a>
                           )}
-                          {file.status === "done" && file.documentId && (
-                            <Link href={`/dashboard/review?doc=${file.documentId}`}
+                          {file.status === "done" && rowDocumentIds[0] && (
+                            <Link href={`/dashboard/review?doc=${rowDocumentIds[0]}`}
                               className="p-1.5 rounded-lg text-primary hover:bg-primary/10 transition-colors opacity-0 group-hover:opacity-100" title="Review">
                               <Eye className="w-4 h-4" />
                             </Link>
@@ -828,28 +1073,30 @@ export default function UploadPage() {
                       transition={{ type: "spring", stiffness: 400, damping: 15 }}>
                       <CheckCircle2 className="w-5 h-5 text-success" />
                     </motion.div>
-                    <span className="text-sm font-semibold text-success">All documents processed and ready!</span>
+                    <span className="text-sm font-semibold text-success">
+                      All documents processed and ready{lastBatch ? ` in ${lastBatch.label}` : ""}!
+                    </span>
                   </div>
                   <div className="grid grid-cols-2 gap-3">
-                    <a href={files.find(f => f.status === "done" && f.documentId)
-                        ? apiUrl(`/api/documents/${files.find(f => f.status === "done" && f.documentId)!.documentId}/excel`) : "#"}
+                    <a href={firstProcessedDocumentId
+                        ? apiUrl(`/api/documents/${firstProcessedDocumentId}/excel`) : "#"}
                       download
                       className="flex items-center justify-center gap-2 px-5 py-3 text-sm font-bold text-white bg-gradient-to-r from-success to-emerald-600 rounded-xl shadow-lg shadow-success/25 hover:shadow-success/40 hover:scale-[1.02] transition-all">
                       <FileSpreadsheet className="w-5 h-5" />Download Excel<Download className="w-4 h-4" />
                     </a>
                     <Link href="/dashboard/review"
                       className="flex items-center justify-center gap-2 px-5 py-3 text-sm font-semibold text-primary bg-white border-2 border-primary/20 rounded-xl hover:bg-primary/5 hover:border-primary/40 transition-all">
-                      Review &amp; Approve<ArrowRight className="w-4 h-4" />
+                      Open Review Queue<ArrowRight className="w-4 h-4" />
                     </Link>
                   </div>
-                  {stats.done > 1 && (
+                  {processedDownloadLinks.length > 1 && (
                     <div className="mt-3 space-y-2">
                       <p className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider">Download individual files:</p>
                       <div className="flex flex-wrap gap-2">
-                        {files.filter(f => f.status === "done" && f.documentId).map(f => (
-                          <a key={f.id} href={apiUrl(`/api/documents/${f.documentId}/excel`)} download
+                        {processedDownloadLinks.map((link) => (
+                          <a key={link.documentId} href={apiUrl(`/api/documents/${link.documentId}/excel`)} download
                             className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-success bg-success/10 rounded-lg hover:bg-success/20 transition-colors">
-                            <FileSpreadsheet className="w-3 h-3" />{f.name.replace(/\.[^.]+$/, "")}.csv
+                            <FileSpreadsheet className="w-3 h-3" />{link.label}
                           </a>
                         ))}
                       </div>
@@ -882,13 +1129,9 @@ export default function UploadPage() {
           {/* Merge bar — appears when one or more processed files are selected */}
           <MergeBar
             selectedIds={selectedIds}
-            totalSelectable={files.filter((f) => f.status === "done" && f.documentId).length}
+            totalSelectable={selectableDocumentIds.length}
             onSelectAll={() =>
-              setSelectedIds(
-                files
-                  .filter((f) => f.status === "done" && f.documentId)
-                  .map((f) => f.documentId!)
-              )
+              setSelectedIds(selectableDocumentIds)
             }
             onClear={() => setSelectedIds([])}
             populationLabel="processed documents"

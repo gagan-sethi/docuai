@@ -10,7 +10,7 @@
  * small — no chart library dependency.
  *
  * Sections:
- *   1. Headline KPI cards (totals + accuracy + AED processed)
+ *   1. Headline KPI cards (totals + accuracy + detected-currency totals)
  *   2. Status breakdown — donut + legend
  *   3. Daily volume — sparkline-style bar chart for the last 30 days
  *   4. Top suppliers — horizontal bar list (from extracted fields)
@@ -45,6 +45,7 @@ import {
 import Sidebar from "@/components/dashboard/Sidebar";
 import TopBar from "@/components/dashboard/TopBar";
 import { apiUrl, handleUnauthorized } from "@/lib/api";
+import { deriveFinancialSummary, formatMoney, getPrimaryCurrency } from "@/lib/finance";
 import type { ProcessedDocument } from "@/lib/types";
 
 type RangeKey = "7d" | "30d" | "90d" | "all";
@@ -90,24 +91,11 @@ function fmtNumber(n: number): string {
   return n.toLocaleString();
 }
 
-// function fmtMoney(n: number): string {
-//   return n.toLocaleString("en-AE", {
-//     style: "currency",
-//     currency: "AED",
-//     maximumFractionDigits: 0,
-//   });
-// }
-
-function fmtMoney(n: number): string {
-  return n.toLocaleString("en-US", {
-    style: "currency",
-    currency: "USD",
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  });
+function fmtMoney(n: number, currency = "AED"): string {
+  return formatMoney(n, currency);
 }
 
-// Quick parser for AED-style amounts on extracted fields.
+// Quick parser for legacy extracted-field amounts.
 function parseAmount(v: string | undefined): number | null {
   if (!v) return null;
   const s = String(v).replace(/[^0-9.\-]/g, "");
@@ -299,6 +287,7 @@ export default function AnalyticsPage() {
   // }, [docs, range]);
 
   const filtered = docs;
+  const primaryCurrency = useMemo(() => getPrimaryCurrency(filtered), [filtered]);
 
   // ─── KPIs ────────────────────────────────────────────────────
   const kpis = useMemo(() => {
@@ -328,14 +317,18 @@ export default function AnalyticsPage() {
         confSum += conf;
         confCount += 1;
       }
-      const amtRaw = pickField(d, /\b(grand\s*total|total|invoice\s*total|amount\s*due)\b/i);
-      const amt = parseAmount(amtRaw ?? undefined);
-      if (amt != null) {
+      const fin = deriveFinancialSummary(d);
+      const fallbackAmount = parseAmount(
+        pickField(d, /\b(grand\s*total|total|invoice\s*total|amount\s*due)\b/i) ?? undefined
+      );
+      const amt = fin.grandTotal > 0 ? fin.grandTotal : fallbackAmount;
+      if (amt != null && amt > 0) {
         totalAmount += amt;
         amountCount += 1;
       }
-      const vat = pickVatAmount(d);
-      if (vat != null) {
+      const fallbackVat = pickVatAmount(d);
+      const vat = fin.vatAmount > 0 ? fin.vatAmount : fallbackVat;
+      if (vat != null && vat > 0) {
         totalVat += vat;
         vatCount += 1;
       }
@@ -426,8 +419,10 @@ export default function AnalyticsPage() {
     const buckets = new Map<string, { month: string; total: number; count: number }>();
 
     for (const d of filtered) {
-      const vat = pickVatAmount(d);
-      if (vat == null) continue;
+      const fin = deriveFinancialSummary(d);
+      const fallbackVat = pickVatAmount(d);
+      const vat = fin.vatAmount > 0 ? fin.vatAmount : fallbackVat;
+      if (vat == null || vat <= 0) continue;
 
       const key = getDocumentMonthKey(d);
       const bucket = buckets.get(key) ?? { month: key, total: 0, count: 0 };
@@ -448,13 +443,17 @@ export default function AnalyticsPage() {
   const topSuppliers = useMemo(() => {
     const counts = new Map<string, { count: number; amount: number }>();
     for (const d of filtered) {
-      const supplier = pickField(d, /\b(supplier|vendor|seller|merchant|payee|biller)[\s_-]*name\b|^supplier$|^vendor$/i);
+      const fin = deriveFinancialSummary(d);
+      const supplier =
+        fin.counterparty ||
+        pickField(d, /\b(supplier|vendor|seller|merchant|payee|biller)[\s_-]*name\b|^supplier$|^vendor$/i);
       if (!supplier) continue;
       const key = supplier.trim();
       if (!key) continue;
-      const amt = parseAmount(
+      const fallbackAmount = parseAmount(
         pickField(d, /\b(grand\s*total|total|invoice\s*total|amount\s*due)\b/i) ?? undefined
       );
+      const amt = fin.grandTotal > 0 ? fin.grandTotal : fallbackAmount;
       const cur = counts.get(key) ?? { count: 0, amount: 0 };
       cur.count += 1;
       if (amt != null) cur.amount += amt;
@@ -635,7 +634,7 @@ export default function AnalyticsPage() {
                 />
                 <KpiCard
                   label="Total Invoiced"
-                  value={kpis.amountCount > 0 ? fmtMoney(kpis.totalAmount) : "—"}
+                  value={kpis.amountCount > 0 ? fmtMoney(kpis.totalAmount, primaryCurrency) : "—"}
                   icon={<Sigma className="w-4 h-4" />}
                   tone="indigo"
                   hint={
@@ -646,7 +645,7 @@ export default function AnalyticsPage() {
                 />
                 <KpiCard
                   label="Total VAT"
-                  value={kpis.vatCount > 0 ? fmtMoney(kpis.totalVat) : "—"}
+                  value={kpis.vatCount > 0 ? fmtMoney(kpis.totalVat, primaryCurrency) : "—"}
                   icon={<Receipt className="w-4 h-4" />}
                   tone="emerald"
                   hint={
@@ -657,12 +656,12 @@ export default function AnalyticsPage() {
                 />
                 {/* <KpiCard
                   label="Total Spend"
-                  value={spendData ? fmtMoney(spendData.summary.totalSpend) : "—"}
+                  value={spendData ? fmtMoney(spendData.summary.totalSpend, primaryCurrency) : "—"}
                   icon={<TrendingUp className="w-4 h-4" />}
                   tone="emerald"
                   hint={
                     spendData
-                      ? `${fmtMoney(spendData.summary.thisMonthSpend)} this month · ${spendData.summary.growthPercent >= 0 ? '↑' : '↓'} ${Math.abs(spendData.summary.growthPercent).toFixed(1)}%`
+                      ? `${fmtMoney(spendData.summary.thisMonthSpend, primaryCurrency)} this month · ${spendData.summary.growthPercent >= 0 ? '↑' : '↓'} ${Math.abs(spendData.summary.growthPercent).toFixed(1)}%`
                       : "Loading..."
                   }
                 /> */}
@@ -681,14 +680,14 @@ export default function AnalyticsPage() {
               {/* ─── VAT by month ────────────────────────────── */}
               <div className="mb-6">
                 <Card title="VAT Totals By Month" icon={<Landmark className="w-4 h-4" />}>
-                  <MonthlyVatChart data={monthlyVat} max={monthlyVatMax} />
+                  <MonthlyVatChart data={monthlyVat} max={monthlyVatMax} currency={primaryCurrency} />
                 </Card>
               </div>
 
               {/* ─── Suppliers + Doc types ───────────────────── */}
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-6">
                 <Card title="Top Suppliers" icon={<Building2 className="w-4 h-4" />}>
-                  <SupplierList items={topSuppliers} />
+                  <SupplierList items={topSuppliers} currency={primaryCurrency} />
                 </Card>
                 <Card title="Document Types" icon={<Layers className="w-4 h-4" />}>
                   <TypeBars items={typeMix} total={kpis.total} />
@@ -908,9 +907,11 @@ function DailyVolumeChart({ data, max }: { data: { date: string; count: number }
 function MonthlyVatChart({
   data,
   max,
+  currency,
 }: {
   data: { month: string; total: number; count: number }[];
   max: number;
+  currency: string;
 }) {
   if (data.length === 0) {
     return (
@@ -919,9 +920,6 @@ function MonthlyVatChart({
       </p>
     );
   }
-  console.log("data of the vat", data);
-  console.log(max)
-
   const totalVat = data.reduce((sum, item) => sum + item.total, 0);
   const invoiceCount = data.reduce((sum, item) => sum + item.count, 0);
   const peakMonth = data.reduce((peak, item) => item.total > peak.total ? item : peak, data[0]);
@@ -940,7 +938,7 @@ function MonthlyVatChart({
         <div>
           <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
             <span className="text-2xl font-extrabold text-slate-900">
-              {fmtMoney(totalVat)}
+              {fmtMoney(totalVat, currency)}
             </span>
             <span className="text-xs text-slate-500">
               total VAT across {fmtNumber(invoiceCount)} invoice{invoiceCount === 1 ? "" : "s"}
@@ -955,7 +953,7 @@ function MonthlyVatChart({
             Highest Month
           </p>
           <p className="text-sm font-extrabold text-slate-900">
-            {fmtMoney(peakMonth.total)}
+            {fmtMoney(peakMonth.total, currency)}
           </p>
           <p className="text-[10px] text-emerald-700/80">
             {monthLabel(peakMonth.month)}
@@ -996,7 +994,7 @@ function MonthlyVatChart({
                   rx={4}
                   className="fill-emerald-500/85 hover:fill-emerald-600 transition"
                 >
-                  <title>{`${label}: ${fmtMoney(item.total)} VAT from ${item.count} invoice${item.count === 1 ? "" : "s"}`}</title>
+                  <title>{`${label}: ${fmtMoney(item.total, currency)} VAT from ${item.count} invoice${item.count === 1 ? "" : "s"}`}</title>
                 </rect>
                 {barW >= 58 && (
                   <text
@@ -1005,7 +1003,7 @@ function MonthlyVatChart({
                     textAnchor="middle"
                     className="fill-slate-600 text-[9px] font-bold"
                   >
-                    {fmtMoney(item.total)}
+                    {fmtMoney(item.total, currency)}
                   </text>
                 )}
                 <text
@@ -1028,10 +1026,10 @@ function MonthlyVatChart({
             );
           })}
           <text x={4} y={pad.t + 8} className="fill-slate-400 text-[10px]">
-            {fmtMoney(max)}
+            {fmtMoney(max, currency)}
           </text>
           <text x={4} y={pad.t + innerH} className="fill-slate-400 text-[10px]">
-            $0.00
+            {fmtMoney(0, currency)}
           </text>
         </svg>
       </div>
@@ -1126,7 +1124,13 @@ function StatusDonut({
   );
 }
 
-function SupplierList({ items }: { items: { name: string; count: number; amount: number }[] }) {
+function SupplierList({
+  items,
+  currency,
+}: {
+  items: { name: string; count: number; amount: number }[];
+  currency: string;
+}) {
   if (items.length === 0)
     return <p className="text-xs text-slate-400 py-6 text-center">No supplier names extracted yet.</p>;
   const max = Math.max(...items.map((i) => i.count));
@@ -1144,7 +1148,7 @@ function SupplierList({ items }: { items: { name: string; count: number; amount:
                 {i.count} doc{i.count === 1 ? "" : "s"}
                 {i.amount > 0 && (
                   <span className="ml-2 font-semibold text-slate-700">
-                    {fmtMoney(i.amount)}
+                    {fmtMoney(i.amount, currency)}
                   </span>
                 )}
               </span>

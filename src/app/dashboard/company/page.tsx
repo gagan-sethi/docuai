@@ -62,6 +62,22 @@ interface CompanyFormData {
   };
 }
 
+type CompanyStatusFilter = "all" | Company["status"];
+
+interface CompanyPayload {
+  name: string;
+  legalName?: string;
+  email?: string;
+  phone?: string;
+  status: Company["status"];
+  address?: CompanyFormData["address"];
+}
+
+interface ApiErrorBody {
+  error?: string;
+  code?: string;
+}
+
 interface PaginationInfo {
   page: number;
   limit: number;
@@ -94,6 +110,10 @@ interface PlanData {
   pagesUsagePercent: number;
 }
 
+function getErrorMessage(error: unknown, fallback: string): string {
+  return error instanceof Error ? error.message : fallback;
+}
+
 const initialFormData: CompanyFormData = {
   name: "",
   legalName: "",
@@ -114,7 +134,7 @@ export default function CompaniesPage() {
   const [companies, setCompanies] = useState<Company[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
-  const [statusFilter, setStatusFilter] = useState<"all" | "active" | "inactive">("all");
+  const [statusFilter, setStatusFilter] = useState<CompanyStatusFilter>("all");
   const [stats, setStats] = useState({ total: 0, active: 0, inactive: 0 });
   const [pagination, setPagination] = useState<PaginationInfo>({
     page: 1,
@@ -136,8 +156,16 @@ export default function CompaniesPage() {
   const [formErrors, setFormErrors] = useState<Record<string, string>>({});
   const [showPlanModal, setShowPlanModal] = useState(false);
   const [planData, setPlanData] = useState<PlanData | null>(null);
-  const [planLoading, setPlanLoading] = useState(false);
 
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    if (params.get("new") !== "1" && params.get("create") !== "1") return;
+
+    setFormData(initialFormData);
+    setFormErrors({});
+    setIsCreateModalOpen(true);
+    window.history.replaceState(null, "", "/dashboard/company");
+  }, []);
 
   // Calculate page from offset and limit
   const calculatePage = (offset: number, limit: number): number => {
@@ -190,9 +218,9 @@ export default function CompaniesPage() {
       if (data.counts) {
         setStats(data.counts);
       }
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error("Error fetching companies:", error);
-      toast.error(error.message || "Failed to load companies");
+      toast.error(getErrorMessage(error, "Failed to load companies"));
     } finally {
       setLoading(false);
     }
@@ -200,8 +228,6 @@ export default function CompaniesPage() {
 
   const fetchPlan = useCallback(async () => {
     try {
-      setPlanLoading(true);
-
       const res = await fetch(apiUrl("/api/plan"), {
         credentials: "include",
       });
@@ -216,8 +242,6 @@ export default function CompaniesPage() {
       setPlanData(data);
     } catch (error) {
       console.error("Failed to fetch plan:", error);
-    } finally {
-      setPlanLoading(false);
     }
   }, []);
 
@@ -292,6 +316,31 @@ export default function CompaniesPage() {
     return Object.keys(errors).length === 0;
   };
 
+  const buildCompanyPayload = (): CompanyPayload => {
+    const submitData: CompanyPayload = {
+      name: formData.name.trim(),
+      legalName: formData.legalName || undefined,
+      email: formData.email || undefined,
+      phone: formData.phone || undefined,
+      status: formData.status,
+    };
+
+    if (formData.address) {
+      const hasAddressFields = Object.values(formData.address).some((v) => v && v.trim());
+      if (hasAddressFields) {
+        submitData.address = {
+          line: formData.address.line || undefined,
+          city: formData.address.city || undefined,
+          state: formData.address.state || undefined,
+          country: formData.address.country || "India",
+          postalCode: formData.address.postalCode || undefined,
+        };
+      }
+    }
+
+    return submitData;
+  };
+
   // Create company
   const handleCreateCompany = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -301,28 +350,7 @@ export default function CompaniesPage() {
     try {
       setFormLoading(true);
 
-      // Prepare data - remove empty address fields
-      const submitData: any = {
-        name: formData.name.trim(),
-        legalName: formData.legalName || undefined,
-        email: formData.email || undefined,
-        phone: formData.phone || undefined,
-        status: formData.status,
-      };
-
-      // Only include address if it has any non-empty fields
-      if (formData.address) {
-        const hasAddressFields = Object.values(formData.address).some(v => v && v.trim());
-        if (hasAddressFields) {
-          submitData.address = {
-            line: formData.address.line || undefined,
-            city: formData.address.city || undefined,
-            state: formData.address.state || undefined,
-            country: formData.address.country || "India",
-            postalCode: formData.address.postalCode || undefined,
-          };
-        }
-      }
+      const submitData = buildCompanyPayload();
 
       const res = await fetch(apiUrl("/api/company"), {
         method: "POST",
@@ -331,7 +359,7 @@ export default function CompaniesPage() {
         body: JSON.stringify(submitData),
       });
 
-      const data = await res.json();
+      const data = (await res.json()) as ApiErrorBody;
 
       if (!res.ok) {
         // Check if it's a company limit error
@@ -353,9 +381,9 @@ export default function CompaniesPage() {
       setPagination(prev => ({ ...prev, page: 1 }));
       fetchCompanies();
       fetchPlan();
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error("Error creating company:", error);
-      toast.error(error.message || "Failed to create company");
+      toast.error(getErrorMessage(error, "Failed to create company"));
     } finally {
       setFormLoading(false);
     }
@@ -370,30 +398,7 @@ export default function CompaniesPage() {
     try {
       setFormLoading(true);
 
-      // Prepare data
-      const submitData: any = {
-        name: formData.name.trim(),
-        legalName: formData.legalName || undefined,
-        email: formData.email || undefined,
-        phone: formData.phone || undefined,
-        status: formData.status,
-      };
-
-      // Only include address if it has any non-empty fields
-      if (formData.address) {
-        const hasAddressFields = Object.values(formData.address).some(v => v && v.trim());
-        if (hasAddressFields) {
-          submitData.address = {
-            line: formData.address.line || undefined,
-            city: formData.address.city || undefined,
-            state: formData.address.state || undefined,
-            country: formData.address.country || "India",
-            postalCode: formData.address.postalCode || undefined,
-          };
-        } else {
-          submitData.address = undefined;
-        }
-      }
+      const submitData = buildCompanyPayload();
 
       const res = await fetch(apiUrl(`/api/company/${selectedCompany._id}`), {
         method: "PATCH",
@@ -402,7 +407,7 @@ export default function CompaniesPage() {
         body: JSON.stringify(submitData),
       });
 
-      const data = await res.json();
+      const data = (await res.json()) as ApiErrorBody;
 
       if (!res.ok) {
         throw new Error(data.error || "Failed to update company");
@@ -413,9 +418,9 @@ export default function CompaniesPage() {
       setSelectedCompany(null);
       setFormData(initialFormData);
       fetchCompanies();
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error("Error updating company:", error);
-      toast.error(error.message || "Failed to update company");
+      toast.error(getErrorMessage(error, "Failed to update company"));
     } finally {
       setFormLoading(false);
     }
@@ -543,7 +548,7 @@ export default function CompaniesPage() {
                 <Filter className="w-4 h-4 text-slate-400" />
                 <select
                   value={statusFilter}
-                  onChange={(e) => setStatusFilter(e.target.value as any)}
+                  onChange={(e) => setStatusFilter(e.target.value as CompanyStatusFilter)}
                   className="px-1 py-2.5 bg-white focus:outline-none "
                 >
                   <option value="all">All Status</option>
