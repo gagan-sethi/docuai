@@ -5,6 +5,7 @@ import { useParams } from "next/navigation";
 import Sidebar from "@/components/dashboard/Sidebar";
 import TopBar from "@/components/dashboard/TopBar";
 import { apiUrl } from "@/lib/api";
+import { toast } from "react-toastify"; // ✅ Import toast
 import {
   Paperclip,
   Send,
@@ -68,9 +69,14 @@ export default function TicketDetailPage() {
         credentials: "include",
       });
       const data = await res.json();
-      if (data.success) setTicket(data.data);
+      if (data.success) {
+        setTicket(data.data);
+      } else {
+        toast.error(data?.error || "Failed to load ticket details"); // ✅ Error toast
+      }
     } catch (err) {
       console.error(err);
+      toast.error("Failed to load ticket details. Please refresh the page."); // ✅ Error toast
     } finally {
       setLoading(false);
     }
@@ -118,8 +124,13 @@ export default function TicketDetailPage() {
         body: formData,
       });
 
-      if (!res.ok) throw new Error("Failed");
+      const data = await res.json();
 
+      if (!res.ok) {
+        throw new Error(data?.message || "Failed to send reply");
+      }
+
+      toast.success("Reply sent successfully!"); // ✅ Success toast
       setReply("");
       setAttachments([]);
       await fetchTicket();
@@ -129,7 +140,7 @@ export default function TicketDetailPage() {
       }
     } catch (err) {
       console.error(err);
-      alert("Reply failed");
+      toast.error(err instanceof Error ? err.message : "Failed to send reply"); // ✅ Error toast
     } finally {
       setSendingReply(false);
     }
@@ -193,17 +204,16 @@ export default function TicketDetailPage() {
 
       const data = await res.json();
 
-      if (!res.ok) throw new Error(data?.message || "Failed");
+      if (!res.ok) {
+        throw new Error(data?.message || "Failed to resolve ticket");
+      }
 
-      // Option 1: Refetch (simple + safe)
+      toast.success("Ticket marked as resolved!"); // ✅ Success toast
       await fetchTicket();
-
-      // Option 2 (faster UX):
-      // setTicket((prev) => prev ? { ...prev, status: "resolved" } : prev);
 
     } catch (err) {
       console.error(err);
-      alert("Failed to resolve ticket");
+      toast.error(err instanceof Error ? err.message : "Failed to resolve ticket"); // ✅ Error toast
     } finally {
       setResolving(false);
     }
@@ -283,10 +293,6 @@ export default function TicketDetailPage() {
                         {resolving ? "Resolving..." : "Mark as Resolved"}
                       </button>
                     )}
-                    {/* <span className="inline-flex items-center gap-1.5 rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-xs font-medium text-slate-500">
-                      <Clock className="h-3.5 w-3.5" />
-                      ID {ticket._id.slice(-8).toUpperCase()}
-                    </span> */}
                   </div>
                   <h1 className="break-words text-2xl font-bold text-slate-900">
                     {ticket.issueType}
@@ -445,7 +451,7 @@ export default function TicketDetailPage() {
                       placeholder="Type your reply here... (Press Enter to send, Shift+Enter for new line)"
                       className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-transparent resize-none transition-all text-gray-700 placeholder-gray-400"
                       rows={3}
-                       disabled={sendingReply}
+                      disabled={sendingReply}
                     />
                   </div>
 
@@ -479,8 +485,7 @@ export default function TicketDetailPage() {
                     <div className="flex gap-2">
                       <button
                         onClick={() => fileRef.current?.click()}
-                          disabled={sendingReply}
-
+                        disabled={sendingReply}
                         className="flex items-center gap-2 px-4 py-2 text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-xl transition-colors"
                       >
                         <Paperclip className="w-4 h-4" />
@@ -493,8 +498,17 @@ export default function TicketDetailPage() {
                       disabled={!reply.trim() || sendingReply}
                       className="flex items-center gap-2 px-6 py-2 bg-indigo-600 hover:bg-indigo-700 disabled:bg-gray-300 disabled:cursor-not-allowed text-white rounded-xl transition-all transform hover:scale-105 disabled:transform-none"
                     >
-                      <Send className="w-4 h-4" />
-                      <span className="hidden sm:inline">Send Reply</span>
+                      {sendingReply ? (
+                        <>
+                          <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                          <span>Sending...</span>
+                        </>
+                      ) : (
+                        <>
+                          <Send className="w-4 h-4" />
+                          <span className="hidden sm:inline">Send Reply</span>
+                        </>
+                      )}
                     </button>
 
                     <input

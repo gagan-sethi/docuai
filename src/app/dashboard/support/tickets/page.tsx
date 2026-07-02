@@ -18,6 +18,7 @@ import {
   Ticket,
 } from "lucide-react";
 import { apiUrl } from "@/lib/api";
+import { toast } from "react-toastify"; // ✅ Import toast
 
 interface SupportTicket {
   _id: string;
@@ -68,12 +69,19 @@ export default function TicketsListPage() {
         credentials: "include",
       });
       const data = await res.json();
+      
       if (res.ok) {
         setTickets(data.data || []);
         setTotalTickets(data.total || data.data?.length || 0);
+        if (data.data?.length === 0 && searchQuery) {
+          toast.info("No tickets found matching your search"); // ✅ Info toast
+        }
+      } else {
+        toast.error(data?.message || "Failed to load tickets"); // ✅ Error toast
       }
     } catch (err) {
       console.error("Failed to fetch tickets", err);
+      toast.error("Failed to load tickets. Please refresh the page."); // ✅ Error toast
     } finally {
       setLoading(false);
     }

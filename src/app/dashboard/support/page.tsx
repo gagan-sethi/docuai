@@ -8,6 +8,7 @@ import TopBar from "@/components/dashboard/TopBar";
 import { useFormik } from "formik";
 import * as Yup from "yup";
 import { apiUrl } from "@/lib/api";
+import { toast } from "react-toastify"; // ✅ Import toast
 import {
   Search,
   ChevronDown,
@@ -347,6 +348,7 @@ function SupportTicketForm({ onSuccess }: { onSuccess: () => void }) {
         if (data.success) setIssueTypes(data.data);
       } catch (err) {
         console.error("Failed to fetch issue types", err);
+        toast.error("Failed to load issue types"); // ✅ Error toast
       } finally {
         setLoadingIssueTypes(false);
       }
@@ -404,12 +406,13 @@ function SupportTicketForm({ onSuccess }: { onSuccess: () => void }) {
         setSubmitState("success");
         resetForm();
         setAttachments([]);
+        toast.success("Ticket submitted successfully! We'll respond within 24 hours."); // ✅ Success toast
         onSuccess();
         setTimeout(() => setSubmitState("idle"), 3000);
       } catch (err) {
         console.error(err);
         setSubmitState("idle");
-        alert("Failed to send message. Please try again.");
+        toast.error("Failed to submit ticket. Please try again."); // ✅ Error toast
       }
     },
   });
@@ -572,9 +575,12 @@ export default function SupportPage() {
       if (res.ok) {
         setTickets(data.data || []);
         setTicketCount(data.total || data.data?.length || 0);
+      } else {
+        toast.error("Failed to load your tickets"); // ✅ Error toast
       }
     } catch (err) {
       console.error("Failed to fetch tickets", err);
+      toast.error("Failed to load tickets. Please refresh the page."); // ✅ Error toast
     } finally {
       setLoadingTickets(false);
     }
