@@ -366,6 +366,7 @@ export default function UploadPage() {
     pagesPerMonth: number | "Unlimited";
     pagesUsed: number;
     pagesRemaining: number | "Unlimited";
+    viewerIsOwner: boolean; // Add this line
   } | null>(null);
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -496,17 +497,24 @@ export default function UploadPage() {
     // BEFORE we start uploading anything (instead of silently spinning
     // a loader and failing 5x in a row).
     if (planInfo) {
-      const docLimit = planInfo.documentsPerMonth;
-      const docRemaining = planInfo.documentsRemaining;
-      if (typeof docRemaining === "number" && readyFiles.length > docRemaining) {
-        triggerUpgradeModal(
-          docRemaining === 0
-            ? `You've used all ${docLimit} documents on your ${planInfo.label} plan this month. Upgrade to process ${readyFiles.length} more.`
-            : `You're trying to process ${readyFiles.length} documents but only ${docRemaining} remain on your ${planInfo.label} plan this month. Upgrade for higher limits.`
-        );
-        return;
-      }
+  const docLimit = planInfo.documentsPerMonth;
+  const docRemaining = planInfo.documentsRemaining;
+  if (typeof docRemaining === "number" && readyFiles.length > docRemaining) {
+    const message = docRemaining === 0
+      ? `You've used all ${docLimit} documents on your ${planInfo.label} plan this month. Upgrade to process ${readyFiles.length} more.`
+      : `You're trying to process ${readyFiles.length} documents but only ${docRemaining} remain on your ${planInfo.label} plan this month. Upgrade for higher limits.`;
+    
+    // Only show upgrade modal if viewer is owner
+    if (planInfo.viewerIsOwner) {
+      triggerUpgradeModal(message);
+    } else {
+      // For team members, just show a simple error/stop without upgrade option
+      setUpgradeMessage(message);
+      // Don't open the upgrade modal for team members
     }
+    return;
+  }
+}
 
     cancelUploadsRef.current = false;
     setIsProcessing(true);
@@ -1168,6 +1176,7 @@ export default function UploadPage() {
         onUpgrade={() => setManagePlanOpen(true)}
       />
 
+      {planInfo?.viewerIsOwner && (
       <ManagePlanModal
         open={managePlanOpen}
         onClose={() => setManagePlanOpen(false)}
@@ -1181,7 +1190,7 @@ export default function UploadPage() {
               }
             : null
         }
-      />
+      />)}
     </div>
   );
 }

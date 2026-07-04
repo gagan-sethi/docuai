@@ -317,6 +317,9 @@ export default function DashboardPage() {
     companiesRemaining?: number | "Unlimited";
     companiesUsagePercent?: number;
     resetsAt: string;
+    viewerIsOwner: boolean;
+    isManagedByTeam: boolean;
+    ownerName: string;
   } | null>(null);
   const [showUpgradeModal, setShowUpgradeModal] = useState(false);
   // const [plans, setPlans] = useState<PlanOption[]>([]);
@@ -1182,6 +1185,7 @@ export default function DashboardPage() {
                           />
                         </div>
                       </div>
+                      {planData?.viewerIsOwner &&(
                       <button
                         onClick={() => setShowUpgradeModal(true)}
                         className={`px-4 py-2 text-xs font-semibold rounded-xl hover:scale-105 transition-transform shadow-md ${plan === "free"
@@ -1189,8 +1193,9 @@ export default function DashboardPage() {
                           : "text-primary border border-primary/20 hover:bg-primary/5 shadow-none"
                           }`}
                       >
-                        {plan === "free" ? "Manage Plan" : "Manage Plan"}
+                         Manage Plan
                       </button>
+                      )}
                     </div>
                   </div>
 
@@ -1359,11 +1364,12 @@ export default function DashboardPage() {
 
       {/* Plan Management Modal */}
       <AnimatePresence>
+        {planData?.viewerIsOwner && (
         <ManagePlanModal
           open={showUpgradeModal}
           onClose={() => setShowUpgradeModal(false)}
           planData={planData}
-        />
+        />)}
       </AnimatePresence>
     </div>
   );
