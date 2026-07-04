@@ -572,7 +572,7 @@ export default function DocumentsPage() {
     if (!docToDelete) return;
     setIsDeleting(true);
     try {
-      const res = await fetch(apiUrl(`/api/upload/${docToDelete.id}`), {
+      const res = await fetch(apiUrl(`/api/documents/${docToDelete.id}`), {
         method: "DELETE",
         credentials: "include",
       });
