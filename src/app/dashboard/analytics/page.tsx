@@ -18,7 +18,7 @@
  *   6. Confidence distribution — bucketed histogram
  */
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { motion } from "framer-motion";
 import {
@@ -35,7 +35,6 @@ import {
   Sparkles,
   Download,
   Sigma,
-  Percent,
   PieChart,
   Layers,
   ArrowUpRight,
@@ -47,15 +46,6 @@ import TopBar from "@/components/dashboard/TopBar";
 import { apiUrl, handleUnauthorized } from "@/lib/api";
 import { deriveFinancialSummary, formatMoney, getPrimaryCurrency } from "@/lib/finance";
 import type { ProcessedDocument } from "@/lib/types";
-
-type RangeKey = "7d" | "30d" | "90d" | "all";
-
-const RANGE_LABELS: Record<RangeKey, string> = {
-  "7d": "Last 7 days",
-  "30d": "Last 30 days",
-  "90d": "Last 90 days",
-  all: "All time",
-};
 
 const STATUS_COLORS: Record<string, { fg: string; bg: string; ring: string }> = {
   approved: { fg: "text-emerald-600", bg: "bg-emerald-500", ring: "ring-emerald-500/20" },
@@ -77,14 +67,6 @@ function startOfDay(d: Date): Date {
   const x = new Date(d);
   x.setHours(0, 0, 0, 0);
   return x;
-}
-
-function rangeStart(range: RangeKey): Date | null {
-  if (range === "all") return null;
-  const days = range === "7d" ? 7 : range === "30d" ? 30 : 90;
-  const d = startOfDay(new Date());
-  d.setDate(d.getDate() - (days - 1));
-  return d;
 }
 
 function fmtNumber(n: number): string {
@@ -189,7 +171,6 @@ export default function AnalyticsPage() {
   const [docs, setDocs] = useState<ProcessedDocument[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
-  const [range, setRange] = useState<RangeKey>("30d");
   const [fromDate, setFromDate] = useState("");
   const [toDate, setToDate] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -204,7 +185,7 @@ export default function AnalyticsPage() {
   //   monthlySpend: Array<{ month: string; amount: number }>;
   // } | null>(null);
 
-  const load = async () => {
+  const load = useCallback(async () => {
     try {
       setError(null);
 
@@ -268,15 +249,15 @@ export default function AnalyticsPage() {
       setLoading(false);
       setRefreshing(false);
     }
-  };
+  }, [fromDate, toDate]);
 
   useEffect(() => {
-    load();
-  }, [fromDate, toDate]);
+    void load();
+  }, [load]);
 
   const handleRefresh = () => {
     setRefreshing(true);
-    load();
+    void load();
   };
 
   // ─── Filter by selected range ─────────────────────────────────

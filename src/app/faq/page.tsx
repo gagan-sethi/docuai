@@ -568,12 +568,11 @@ export default function FAQPage() {
   const toggleItem = (key: string) => {
     setOpenItems((prev) => {
       const next = new Set(prev);
-      next.has(key) ? next.delete(key) : next.add(key);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
       return next;
     });
   };
-
-  const totalFAQs = categories.reduce((sum, c) => sum + c.items.length, 0);
 
   return (
     <>
@@ -778,10 +777,10 @@ export default function FAQPage() {
                 Still have questions?
               </div>
               <h2 className="text-3xl font-extrabold tracking-tight text-slate-950 sm:text-4xl">
-                Can't find what you're looking for?
+                Can&apos;t find what you&apos;re looking for?
               </h2>
               <p className="mx-auto mt-4 max-w-lg text-base leading-relaxed text-slate-600">
-                Our support team is ready to help. Reach out via email or WhatsApp and we'll get back to you quickly.
+                Our support team is ready to help. Reach out via email or WhatsApp and we&apos;ll get back to you quickly.
               </p>
               <div className="mt-8 flex flex-col items-center justify-center gap-4 sm:flex-row">
                 <Link

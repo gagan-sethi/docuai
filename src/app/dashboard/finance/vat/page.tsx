@@ -5,7 +5,6 @@ import Link from "next/link";
 import {
   ArrowLeft,
   Loader2,
-  Download,
   FileSpreadsheet,
   Printer,
   FileText,
@@ -18,7 +17,10 @@ import type { ProcessedDocument } from "@/lib/types";
 import {
   aggregateTotals,
   buildMonthlyBuckets,
+  filterDocumentsByCurrency,
   formatMoney,
+  getDocumentCurrencies,
+  type SupportedCurrency,
 } from "@/lib/finance";
 import {
   downloadVatSummaryCsv,
@@ -30,14 +32,18 @@ export default function VatReportPage() {
   const [sidebarWidth, setSidebarWidth] = useState(260);
   const [docs, setDocs] = useState<ProcessedDocument[]>([]);
   const [loading, setLoading] = useState(true);
+  const [selectedCurrency, setSelectedCurrency] = useState<SupportedCurrency>("AED");
 
   useEffect(() => {
     const sidebar = document.querySelector("aside");
     if (!sidebar) return;
     const observer = new ResizeObserver(() => setSidebarWidth(sidebar.offsetWidth));
     observer.observe(sidebar);
-    setSidebarWidth(sidebar.offsetWidth);
-    return () => observer.disconnect();
+    const frame = requestAnimationFrame(() => setSidebarWidth(sidebar.offsetWidth));
+    return () => {
+      cancelAnimationFrame(frame);
+      observer.disconnect();
+    };
   }, []);
 
   useEffect(() => {
@@ -54,8 +60,16 @@ export default function VatReportPage() {
     })();
   }, []);
 
-  const totals = useMemo(() => aggregateTotals(docs), [docs]);
-  const monthly = useMemo(() => buildMonthlyBuckets(docs), [docs]);
+  const currencies = useMemo(() => getDocumentCurrencies(docs), [docs]);
+  const effectiveCurrency = currencies.includes(selectedCurrency)
+    ? selectedCurrency
+    : currencies[0] || "AED";
+  const currencyDocs = useMemo(
+    () => filterDocumentsByCurrency(docs, effectiveCurrency),
+    [docs, effectiveCurrency],
+  );
+  const totals = useMemo(() => aggregateTotals(currencyDocs), [currencyDocs]);
+  const monthly = useMemo(() => buildMonthlyBuckets(currencyDocs), [currencyDocs]);
 
   const incomeMonths = monthly.filter((m) => m.salesAmount || m.salesVat);
   const expenseMonths = monthly.filter((m) => m.expenseAmount || m.expenseVat);
@@ -89,22 +103,32 @@ export default function VatReportPage() {
               </div>
             </div>
             <div className="flex items-center gap-2">
+              {currencies.length > 0 && (
+                <select
+                  aria-label="Reporting currency"
+                  value={effectiveCurrency}
+                  onChange={(event) => setSelectedCurrency(event.target.value as SupportedCurrency)}
+                  className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-700"
+                >
+                  {currencies.map((currency) => <option key={currency}>{currency}</option>)}
+                </select>
+              )}
               <button
-                onClick={() => downloadVatSummaryXlsx(docs)}
+                onClick={() => downloadVatSummaryXlsx(currencyDocs)}
                 className="flex items-center gap-2 px-3.5 py-2 text-sm font-semibold text-emerald-700 bg-emerald-50 border border-emerald-200 rounded-xl hover:bg-emerald-100 transition"
               >
                 <FileSpreadsheet className="w-4 h-4" />
                 Excel
               </button>
               <button
-                onClick={() => downloadVatSummaryCsv(docs)}
+                onClick={() => downloadVatSummaryCsv(currencyDocs)}
                 className="flex items-center gap-2 px-3.5 py-2 text-sm font-medium text-slate-600 bg-white border border-slate-200 rounded-xl hover:bg-slate-50 transition"
               >
                 <FileText className="w-4 h-4" />
                 CSV
               </button>
               <button
-                onClick={() => printVatSummary(docs)}
+                onClick={() => printVatSummary(currencyDocs)}
                 className="flex items-center gap-2 px-3.5 py-2 text-sm font-medium text-slate-600 bg-white border border-slate-200 rounded-xl hover:bg-slate-50 transition"
               >
                 <Printer className="w-4 h-4" />

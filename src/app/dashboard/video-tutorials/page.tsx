@@ -110,8 +110,8 @@ export default function VideoTutorialsPage() {
 
     // Initial load
     useEffect(() => {
-        fetchVideos(1, "", true);
-    }, []);
+        void fetchVideos(1, "", true);
+    }, [fetchVideos]);
 
     // Handle page change
     const handlePageChange = (newPage: number) => {
@@ -254,6 +254,7 @@ export default function VideoTutorialsPage() {
                                             {/* Thumbnail */}
                                             <div className="relative aspect-video bg-gradient-to-br from-slate-100 to-slate-200">
                                                 {video.thumbnail ? (
+                                                    /* eslint-disable-next-line @next/next/no-img-element */
                                                     <img
                                                         src={video.thumbnail}
                                                         alt={video.title}

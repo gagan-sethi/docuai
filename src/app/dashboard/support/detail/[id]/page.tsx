@@ -15,7 +15,6 @@ import {
   ShieldCheck,
   ChevronDown,
   ChevronUp,
-  Clock,
   Image as ImageIcon,
   X,
   Paperclip as PaperclipIcon,

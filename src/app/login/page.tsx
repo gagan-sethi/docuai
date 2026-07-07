@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, Suspense } from "react";
+import { useState, Suspense } from "react";
 import { motion } from "framer-motion";
 import {
   Mail,
@@ -23,23 +23,18 @@ import { useGoogleLogin } from "@react-oauth/google";
 function LoginPageContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
+  const verificationStatus = searchParams.get("verified");
+  const verificationMessage = searchParams.get("message") || "";
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [form, setForm] = useState({ email: "", password: "" });
   const [rememberMe, setRememberMe] = useState(false);
-  const [error, setError] = useState("");
-  const [successMessage, setSuccessMessage] = useState("");
-
-  // Check for verification redirect messages
-  useEffect(() => {
-    const verified = searchParams.get("verified");
-    const message = searchParams.get("message");
-    if (verified === "success" && message) {
-      setSuccessMessage(message);
-    } else if (verified === "error" && message) {
-      setError(message);
-    }
-  }, [searchParams]);
+  const [error, setError] = useState(
+    verificationStatus === "error" ? verificationMessage : "",
+  );
+  const [successMessage] = useState(
+    verificationStatus === "success" ? verificationMessage : "",
+  );
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();

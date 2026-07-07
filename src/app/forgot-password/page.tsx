@@ -17,7 +17,6 @@ import {
   Sparkles,
 } from "lucide-react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
 import AuthLayout from "@/components/auth/AuthLayout";
 import BrandLogo from "@/components/BrandLogo";
 import { apiUrl } from "@/lib/api";
@@ -130,10 +129,14 @@ function OTPInput({
 
 // ─── Main Content ───────────────────────────────────────────────
 function ForgotPasswordContent() {
-  const router = useRouter();
-  const [step, setStep] = useState(0); // 0: email, 1: code, 2: new password
-  const [email, setEmail] = useState("");
-  const [code, setCode] = useState("");
+  const searchParams = useSearchParams();
+  const initialEmail = searchParams.get("email") || "";
+  const initialCode = searchParams.get("code") || "";
+  const hasValidCode = /^\d{6}$/.test(initialCode);
+  const initialStep = hasValidCode ? 2 : searchParams.get("step") === "1" ? 1 : 0;
+  const [step, setStep] = useState(initialStep); // 0: email, 1: code, 2: new password
+  const [email, setEmail] = useState(initialEmail);
+  const [code, setCode] = useState(hasValidCode ? initialCode : "");
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
@@ -142,28 +145,6 @@ function ForgotPasswordContent() {
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
   const [resendCooldown, setResendCooldown] = useState(0);
-  const searchParams = useSearchParams();
-
-  useEffect(() => {
-  const emailParam = searchParams.get("email");
-  const stepParam = searchParams.get("step");
-  const codeParam = searchParams.get("code");
-
-  if (emailParam) {
-    setEmail(emailParam);
-  }
-
-  if (codeParam && /^\d{6}$/.test(codeParam)) {
-    setCode(codeParam);
-    setStep(2);
-    return;
-  }
-
-  if (stepParam === "1") {
-    setStep(1);
-  }
-}, [searchParams]);
-
   // Resend countdown timer
   useEffect(() => {
     if (resendCooldown <= 0) return;

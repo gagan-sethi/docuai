@@ -136,7 +136,6 @@ export default function ManagePlanModal({ open, onClose, planData }: Props) {
     } catch (err) {
       console.error("Trial error:", err);
       setTrialError(err instanceof Error ? err.message : "Failed to start trial");
-      alert(err instanceof Error ? err.message : "Failed to start trial");
     } finally {
       setStartingTrialId(null);
     }
@@ -262,6 +261,12 @@ export default function ManagePlanModal({ open, onClose, planData }: Props) {
                 </button>
               </div>
             </div>
+
+            {trialError && (
+              <div role="alert" className="mx-6 mt-5 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+                {trialError}
+              </div>
+            )}
 
             {/* Plans Grid */}
             <div className="p-6 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -476,7 +481,7 @@ export default function ManagePlanModal({ open, onClose, planData }: Props) {
                             {/* Message for users who already used trial */}
                             {hasNotUsedTrial === false && (
                               <p className="text-[10px] text-center text-slate-400">
-                                You've already used your free trial
+                                You&apos;ve already used your free trial
                               </p>
                             )}
                           </>

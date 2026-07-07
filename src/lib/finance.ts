@@ -282,6 +282,17 @@ export function getPrimaryCurrency(docs: ProcessedDocument[]): SupportedCurrency
   );
 }
 
+export function getDocumentCurrencies(docs: ProcessedDocument[]): SupportedCurrency[] {
+  return Array.from(new Set(docs.map(detectDocumentCurrency))).sort();
+}
+
+export function filterDocumentsByCurrency(
+  docs: ProcessedDocument[],
+  currency: SupportedCurrency,
+): ProcessedDocument[] {
+  return docs.filter((doc) => detectDocumentCurrency(doc) === currency);
+}
+
 function moneyPrefix(currency: unknown): string {
   switch (normalizeCurrency(currency)) {
     case "USD":
@@ -322,7 +333,19 @@ export function getCurrencyExcelFormat(currency: unknown = DEFAULT_CURRENCY): st
   }
 }
 
-const FIELD_ALIASES: Record<keyof FinancialSummary | "vatPercent", RegExp[]> = {
+type FieldAliasKey =
+  | "currency"
+  | "subtotal"
+  | "vatRate"
+  | "vatPercent"
+  | "vatAmount"
+  | "grandTotal"
+  | "invoiceDate"
+  | "trn"
+  | "counterparty"
+  | "invoiceNumber";
+
+const FIELD_ALIASES: Record<FieldAliasKey, RegExp[]> = {
   currency: [/currency/i],
   subtotal: [/sub\s*total|net\s*amount|amount\s*before|excluding\s*vat|net\s*total/i],
   vatRate: [/vat\s*%|vat\s*rate|tax\s*rate/i],
@@ -394,9 +417,9 @@ export interface FinancialTotals {
   currency: string; // first non-empty currency we saw
 }
 
-/** Documents that should be counted at all (approved or reviewed). */
+/** Official financial reports include approved documents only. */
 export function isFinanciallyCounted(doc: ProcessedDocument): boolean {
-  return doc.status === "approved" || doc.status === "review";
+  return doc.status === "approved" && doc.financial?.reconciliation?.isValid !== false;
 }
 
 export function aggregateTotals(docs: ProcessedDocument[]): FinancialTotals {
@@ -436,8 +459,7 @@ export function aggregateTotals(docs: ProcessedDocument[]): FinancialTotals {
       totals.vatPaid += fin.vatAmount;
       totals.expenseCount += 1;
     } else if (code === "receipt") {
-      // Receipts are operational expenses, no VAT separation by default
-      totals.expenses += fin.grandTotal || fin.subtotal;
+      totals.expenses += fin.grandTotal - fin.vatAmount;
       totals.vatPaid += fin.vatAmount;
       totals.receiptCount += 1;
     }

@@ -1,12 +1,19 @@
 const nodemailer = require("nodemailer");
 
 async function main() {
+  const smtpUser = process.env.SMTP_USER;
+  const smtpPass = process.env.SMTP_PASS;
+  const testRecipient = process.env.TEST_EMAIL_TO;
+  if (!smtpUser || !smtpPass || !testRecipient) {
+    throw new Error("SMTP_USER, SMTP_PASS, and TEST_EMAIL_TO are required");
+  }
+
   console.log("Creating Gmail transporter...");
   const transporter = nodemailer.createTransport({
     service: "gmail",
     auth: {
-      user: "ravisethi7102@gmail.com",
-      pass: "oolaxttxcxblemgg",
+      user: smtpUser,
+      pass: smtpPass,
     },
   });
 
@@ -14,10 +21,10 @@ async function main() {
   await transporter.verify();
   console.log("Gmail connection verified!");
 
-  console.log("Sending test email to gagandeep.sethi@promaticsindia.com...");
+  console.log("Sending test email...");
   const info = await transporter.sendMail({
-    from: '"DocuAI" <ravisethi7102@gmail.com>',
-    to: "gagandeep.sethi@promaticsindia.com",
+    from: `"DocuAI" <${smtpUser}>`,
+    to: testRecipient,
     subject: "DocuAI - Test Email ✅",
     html: `
       <div style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;max-width:600px;margin:0 auto;padding:40px 20px;">

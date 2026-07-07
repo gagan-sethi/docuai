@@ -1,35 +1,16 @@
 "use client";
 
-import { Fragment, useEffect, useState } from "react";
-import { motion, AnimatePresence } from "framer-motion";
+import { Fragment } from "react";
+import { motion } from "framer-motion";
 import {
   Check,
   X,
-  Sparkles,
   ArrowRight,
-  ChevronDown,
-  HelpCircle,
 } from "lucide-react";
 import Link from "next/link";
 import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
-import { apiUrl } from "@/lib/api";
 import Pricing from "@/components/Pricing"; // Import the Pricing component
-
-type PlanApiItem = {
-  label: string;
-  description: string;
-  features: string[];
-  interval: string;
-  price: number;
-  stripePriceId?: string;
-};
-
-type PlanListResponse = {
-  success?: boolean;
-  data?: PlanApiItem[];
-  error?: string;
-};
 
 const comparisonFeatures = [
   {
@@ -227,49 +208,6 @@ const comparisonFeatures = [
   },
 ];
 
-const faqs = [
-  {
-    question: "How does the 14-day free trial work?",
-    answer:
-      "You get access to your chosen Invonix plan for 14 days, no credit card required. If it fits your workflow, add payment to continue. If not, your account is paused with no charges.",
-  },
-  {
-    question: "Can I change my plan later?",
-    answer:
-      "Yes. You can upgrade or downgrade as your document volume, team size, or finance automation needs change.",
-  },
-  {
-    question: "What financial documents are supported?",
-    answer:
-      "Invonix supports PDFs, JPGs, PNGs, and scanned documents for invoices, receipts, purchase orders, delivery notes, quotations, VAT documents, and other finance records.",
-  },
-  {
-    question: "How accurate is the AI extraction?",
-    answer:
-      "Invonix targets 90-95% accuracy on high-quality documents. Teams can review, edit, and approve extracted data before export or reporting.",
-  },
-  {
-    question: "How does WhatsApp processing work?",
-    answer:
-      "On supported plans, your team sends invoices, receipts, or purchase orders to Invonix via WhatsApp. The documents are processed automatically and appear in the dashboard as structured financial data.",
-  },
-  {
-    question: "Is my data secure?",
-    answer:
-      "Yes. Invonix uses encrypted storage, secure transport, role-based access, and audit-friendly controls for sensitive finance documents.",
-  },
-  {
-    question: "What is the Partner Program?",
-    answer:
-      "Accounting firms, bookkeepers, tax consultants, ERP consultants, and business advisors can refer or manage clients through Invonix with referral tracking, partner dashboards, and recurring commission support.",
-  },
-  {
-    question: "Do you offer annual billing discounts?",
-    answer:
-      "Yes. Annual billing saves 20% compared to monthly pricing, and you can switch billing cycles as your needs change.",
-  },
-];
-
 // ─── Cell renderer for comparison table ─────────────────────────
 function CellValue({ value }: { value: boolean | string }) {
   if (typeof value === "boolean") {
@@ -281,47 +219,6 @@ function CellValue({ value }: { value: boolean | string }) {
   }
   return (
     <span className="text-sm font-medium text-slate-700">{value}</span>
-  );
-}
-
-// ─── FAQ Item ───────────────────────────────────────────────────
-function FAQItem({
-  question,
-  answer,
-}: {
-  question: string;
-  answer: string;
-}) {
-  const [open, setOpen] = useState(false);
-
-  return (
-    <div className="border-b border-slate-100 last:border-0">
-      <button
-        onClick={() => setOpen(!open)}
-        className="w-full flex items-center justify-between py-5 text-left group"
-      >
-        <span className="text-sm font-semibold text-slate-800 group-hover:text-primary transition-colors pr-4">
-          {question}
-        </span>
-        <ChevronDown
-          className={`w-5 h-5 text-slate-400 flex-shrink-0 transition-transform duration-200 ${open ? "rotate-180" : ""
-            }`}
-        />
-      </button>
-      <AnimatePresence>
-        {open && (
-          <motion.div
-            initial={{ height: 0, opacity: 0 }}
-            animate={{ height: "auto", opacity: 1 }}
-            exit={{ height: 0, opacity: 0 }}
-            transition={{ duration: 0.2 }}
-            className="overflow-hidden"
-          >
-            <p className="pb-5 text-sm text-muted leading-relaxed">{answer}</p>
-          </motion.div>
-        )}
-      </AnimatePresence>
-    </div>
   );
 }
 

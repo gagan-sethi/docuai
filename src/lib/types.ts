@@ -58,11 +58,19 @@ export interface FinancialSummary {
   subtotal: number;          // pre-VAT amount
   vatRate: number;           // 0-100, e.g. 5 for 5%
   vatAmount: number;         // VAT amount in currency
+  adjustmentAmount?: number;
   grandTotal: number;        // subtotal + vatAmount
   invoiceDate?: string;      // ISO date when invoice was issued
   trn?: string;              // tax registration / VAT number
   counterparty?: string;     // supplier (for expenses) or customer (for sales)
   invoiceNumber?: string;
+  isCreditNote?: boolean;
+  reconciliation?: {
+    isValid: boolean;
+    difference: number;
+    tolerance: number;
+    issues: string[];
+  };
 }
 
 export interface ExtractedField {

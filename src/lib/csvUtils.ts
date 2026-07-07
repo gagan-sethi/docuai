@@ -339,8 +339,6 @@ export const ACCOUNTING_COLUMNS = [
 
 export type AccountingColumn = (typeof ACCOUNTING_COLUMNS)[number];
 
-/** Columns that should be formatted as money in Excel. */
-const MONEY_COLUMNS: AccountingColumn[] = ["Subtotal", "VAT", "Total"];
 /** Columns that hold a parsed number (money + tax %). */
 const NUMERIC_COLUMNS: AccountingColumn[] = [
   "Subtotal",

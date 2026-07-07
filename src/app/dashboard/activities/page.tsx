@@ -11,8 +11,6 @@ import {
   Loader2,
   CheckCircle2,
   XCircle,
-  AlertCircle,
-  Clock,
   FileText,
   Download,
   Trash2,
@@ -29,6 +27,7 @@ import {
   X,
   Eye,
   RefreshCw,
+  type LucideProps,
 } from "lucide-react";
 import Sidebar from "@/components/dashboard/Sidebar";
 import TopBar from "@/components/dashboard/TopBar";
@@ -60,7 +59,7 @@ interface FiltersInfo {
 const actionConfig: Record<
   string,
   {
-    icon: React.ComponentType<any>;
+    icon: React.ComponentType<LucideProps>;
     color: string;
     bg: string;
     label: string;

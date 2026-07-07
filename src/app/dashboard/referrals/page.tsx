@@ -317,7 +317,10 @@ export default function ReferralsPage() {
   }, []);
 
   useEffect(() => {
-    fetchReferrals();
+    const frame = window.requestAnimationFrame(() => {
+      void fetchReferrals();
+    });
+    return () => window.cancelAnimationFrame(frame);
   }, [fetchReferrals]);
 
   // ── Copy code to clipboard ──

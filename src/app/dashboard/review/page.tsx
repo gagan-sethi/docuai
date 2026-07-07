@@ -108,7 +108,6 @@ function DocumentPreview({ docId, fileType, fileName }: { docId: string; fileTyp
   const isImage = fileType.startsWith("image/");
   const isPdf = fileType === "application/pdf" || fileName.toLowerCase().endsWith(".pdf");
 
-  useEffect(() => { setPreviewError(false); setLoading(true); setZoom(100); setRotation(0); }, [docId]);
   useEffect(() => {
     if (!loading || previewError) return;
 
@@ -165,6 +164,8 @@ function DocumentPreview({ docId, fileType, fileName }: { docId: string; fileTyp
             <iframe key={docId} src={`${previewUrl}#toolbar=0&navpanes=0`} className="w-full h-full bg-white border-0" style={{ transform: `scale(${zoom / 100}) rotate(${rotation}deg)`, transformOrigin: "top center", transition: "transform 0.2s ease" }} onLoad={() => setLoading(false)} onError={() => { setLoading(false); setPreviewError(true); }} title={`Preview: ${fileName}`} />
           ) : isImage ? (
             <div className="flex items-start justify-center p-4 min-h-full">
+            {/* Authenticated previews cannot use the public Next image optimizer. */}
+            {/* eslint-disable-next-line @next/next/no-img-element */}
             <img key={docId} ref={imageRef} src={previewUrl} alt={`Preview: ${fileName}`} className="max-w-full rounded-lg shadow-lg bg-white border border-gray-300" style={{ transform: `scale(${zoom / 100}) rotate(${rotation}deg)`, transformOrigin: "top center", transition: "transform 0.2s ease" }} onLoad={() => setLoading(false)} onLoadCapture={() => setLoading(false)} onError={() => { setLoading(false); setPreviewError(true); }} draggable={false} />
             </div>
           ) : (
@@ -218,7 +219,19 @@ function ReviewPageContent() {
     if (!currentDoc) return; setActionLoading(true);
     try {
       const uf: ExtractedField[] = currentDoc.fields.map((f) => ({ ...f, value: editingFields[f.id] ?? f.value, edited: (editingFields[f.id] ?? f.value) !== f.value || f.edited }));
-      const ui: LineItem[] = currentDoc.lineItems.map((li) => { const e = editingLineItems[li.id]; if (!e) return li; return { ...li, code: e.code ?? li.code, description: e.description ?? li.description, qty: Number(e.qty) || li.qty, unitPrice: e.unitPrice ?? li.unitPrice, total: e.total ?? li.total }; });
+      const ui: LineItem[] = currentDoc.lineItems.map((li) => {
+        const e = editingLineItems[li.id];
+        if (!e) return li;
+        const parsedQuantity = Number(e.qty);
+        return {
+          ...li,
+          code: e.code ?? li.code,
+          description: e.description ?? li.description,
+          qty: Number.isFinite(parsedQuantity) ? parsedQuantity : li.qty,
+          unitPrice: e.unitPrice ?? li.unitPrice,
+          total: e.total ?? li.total,
+        };
+      });
       const res = await fetch(apiUrl(`/api/documents/${currentDoc.id}`), { method: "PATCH", headers: { "Content-Type": "application/json" }, credentials: "include", body: JSON.stringify({ fields: uf, lineItems: ui }) });
       if (!res.ok) throw new Error(); setIsEditing(false); addToast("Changes saved"); await fetchDocuments();
     } catch { addToast("Failed to save", "error"); } finally { setActionLoading(false); }
@@ -497,7 +510,7 @@ function ReviewPageContent() {
               </div>
               <div id="split-container" className="flex-1 flex overflow-hidden">
                 {showPreview && (<>
-                  <div className="flex-shrink-0 overflow-hidden border-r border-gray-200" style={{ width: `${previewWidth}%` }}><DocumentPreview docId={currentDoc.id} fileType={currentDoc.fileType} fileName={currentDoc.fileName} /></div>
+                  <div className="flex-shrink-0 overflow-hidden border-r border-gray-200" style={{ width: `${previewWidth}%` }}><DocumentPreview key={currentDoc.id} docId={currentDoc.id} fileType={currentDoc.fileType} fileName={currentDoc.fileName} /></div>
                   <div className="w-1.5 flex-shrink-0 cursor-col-resize bg-gray-200 hover:bg-indigo-400 active:bg-indigo-500 transition-colors relative group" onMouseDown={handleMouseDown}><div className="absolute inset-y-0 left-1/2 -translate-x-1/2 w-5 z-10" /><div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 flex flex-col gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity"><div className="h-1 w-1 rounded-full bg-white" /><div className="h-1 w-1 rounded-full bg-white" /><div className="h-1 w-1 rounded-full bg-white" /></div></div>
                 </>)}
                 <div className="flex-1 overflow-y-auto bg-gray-50">{renderExtractedData()}</div>

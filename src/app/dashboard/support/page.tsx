@@ -15,7 +15,6 @@ import {
   ChevronUp,
   MessageCircle,
   Clock,
-  Eye,
   Paperclip,
   X,
   FileText,
@@ -40,7 +39,6 @@ import {
   GraduationCap,
   Building2,
   Rocket,
-  CircleDot,
 } from "lucide-react";
 
 // ============================================================
@@ -713,7 +711,7 @@ export default function SupportPage() {
                 {(searchQuery || selectedCategory !== "All Categories") && (
                   <div className="mt-3 text-sm text-slate-500">
                     Found {totalResults} result{totalResults !== 1 ? 's' : ''}
-                    {searchQuery && <span> for "<span className="font-medium text-slate-700">{searchQuery}</span>"</span>}
+                    {searchQuery && <span> for &quot;<span className="font-medium text-slate-700">{searchQuery}</span>&quot;</span>}
                     {selectedCategory !== "All Categories" && <span> in <span className="font-medium text-slate-700">{selectedCategory}</span></span>}
                   </div>
                 )}

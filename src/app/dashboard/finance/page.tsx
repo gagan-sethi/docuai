@@ -31,7 +31,10 @@ import {
   deriveFinancialSummary,
   formatCompactMoney,
   formatMoney,
+  filterDocumentsByCurrency,
+  getDocumentCurrencies,
   resolveDocTypeCode,
+  type SupportedCurrency,
 } from "@/lib/finance";
 import { AiProcessingIndicators, DocTypeBadge } from "@/components/dashboard/DocTypeBadge";
 import {
@@ -140,6 +143,7 @@ export default function FinanceDashboardPage() {
   const [refreshing, setRefreshing] = useState(false);
   const [exportOpen, setExportOpen] = useState(false);
   const [period, setPeriod] = useState<FinancialPeriodValue>("this_month");
+  const [selectedCurrency, setSelectedCurrency] = useState<SupportedCurrency>("AED");
   const [customRange, setCustomRange] = useState<CustomDateRange>(() => {
     const now = new Date();
     const from = new Date(now);
@@ -209,10 +213,19 @@ export default function FinanceDashboardPage() {
   );
   const periodRange = useMemo(() => calculateFinancialPeriod(period, customRange), [period, customRange]);
   const periodRangeLabel = useMemo(() => formatDateRangeLabel(periodRange), [periodRange]);
+  const currencies = useMemo(() => getDocumentCurrencies(periodDocs), [periodDocs]);
+  const effectiveCurrency = currencies.includes(selectedCurrency)
+    ? selectedCurrency
+    : currencies[0] || "AED";
 
-  const totals = useMemo(() => aggregateTotals(periodDocs), [periodDocs]);
-  const monthly = useMemo(() => buildMonthlyBuckets(periodDocs), [periodDocs]);
-  const categories = useMemo(() => buildCategoryBuckets(periodDocs), [periodDocs]);
+  const currencyDocs = useMemo(
+    () => filterDocumentsByCurrency(periodDocs, effectiveCurrency),
+    [periodDocs, effectiveCurrency],
+  );
+
+  const totals = useMemo(() => aggregateTotals(currencyDocs), [currencyDocs]);
+  const monthly = useMemo(() => buildMonthlyBuckets(currencyDocs), [currencyDocs]);
+  const categories = useMemo(() => buildCategoryBuckets(currencyDocs), [currencyDocs]);
 
   const revenueTrend = monthly.map((m) => m.salesAmount);
   const expenseTrend = monthly.map((m) => m.expenseAmount);
@@ -221,30 +234,30 @@ export default function FinanceDashboardPage() {
 
   const recentSales = useMemo(
     () =>
-      periodDocs
+      currencyDocs
         .filter((d) => resolveDocTypeCode(d) === "sales_invoice")
         .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
         .slice(0, 5),
-    [periodDocs]
+    [currencyDocs]
   );
   const recentExpenses = useMemo(
     () =>
-      periodDocs
+      currencyDocs
         .filter((d) => resolveDocTypeCode(d) === "expense_invoice" || resolveDocTypeCode(d) === "receipt")
         .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
         .slice(0, 5),
-    [periodDocs]
+    [currencyDocs]
   );
   const pendingPos = useMemo(
     () =>
-      periodDocs
+      currencyDocs
         .filter((d) => resolveDocTypeCode(d) === "purchase_order")
         .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
         .slice(0, 5),
-    [periodDocs]
+    [currencyDocs]
   );
 
-  const totalProcessed = periodDocs.filter((d) => d.status === "approved" || d.status === "review").length;
+  const totalProcessed = currencyDocs.filter((d) => d.status === "approved").length;
   const maxCategory = Math.max(...categories.map((c) => c.amount), 1);
 
   return (
@@ -264,9 +277,22 @@ export default function FinanceDashboardPage() {
               <p className="text-sm text-slate-500 mt-1">
                 Automatic P&amp;L and VAT computed from processed invoices &middot; Currency{" "}
                 <span className="font-semibold">{totals.currency}</span> &middot; {periodRangeLabel}
+                {currencies.length > 1 && " · Totals are separated by currency"}
               </p>
             </div>
             <div className="flex flex-wrap items-center justify-end gap-2">
+              {currencies.length > 0 && (
+                <select
+                  aria-label="Reporting currency"
+                  value={effectiveCurrency}
+                  onChange={(event) => setSelectedCurrency(event.target.value as SupportedCurrency)}
+                  className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-700 shadow-sm outline-none"
+                >
+                  {currencies.map((currency) => (
+                    <option key={currency} value={currency}>{currency}</option>
+                  ))}
+                </select>
+              )}
               <div className="flex flex-wrap items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2 shadow-sm">
                 <CalendarRange className="h-4 w-4 text-slate-400" />
                 <label htmlFor="financial-period" className="text-xs font-semibold uppercase tracking-wide text-slate-500">
@@ -337,12 +363,12 @@ export default function FinanceDashboardPage() {
                 {exportOpen && (
                   <div className="absolute right-0 mt-2 z-30 min-w-[220px] rounded-xl border border-slate-200 bg-white shadow-xl overflow-hidden">
                     {[
-                      { label: "VAT Summary (Excel)", icon: FileSpreadsheet, run: () => downloadVatSummaryXlsx(periodDocs) },
-                      { label: "VAT Summary (CSV)", icon: FileText, run: () => downloadVatSummaryCsv(periodDocs) },
-                      { label: "VAT Summary (PDF)", icon: Printer, run: () => printVatSummary(periodDocs) },
-                      { label: "P&L (Excel)", icon: FileSpreadsheet, run: () => downloadPnlXlsx(periodDocs) },
-                      { label: "P&L (CSV)", icon: FileText, run: () => downloadPnlCsv(periodDocs) },
-                      { label: "Accounting Ledger (CSV)", icon: FileText, run: () => downloadLedgerCsv(periodDocs) },
+                      { label: "VAT Summary (Excel)", icon: FileSpreadsheet, run: () => downloadVatSummaryXlsx(currencyDocs) },
+                      { label: "VAT Summary (CSV)", icon: FileText, run: () => downloadVatSummaryCsv(currencyDocs) },
+                      { label: "VAT Summary (PDF)", icon: Printer, run: () => printVatSummary(currencyDocs) },
+                      { label: "P&L (Excel)", icon: FileSpreadsheet, run: () => downloadPnlXlsx(currencyDocs) },
+                      { label: "P&L (CSV)", icon: FileText, run: () => downloadPnlCsv(currencyDocs) },
+                      { label: "Accounting Ledger (CSV)", icon: FileText, run: () => downloadLedgerCsv(currencyDocs) },
                     ].map((item) => (
                       <button
                         key={item.label}
