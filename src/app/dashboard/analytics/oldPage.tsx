@@ -3,13 +3,22 @@
 /**
  * Analytics dashboard.
  *
- * All metrics now come from the backend (GET /api/documents/analytics,
- * powered by lib/analytics.ts::computeAnalytics). This file only
- * fetches and renders — it does not compute anything itself.
- * Visuals are unchanged: pure inline SVG, no chart library.
+ * All metrics are computed client-side from the existing
+ * `/api/documents` endpoint (the same payload the rest of the
+ * dashboard already uses) so we don't add a new backend endpoint
+ * just for charts. Visuals are pure inline SVG to keep the bundle
+ * small — no chart library dependency.
+ *
+ * Sections:
+ *   1. Headline KPI cards (totals + accuracy + detected-currency totals)
+ *   2. Status breakdown — donut + legend
+ *   3. Daily volume — sparkline-style bar chart for the last 30 days
+ *   4. Top suppliers — horizontal bar list (from extracted fields)
+ *   5. Document type mix + Source mix — paired stacked bars
+ *   6. Confidence distribution — bucketed histogram
  */
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { motion } from "framer-motion";
 import {
@@ -35,7 +44,8 @@ import {
 import Sidebar from "@/components/dashboard/Sidebar";
 import TopBar from "@/components/dashboard/TopBar";
 import { apiUrl, handleUnauthorized } from "@/lib/api";
-import { formatMoney } from "@/lib/finance";
+import { deriveFinancialSummary, formatMoney, getPrimaryCurrency } from "@/lib/finance";
+import type { ProcessedDocument } from "@/lib/types";
 
 const STATUS_COLORS: Record<string, { fg: string; bg: string; ring: string }> = {
   approved: { fg: "text-emerald-600", bg: "bg-emerald-500", ring: "ring-emerald-500/20" },
@@ -53,6 +63,12 @@ function statusColor(s: string) {
   return STATUS_COLORS[s] ?? STATUS_COLORS.uploaded;
 }
 
+function startOfDay(d: Date): Date {
+  const x = new Date(d);
+  x.setHours(0, 0, 0, 0);
+  return x;
+}
+
 function fmtNumber(n: number): string {
   return n.toLocaleString();
 }
@@ -61,8 +77,80 @@ function fmtMoney(n: number, currency = "AED"): string {
   return formatMoney(n, currency);
 }
 
-// Pure display formatting only (turns "2026-01" into "Jan 2026").
-// Not a calculation, so it's fine to keep on the client.
+// Quick parser for legacy extracted-field amounts.
+function parseAmount(v: string | undefined): number | null {
+  if (!v) return null;
+  const s = String(v).replace(/[^0-9.\-]/g, "");
+  if (!s) return null;
+  const n = parseFloat(s);
+  return Number.isFinite(n) ? n : null;
+}
+
+function pickField(
+  doc: ProcessedDocument,
+  rx: RegExp
+): string | null {
+  if (!doc.fields) return null;
+  for (const f of doc.fields) {
+    if (rx.test(f.label)) return (f.value || "").toString().trim() || null;
+  }
+  return null;
+}
+
+function pickVatAmount(doc: ProcessedDocument): number | null {
+  if (!doc.fields) return null;
+
+  let best: { amount: number; score: number } | null = null;
+
+  for (const f of doc.fields) {
+    const label = f.label.trim();
+    const value = (f.value || "").toString().trim();
+
+    if (!/(vat|tax|gst)/i.test(label)) continue;
+    if (/\b(rate|percent|percentage|pct|%|trn|registration|reg|id|no|num|number)\b/i.test(label)) {
+      continue;
+    }
+
+    const amount = parseAmount(value);
+    if (amount == null) continue;
+
+    const score =
+      /\b(amount|value)\b/i.test(label) ? 4 :
+        /^(vat|tax|gst)$/i.test(label) ? 3 :
+          /\btotal\b/i.test(label) ? 2 :
+            1;
+
+    if (!best || score > best.score) {
+      best = { amount, score };
+    }
+  }
+
+  return best?.amount ?? null;
+}
+
+function parseDocumentDateValue(value: string | null): Date | null {
+  if (!value) return null;
+
+  const trimmed = value.trim();
+  const direct = new Date(trimmed);
+  if (!Number.isNaN(direct.getTime())) return direct;
+
+  const parts = trimmed.match(/^(\d{1,2})[/-](\d{1,2})[/-](\d{2,4})$/);
+  if (!parts) return null;
+
+  const day = Number(parts[1]);
+  const month = Number(parts[2]);
+  const rawYear = Number(parts[3]);
+  const year = rawYear < 100 ? 2000 + rawYear : rawYear;
+  const parsed = new Date(year, month - 1, day);
+
+  return Number.isNaN(parsed.getTime()) ? null : parsed;
+}
+
+function monthKey(date: Date): string {
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`;
+}
+
 function monthLabel(key: string): string {
   const [year, month] = key.split("-").map(Number);
   return new Date(year, month - 1, 1).toLocaleDateString("en-GB", {
@@ -71,68 +159,92 @@ function monthLabel(key: string): string {
   });
 }
 
-// ─── Types (mirror backend AnalyticsResult — move to a shared
-// types package if you have one, so this can't drift) ────────────
-
-interface AnalyticsKpis {
-  total: number;
-  approved: number;
-  review: number;
-  failed: number;
-  avgConf: number;
-  approvalRate: number;
-  totalAmount: number;
-  amountCount: number;
-  totalVat: number;
-  vatCount: number;
-}
-
-interface AnalyticsResult {
-  primaryCurrency: string;
-  range: { from: string | null; to: string | null };
-  kpis: AnalyticsKpis;
-  statusBreakdown: { status: string; count: number }[];
-  daily: { date: string; count: number }[];
-  dailyMax: number;
-  monthlyVat: { month: string; total: number; count: number }[];
-  monthlyVatMax: number;
-  topSuppliers: { name: string; count: number; amount: number }[];
-  typeMix: { name: string; count: number }[];
-  sourceMix: { upload: number; whatsapp: number };
-  confidenceBuckets: { label: string; min: number; max: number; count: number }[];
+function getDocumentMonthKey(doc: ProcessedDocument): string {
+  const invoiceDate = parseDocumentDateValue(
+    pickField(doc, /\b(invoice|bill|document|tax)?[\s_-]*date\b|^date$/i)
+  );
+  return monthKey(invoiceDate ?? new Date(doc.createdAt));
 }
 
 // ─── Page ───────────────────────────────────────────────────────
 export default function AnalyticsPage() {
-  const [analytics, setAnalytics] = useState<AnalyticsResult | null>(null);
+  const [docs, setDocs] = useState<ProcessedDocument[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [fromDate, setFromDate] = useState("");
   const [toDate, setToDate] = useState("");
   const [error, setError] = useState<string | null>(null);
+  // const [spendData, setSpendData] = useState<{
+  //   summary: {
+  //     totalSpend: number;
+  //     thisMonthSpend: number;
+  //     lastMonthSpend: number;
+  //     growthPercent: number;
+  //     totalTransactions: number;
+  //   };
+  //   monthlySpend: Array<{ month: string; amount: number }>;
+  // } | null>(null);
 
   const load = useCallback(async () => {
     try {
       setError(null);
 
       const params = new URLSearchParams();
-      if (fromDate) params.append("fromDate", fromDate);
-      if (toDate) params.append("toDate", toDate);
 
-      const res = await fetch(apiUrl(`/api/documents/analytics?${params.toString()}`), {
-        credentials: "include",
-      });
+      params.append("limit", "500");
 
-      if (await handleUnauthorized(res)) return;
-
-      if (!res.ok) {
-        throw new Error(`HTTP ${res.status}`);
+      if (fromDate) {
+        params.append("fromDate", fromDate);
       }
 
-      const data = await res.json();
-      setAnalytics(data?.analytics ?? null);
+      if (toDate) {
+        params.append("toDate", toDate);
+      }
+
+      // const [docsRes, spendRes] = await Promise.all([
+      //   fetch(apiUrl(`/api/documents?${params.toString()}`), {
+      //     credentials: "include",
+      //   }),
+      //   fetch(apiUrl("/api/plan/spend"), {
+      //     credentials: "include",
+      //   }),
+      // ]);
+
+      const docsRes = await fetch(
+        apiUrl(`/api/documents?${params.toString()}`),
+        {
+          credentials: "include",
+        }
+      );
+
+      if (await handleUnauthorized(docsRes)) return;
+
+
+      if (!docsRes.ok) {
+        throw new Error(`HTTP ${docsRes.status}`);
+      }
+
+      const docsData = await docsRes.json();
+
+      setDocs(
+        Array.isArray(docsData?.documents)
+          ? docsData.documents
+          : []
+      );
+
+      // if (spendRes.ok) {
+      //   const spendDataJson = await spendRes.json();
+
+      //   if (spendDataJson.success && spendDataJson.data) {
+      //     setSpendData(spendDataJson.data);
+      //   }
+      // }
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Failed to load analytics");
+      setError(
+        e instanceof Error
+          ? e.message
+          : "Failed to load analytics"
+      );
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -147,6 +259,236 @@ export default function AnalyticsPage() {
     setRefreshing(true);
     void load();
   };
+
+  // ─── Filter by selected range ─────────────────────────────────
+  // const filtered = useMemo(() => {
+  //   const start = rangeStart(range);
+  //   if (!start) return docs;
+  //   return docs.filter((d) => new Date(d.createdAt) >= start);
+  // }, [docs, range]);
+
+  const filtered = docs;
+  const primaryCurrency = useMemo(() => getPrimaryCurrency(filtered), [filtered]);
+
+  // ─── KPIs ────────────────────────────────────────────────────
+  const kpis = useMemo(() => {
+    const total = filtered.length;
+    // Compare via string to tolerate legacy/aliased status values from
+    // older documents (e.g. "completed", "failed") that aren't part of
+    // the current `DocumentStatus` union.
+    const approved = filtered.filter(
+      (d) => (d.status as string) === "approved" || (d.status as string) === "completed"
+    ).length;
+    const review = filtered.filter((d) => d.status === "review").length;
+    const failed = filtered.filter(
+      (d) => (d.status as string) === "rejected" || (d.status as string) === "failed" || (d.status as string) === "error"
+    ).length;
+
+    let confSum = 0;
+    let confCount = 0;
+    let totalAmount = 0;
+    let amountCount = 0;
+    let totalVat = 0;
+    let vatCount = 0;
+    for (const d of filtered) {
+      const conf = d.overallConfidence > 1
+        ? d.overallConfidence
+        : (d.overallConfidence ?? 0) * 100;
+      if (conf > 0) {
+        confSum += conf;
+        confCount += 1;
+      }
+      const fin = deriveFinancialSummary(d);
+      const fallbackAmount = parseAmount(
+        pickField(d, /\b(grand\s*total|total|invoice\s*total|amount\s*due)\b/i) ?? undefined
+      );
+      const amt = fin.grandTotal > 0 ? fin.grandTotal : fallbackAmount;
+      if (amt != null && amt > 0) {
+        totalAmount += amt;
+        amountCount += 1;
+      }
+      const fallbackVat = pickVatAmount(d);
+      const vat = fin.vatAmount > 0 ? fin.vatAmount : fallbackVat;
+      if (vat != null && vat > 0) {
+        totalVat += vat;
+        vatCount += 1;
+      }
+    }
+    const avgConf = confCount ? confSum / confCount : 0;
+    const approvalRate = total ? (approved / total) * 100 : 0;
+    return { total, approved, review, failed, avgConf, approvalRate, totalAmount, amountCount, totalVat, vatCount };
+  }, [filtered]);
+
+  // ─── Status breakdown ────────────────────────────────────────
+  const statusBreakdown = useMemo(() => {
+    const counts = new Map<string, number>();
+    for (const d of filtered) {
+      const k = d.status || "uploaded";
+      counts.set(k, (counts.get(k) || 0) + 1);
+    }
+    const entries = Array.from(counts.entries())
+      .map(([status, count]) => ({ status, count }))
+      .sort((a, b) => b.count - a.count);
+    return entries;
+  }, [filtered]);
+
+  // ─── Daily volume (full window) ──────────────────────────────
+  // const daily = useMemo(() => {
+  //   const days = range === "7d" ? 7 : range === "30d" ? 30 : range === "90d" ? 90 : 30;
+  //   const buckets = new Map<string, number>();
+  //   const start = startOfDay(new Date());
+  //   start.setDate(start.getDate() - (days - 1));
+  //   for (let i = 0; i < days; i++) {
+  //     const d = new Date(start);
+  //     d.setDate(start.getDate() + i);
+  //     buckets.set(d.toISOString().slice(0, 10), 0);
+  //   }
+  //   for (const d of filtered) {
+  //     const k = new Date(d.createdAt).toISOString().slice(0, 10);
+  //     if (buckets.has(k)) buckets.set(k, (buckets.get(k) || 0) + 1);
+  //   }
+  //   return Array.from(buckets.entries()).map(([date, count]) => ({ date, count }));
+  // }, [filtered, range]);
+  const daily = useMemo(() => {
+    const buckets = new Map<string, number>();
+
+    if (filtered.length === 0) return [];
+
+    // let start = fromDate
+    //   ? startOfDay(new Date(fromDate))
+    //   : startOfDay(new Date(filtered[0].createdAt));
+    const oldestDate = filtered.reduce((min, d) => {
+      const dt = new Date(d.createdAt);
+      return dt < min ? dt : min;
+    }, new Date(filtered[0].createdAt));
+
+    const start = fromDate
+      ? startOfDay(new Date(fromDate))
+      : startOfDay(oldestDate);
+
+    const end = toDate
+      ? startOfDay(new Date(toDate))
+      : startOfDay(new Date());
+
+    const cursor = new Date(start);
+
+    while (cursor <= end) {
+      buckets.set(cursor.toISOString().slice(0, 10), 0);
+      cursor.setDate(cursor.getDate() + 1);
+    }
+
+    for (const d of filtered) {
+      const k = new Date(d.createdAt).toISOString().slice(0, 10);
+      if (buckets.has(k)) {
+        buckets.set(k, (buckets.get(k) || 0) + 1);
+      }
+    }
+
+    return Array.from(buckets.entries()).map(([date, count]) => ({
+      date,
+      count,
+    }));
+  }, [filtered, fromDate, toDate]);
+
+  const dailyMax = useMemo(
+    () => Math.max(1, ...daily.map((d) => d.count)),
+    [daily]
+  );
+
+  // ─── VAT totals by invoice month ──────────────────────────────
+  const monthlyVat = useMemo(() => {
+    const buckets = new Map<string, { month: string; total: number; count: number }>();
+
+    for (const d of filtered) {
+      const fin = deriveFinancialSummary(d);
+      const fallbackVat = pickVatAmount(d);
+      const vat = fin.vatAmount > 0 ? fin.vatAmount : fallbackVat;
+      if (vat == null || vat <= 0) continue;
+
+      const key = getDocumentMonthKey(d);
+      const bucket = buckets.get(key) ?? { month: key, total: 0, count: 0 };
+      bucket.total += vat;
+      bucket.count += 1;
+      buckets.set(key, bucket);
+    }
+
+    return Array.from(buckets.values()).sort((a, b) => a.month.localeCompare(b.month));
+  }, [filtered]);
+
+  const monthlyVatMax = useMemo(
+    () => Math.max(1, ...monthlyVat.map((d) => d.total)),
+    [monthlyVat]
+  );
+
+  // ─── Top suppliers ───────────────────────────────────────────
+  const topSuppliers = useMemo(() => {
+    const counts = new Map<string, { count: number; amount: number }>();
+    for (const d of filtered) {
+      const fin = deriveFinancialSummary(d);
+      const supplier =
+        fin.counterparty ||
+        pickField(d, /\b(supplier|vendor|seller|merchant|payee|biller)[\s_-]*name\b|^supplier$|^vendor$/i);
+      if (!supplier) continue;
+      const key = supplier.trim();
+      if (!key) continue;
+      const fallbackAmount = parseAmount(
+        pickField(d, /\b(grand\s*total|total|invoice\s*total|amount\s*due)\b/i) ?? undefined
+      );
+      const amt = fin.grandTotal > 0 ? fin.grandTotal : fallbackAmount;
+      const cur = counts.get(key) ?? { count: 0, amount: 0 };
+      cur.count += 1;
+      if (amt != null) cur.amount += amt;
+      counts.set(key, cur);
+    }
+    return Array.from(counts.entries())
+      .map(([name, v]) => ({ name, ...v }))
+      .sort((a, b) => b.count - a.count)
+      .slice(0, 6);
+  }, [filtered]);
+
+  // ─── Doc type mix ─────────────────────────────────────────────
+  const typeMix = useMemo(() => {
+    const counts = new Map<string, number>();
+    for (const d of filtered) {
+      const k = (d.docType || "Unknown").trim() || "Unknown";
+      counts.set(k, (counts.get(k) || 0) + 1);
+    }
+    return Array.from(counts.entries())
+      .map(([name, count]) => ({ name, count }))
+      .sort((a, b) => b.count - a.count)
+      .slice(0, 6);
+  }, [filtered]);
+
+  // ─── Source mix (upload vs whatsapp) ──────────────────────────
+  const sourceMix = useMemo(() => {
+    let upload = 0;
+    let whatsapp = 0;
+    for (const d of filtered) {
+      if (d.source === "whatsapp") whatsapp += 1;
+      else upload += 1;
+    }
+    return { upload, whatsapp };
+  }, [filtered]);
+
+  // ─── Confidence distribution ──────────────────────────────────
+  const confidenceBuckets = useMemo(() => {
+    const buckets = [
+      { label: "<60%", min: 0, max: 60, count: 0 },
+      { label: "60-75%", min: 60, max: 75, count: 0 },
+      { label: "75-90%", min: 75, max: 90, count: 0 },
+      { label: "90-95%", min: 90, max: 95, count: 0 },
+      { label: "95%+", min: 95, max: 101, count: 0 },
+    ];
+    for (const d of filtered) {
+      const c = d.overallConfidence > 1
+        ? d.overallConfidence
+        : (d.overallConfidence ?? 0) * 100;
+      if (c <= 0) continue;
+      const b = buckets.find((x) => c >= x.min && c < x.max);
+      if (b) b.count += 1;
+    }
+    return buckets;
+  }, [filtered]);
 
   return (
     <div className="min-h-screen bg-slate-50/50">
@@ -164,16 +506,38 @@ export default function AnalyticsPage() {
                 </span>
                 Analytics
               </h1>
+              {/* <p className="text-sm text-slate-500 mt-1">
+                {RANGE_LABELS[range]} · live data from your processed documents
+              </p> */}
+
               <p className="text-sm text-slate-500 mt-1">
-                {fromDate || toDate ? `${fromDate || "Any"} → ${toDate || "Any"}` : "All documents"}{" "}
+                {fromDate || toDate
+                  ? `${fromDate || "Any"} → ${toDate || "Any"}`
+                  : "All documents"}{" "}
                 · live data from your processed documents
               </p>
             </div>
 
             <div className="flex items-center gap-2">
+              {/* <div className="inline-flex items-center bg-white border border-slate-200 rounded-xl p-1 shadow-sm">
+                {(Object.keys(RANGE_LABELS) as RangeKey[]).map((r) => (
+                  <button
+                    key={r}
+                    onClick={() => setRange(r)}
+                    className={`px-3 py-1.5 text-xs font-semibold rounded-lg transition ${range === r
+                      ? "bg-slate-900 text-white shadow-sm"
+                      : "text-slate-600 hover:bg-slate-100"
+                      }`}
+                  >
+                    {r === "all" ? "All" : r.toUpperCase()}
+                  </button>
+                ))}
+              </div> */}
               <div className="flex items-center gap-2">
                 <div className="flex flex-col">
-                  <label className="text-[11px] font-medium text-slate-500 mb-1">From</label>
+                  <label className="text-[11px] font-medium text-slate-500 mb-1">
+                    From
+                  </label>
                   <input
                     type="date"
                     value={fromDate}
@@ -183,7 +547,9 @@ export default function AnalyticsPage() {
                 </div>
 
                 <div className="flex flex-col">
-                  <label className="text-[11px] font-medium text-slate-500 mb-1">To</label>
+                  <label className="text-[11px] font-medium text-slate-500 mb-1">
+                    To
+                  </label>
                   <input
                     type="date"
                     value={toDate}
@@ -218,118 +584,104 @@ export default function AnalyticsPage() {
                 Try again
               </button>
             </div>
-          ) : !analytics || analytics.kpis.total === 0 ? (
+          ) : kpis.total === 0 ? (
             <EmptyState />
           ) : (
             <>
               {/* ─── KPI cards ───────────────────────────────── */}
+              {/* ─── KPI cards ───────────────────────────────── */}
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4 mb-6">
                 <KpiCard
                   label="Total Documents"
-                  value={fmtNumber(analytics.kpis.total)}
+                  value={fmtNumber(kpis.total)}
                   icon={<FileText className="w-4 h-4" />}
                   tone="primary"
-                  hint={`${fmtNumber(analytics.kpis.approved)} approved`}
+                  hint={`${fmtNumber(kpis.approved)} approved`}
                 />
                 <KpiCard
                   label="Approval Rate"
-                  value={`${analytics.kpis.approvalRate.toFixed(0)}%`}
+                  value={`${kpis.approvalRate.toFixed(0)}%`}
                   icon={<CheckCircle2 className="w-4 h-4" />}
                   tone="success"
-                  hint={
-                    analytics.kpis.review > 0
-                      ? `${fmtNumber(analytics.kpis.review)} need review`
-                      : "All caught up"
-                  }
-                  trend={analytics.kpis.approvalRate >= 80 ? "up" : "down"}
+                  hint={kpis.review > 0 ? `${fmtNumber(kpis.review)} need review` : "All caught up"}
+                  trend={kpis.approvalRate >= 80 ? "up" : "down"}
                 />
                 <KpiCard
                   label="Avg. Confidence"
-                  value={`${analytics.kpis.avgConf.toFixed(0)}%`}
+                  value={`${kpis.avgConf.toFixed(0)}%`}
                   icon={<Sparkles className="w-4 h-4" />}
-                  tone={
-                    analytics.kpis.avgConf >= 90
-                      ? "success"
-                      : analytics.kpis.avgConf >= 75
-                        ? "warn"
-                        : "danger"
-                  }
+                  tone={kpis.avgConf >= 90 ? "success" : kpis.avgConf >= 75 ? "warn" : "danger"}
                   hint="OCR + AI extraction"
                 />
                 <KpiCard
                   label="Total Invoiced"
-                  value={
-                    analytics.kpis.amountCount > 0
-                      ? fmtMoney(analytics.kpis.totalAmount, analytics.primaryCurrency)
-                      : "—"
-                  }
+                  value={kpis.amountCount > 0 ? fmtMoney(kpis.totalAmount, primaryCurrency) : "—"}
                   icon={<Sigma className="w-4 h-4" />}
                   tone="indigo"
                   hint={
-                    analytics.kpis.amountCount > 0
-                      ? `from ${fmtNumber(analytics.kpis.amountCount)} invoice${analytics.kpis.amountCount === 1 ? "" : "s"}`
+                    kpis.amountCount > 0
+                      ? `from ${fmtNumber(kpis.amountCount)} invoice${kpis.amountCount === 1 ? "" : "s"}`
                       : "no totals extracted"
                   }
                 />
                 <KpiCard
                   label="Total VAT"
-                  value={
-                    analytics.kpis.vatCount > 0
-                      ? fmtMoney(analytics.kpis.totalVat, analytics.primaryCurrency)
-                      : "—"
-                  }
+                  value={kpis.vatCount > 0 ? fmtMoney(kpis.totalVat, primaryCurrency) : "—"}
                   icon={<Receipt className="w-4 h-4" />}
                   tone="emerald"
                   hint={
-                    analytics.kpis.vatCount > 0
-                      ? `from ${fmtNumber(analytics.kpis.vatCount)} invoice${analytics.kpis.vatCount === 1 ? "" : "s"}`
+                    kpis.vatCount > 0
+                      ? `from ${fmtNumber(kpis.vatCount)} invoice${kpis.vatCount === 1 ? "" : "s"}`
                       : "no VAT extracted"
                   }
                 />
+                {/* <KpiCard
+                  label="Total Spend"
+                  value={spendData ? fmtMoney(spendData.summary.totalSpend, primaryCurrency) : "—"}
+                  icon={<TrendingUp className="w-4 h-4" />}
+                  tone="emerald"
+                  hint={
+                    spendData
+                      ? `${fmtMoney(spendData.summary.thisMonthSpend, primaryCurrency)} this month · ${spendData.summary.growthPercent >= 0 ? '↑' : '↓'} ${Math.abs(spendData.summary.growthPercent).toFixed(1)}%`
+                      : "Loading..."
+                  }
+                /> */}
               </div>
 
               {/* ─── Daily volume + Status ───────────────────── */}
               <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 mb-6">
                 <Card className="lg:col-span-2" title="Daily Volume" icon={<Calendar className="w-4 h-4" />}>
-                  <DailyVolumeChart data={analytics.daily} max={analytics.dailyMax} />
+                  <DailyVolumeChart data={daily} max={dailyMax} />
                 </Card>
                 <Card title="Status Breakdown" icon={<PieChart className="w-4 h-4" />}>
-                  <StatusDonut entries={analytics.statusBreakdown} total={analytics.kpis.total} />
+                  <StatusDonut entries={statusBreakdown} total={kpis.total} />
                 </Card>
               </div>
 
               {/* ─── VAT by month ────────────────────────────── */}
               <div className="mb-6">
                 <Card title="VAT Totals By Month" icon={<Landmark className="w-4 h-4" />}>
-                  <MonthlyVatChart
-                    data={analytics.monthlyVat}
-                    max={analytics.monthlyVatMax}
-                    currency={analytics.primaryCurrency}
-                  />
+                  <MonthlyVatChart data={monthlyVat} max={monthlyVatMax} currency={primaryCurrency} />
                 </Card>
               </div>
 
               {/* ─── Suppliers + Doc types ───────────────────── */}
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-6">
                 <Card title="Top Suppliers" icon={<Building2 className="w-4 h-4" />}>
-                  <SupplierList items={analytics.topSuppliers} currency={analytics.primaryCurrency} />
+                  <SupplierList items={topSuppliers} currency={primaryCurrency} />
                 </Card>
                 <Card title="Document Types" icon={<Layers className="w-4 h-4" />}>
-                  <TypeBars items={analytics.typeMix} total={analytics.kpis.total} />
+                  <TypeBars items={typeMix} total={kpis.total} />
                 </Card>
               </div>
 
               {/* ─── Confidence + Source ─────────────────────── */}
               <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 mb-6">
-                <Card
-                  className="lg:col-span-2"
-                  title="Confidence Distribution"
-                  icon={<TrendingUp className="w-4 h-4" />}
-                >
-                  <ConfidenceHistogram buckets={analytics.confidenceBuckets} />
+                <Card className="lg:col-span-2" title="Confidence Distribution" icon={<TrendingUp className="w-4 h-4" />}>
+                  <ConfidenceHistogram buckets={confidenceBuckets} />
                 </Card>
                 <Card title="Source" icon={<Download className="w-4 h-4" />}>
-                  <SourceMix upload={analytics.sourceMix.upload} whatsapp={analytics.sourceMix.whatsapp} />
+                  <SourceMix upload={sourceMix.upload} whatsapp={sourceMix.whatsapp} />
                 </Card>
               </div>
 
@@ -338,14 +690,18 @@ export default function AnalyticsPage() {
                 <QuickLink
                   href="/dashboard/review"
                   title="Review queue"
-                  desc={`${fmtNumber(analytics.kpis.review)} pending`}
+                  desc={`${fmtNumber(kpis.review)} pending`}
                 />
                 <QuickLink
                   href="/dashboard/documents"
                   title="All documents"
-                  desc={`${fmtNumber(analytics.kpis.total)} processed`}
+                  desc={`${fmtNumber(kpis.total)} processed`}
                 />
-                <QuickLink href="/dashboard/upload" title="Upload more" desc="Add new files" />
+                <QuickLink
+                  href="/dashboard/upload"
+                  title="Upload more"
+                  desc="Add new files"
+                />
               </div>
             </>
           )}
@@ -355,7 +711,7 @@ export default function AnalyticsPage() {
   );
 }
 
-// ─── Pieces (unchanged — pure rendering, no calculation) ───────
+// ─── Pieces ─────────────────────────────────────────────────────
 
 function Card({
   children,
@@ -437,7 +793,9 @@ function KpiCard({
       </div>
       <div className="mt-4">
         <p className="text-2xl font-extrabold text-slate-900 tracking-tight">{value}</p>
-        <p className="text-xs font-semibold uppercase tracking-wider text-slate-500 mt-1">{label}</p>
+        <p className="text-xs font-semibold uppercase tracking-wider text-slate-500 mt-1">
+          {label}
+        </p>
         {hint && <p className="text-[11px] text-slate-400 mt-1.5">{hint}</p>}
       </div>
     </motion.div>
@@ -460,6 +818,7 @@ function DailyVolumeChart({ data, max }: { data: { date: string; count: number }
       </div>
       <div className="overflow-x-auto">
         <svg viewBox={`0 0 ${w} ${h}`} className="w-full min-w-[480px] h-44">
+          {/* y grid */}
           {[0.25, 0.5, 0.75, 1].map((p) => (
             <line
               key={p}
@@ -471,6 +830,7 @@ function DailyVolumeChart({ data, max }: { data: { date: string; count: number }
               strokeDasharray="3 3"
             />
           ))}
+          {/* bars */}
           {data.map((d, i) => {
             const bh = (d.count / max) * innerH;
             const x = pad.l + i * barW + 1;
@@ -490,25 +850,35 @@ function DailyVolumeChart({ data, max }: { data: { date: string; count: number }
               </g>
             );
           })}
-          {Array.from(new Set([0, Math.floor(data.length / 2), data.length - 1])).map((i) => {
+          {/* x labels: first / mid / last */}
+          {/* x labels: first / mid / last */}
+          {Array.from(
+            new Set([0, Math.floor(data.length / 2), data.length - 1])
+          ).map((i) => {
             if (!data[i]) return null;
+
             const x = pad.l + i * barW + barW / 2;
+
             const label = new Date(data[i].date).toLocaleDateString("en-GB", {
               day: "2-digit",
               month: "short",
             });
+
             return (
-              <text key={`label-${i}`} x={x} y={h - 6} textAnchor="middle" className="fill-slate-400 text-[10px]">
+              <text
+                key={`label-${i}`}
+                x={x}
+                y={h - 6}
+                textAnchor="middle"
+                className="fill-slate-400 text-[10px]"
+              >
                 {label}
               </text>
             );
           })}
-          <text x={4} y={pad.t + 8} className="fill-slate-400 text-[10px]">
-            {max}
-          </text>
-          <text x={4} y={pad.t + innerH} className="fill-slate-400 text-[10px]">
-            0
-          </text>
+          {/* y label (max) */}
+          <text x={4} y={pad.t + 8} className="fill-slate-400 text-[10px]">{max}</text>
+          <text x={4} y={pad.t + innerH} className="fill-slate-400 text-[10px]">0</text>
         </svg>
       </div>
     </div>
@@ -525,11 +895,15 @@ function MonthlyVatChart({
   currency: string;
 }) {
   if (data.length === 0) {
-    return <p className="text-xs text-slate-400 py-10 text-center">No VAT amounts extracted yet.</p>;
+    return (
+      <p className="text-xs text-slate-400 py-10 text-center">
+        No VAT amounts extracted yet.
+      </p>
+    );
   }
   const totalVat = data.reduce((sum, item) => sum + item.total, 0);
   const invoiceCount = data.reduce((sum, item) => sum + item.count, 0);
-  const peakMonth = data.reduce((peak, item) => (item.total > peak.total ? item : peak), data[0]);
+  const peakMonth = data.reduce((peak, item) => item.total > peak.total ? item : peak, data[0]);
   const visibleW = 760;
   const monthSlotW = 72;
   const w = Math.max(visibleW, 52 + 14 + data.length * monthSlotW);
@@ -544,21 +918,35 @@ function MonthlyVatChart({
       <div className="flex flex-wrap items-start justify-between gap-3 mb-3">
         <div>
           <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
-            <span className="text-2xl font-extrabold text-slate-900">{fmtMoney(totalVat, currency)}</span>
+            <span className="text-2xl font-extrabold text-slate-900">
+              {fmtMoney(totalVat, currency)}
+            </span>
             <span className="text-xs text-slate-500">
               total VAT across {fmtNumber(invoiceCount)} invoice{invoiceCount === 1 ? "" : "s"}
             </span>
           </div>
-          <p className="text-[11px] text-slate-400 mt-1">Scroll horizontally to view additional months.</p>
+          <p className="text-[11px] text-slate-400 mt-1">
+            Scroll horizontally to view additional months.
+          </p>
         </div>
         <div className="rounded-xl border border-emerald-100 bg-emerald-50 px-3 py-2 text-right">
-          <p className="text-[10px] font-bold uppercase tracking-wider text-emerald-700">Highest Month</p>
-          <p className="text-sm font-extrabold text-slate-900">{fmtMoney(peakMonth.total, currency)}</p>
-          <p className="text-[10px] text-emerald-700/80">{monthLabel(peakMonth.month)}</p>
+          <p className="text-[10px] font-bold uppercase tracking-wider text-emerald-700">
+            Highest Month
+          </p>
+          <p className="text-sm font-extrabold text-slate-900">
+            {fmtMoney(peakMonth.total, currency)}
+          </p>
+          <p className="text-[10px] text-emerald-700/80">
+            {monthLabel(peakMonth.month)}
+          </p>
         </div>
       </div>
       <div className="overflow-x-auto pb-1">
-        <svg viewBox={`0 0 ${w} ${h}`} className="h-56 max-w-none" style={{ width: `${w}px`, minWidth: "100%" }}>
+        <svg
+          viewBox={`0 0 ${w} ${h}`}
+          className="h-56 max-w-none"
+          style={{ width: `${w}px`, minWidth: "100%" }}
+        >
           {[0.25, 0.5, 0.75, 1].map((p) => (
             <line
               key={p}
@@ -590,14 +978,29 @@ function MonthlyVatChart({
                   <title>{`${label}: ${fmtMoney(item.total, currency)} VAT from ${item.count} invoice${item.count === 1 ? "" : "s"}`}</title>
                 </rect>
                 {barW >= 58 && (
-                  <text x={x + rectW / 2} y={y - 8} textAnchor="middle" className="fill-slate-600 text-[9px] font-bold">
+                  <text
+                    x={x + rectW / 2}
+                    y={y - 8}
+                    textAnchor="middle"
+                    className="fill-slate-600 text-[9px] font-bold"
+                  >
                     {fmtMoney(item.total, currency)}
                   </text>
                 )}
-                <text x={x + rectW / 2} y={h - 24} textAnchor="middle" className="fill-slate-500 text-[10px] font-semibold">
+                <text
+                  x={x + rectW / 2}
+                  y={h - 24}
+                  textAnchor="middle"
+                  className="fill-slate-500 text-[10px] font-semibold"
+                >
                   {labelMonth}
                 </text>
-                <text x={x + rectW / 2} y={h - 10} textAnchor="middle" className="fill-slate-400 text-[9px]">
+                <text
+                  x={x + rectW / 2}
+                  y={h - 10}
+                  textAnchor="middle"
+                  className="fill-slate-400 text-[9px]"
+                >
                   {labelYear}
                 </text>
               </g>
@@ -615,12 +1018,19 @@ function MonthlyVatChart({
   );
 }
 
-function StatusDonut({ entries, total }: { entries: { status: string; count: number }[]; total: number }) {
+function StatusDonut({
+  entries,
+  total,
+}: {
+  entries: { status: string; count: number }[];
+  total: number;
+}) {
   const r = 50;
   const cx = 70;
   const cy = 70;
   const c = 2 * Math.PI * r;
 
+  // Map tailwind bg-* to a hex for the SVG stroke (donut needs hex).
   const STROKE_BY_STATUS: Record<string, string> = {
     approved: "#10b981",
     completed: "#10b981",
@@ -633,6 +1043,8 @@ function StatusDonut({ entries, total }: { entries: { status: string; count: num
     error: "#ef4444",
   };
 
+  // Pre-compute each segment's offset via reduce so the render stays
+  // pure (no mid-render mutation — keeps react-hooks/immutability happy).
   const segments = entries.reduce<
     Array<{ status: string; dash: number; offset: number; stroke: string }>
   >((acc, e) => {
@@ -667,16 +1079,24 @@ function StatusDonut({ entries, total }: { entries: { status: string; count: num
         ))}
       </svg>
       <div className="flex-1 min-w-0 space-y-2">
-        {entries.length === 0 && <p className="text-xs text-slate-400">No data</p>}
+        {entries.length === 0 && (
+          <p className="text-xs text-slate-400">No data</p>
+        )}
         {entries.map((e) => {
           const pct = total ? (e.count / total) * 100 : 0;
           const c2 = statusColor(e.status);
           return (
             <div key={e.status} className="flex items-center gap-2 min-w-0">
               <span className={`w-2.5 h-2.5 rounded-sm ${c2.bg}`} />
-              <span className="text-xs font-medium text-slate-700 capitalize truncate flex-1">{e.status}</span>
-              <span className="text-xs font-bold text-slate-900 tabular-nums">{e.count}</span>
-              <span className="text-[10px] text-slate-400 w-10 text-right tabular-nums">{pct.toFixed(0)}%</span>
+              <span className="text-xs font-medium text-slate-700 capitalize truncate flex-1">
+                {e.status}
+              </span>
+              <span className="text-xs font-bold text-slate-900 tabular-nums">
+                {e.count}
+              </span>
+              <span className="text-[10px] text-slate-400 w-10 text-right tabular-nums">
+                {pct.toFixed(0)}%
+              </span>
             </div>
           );
         })}
@@ -708,7 +1128,9 @@ function SupplierList({
               <span className="text-[11px] text-slate-500 flex-shrink-0">
                 {i.count} doc{i.count === 1 ? "" : "s"}
                 {i.amount > 0 && (
-                  <span className="ml-2 font-semibold text-slate-700">{fmtMoney(i.amount, currency)}</span>
+                  <span className="ml-2 font-semibold text-slate-700">
+                    {fmtMoney(i.amount, currency)}
+                  </span>
                 )}
               </span>
             </div>
@@ -726,7 +1148,8 @@ function SupplierList({
 }
 
 function TypeBars({ items, total }: { items: { name: string; count: number }[]; total: number }) {
-  if (items.length === 0) return <p className="text-xs text-slate-400 py-6 text-center">No document types yet.</p>;
+  if (items.length === 0)
+    return <p className="text-xs text-slate-400 py-6 text-center">No document types yet.</p>;
   const palette = [
     "from-primary to-primary-dark",
     "from-secondary to-cyan-500",
@@ -773,7 +1196,11 @@ function ConfidenceHistogram({ buckets }: { buckets: { label: string; count: num
       <div className="flex items-end gap-3 h-40">
         {buckets.map((b, i) => {
           const h = (b.count / max) * 100;
-          const tone = i >= 3 ? "from-emerald-500 to-emerald-400" : i === 2 ? "from-amber-500 to-amber-400" : "from-red-500 to-red-400";
+          const tone = i >= 3
+            ? "from-emerald-500 to-emerald-400"
+            : i === 2
+              ? "from-amber-500 to-amber-400"
+              : "from-red-500 to-red-400";
           return (
             <div key={b.label} className="flex-1 flex flex-col items-center gap-2 min-w-0">
               <div className="flex-1 w-full flex items-end">
@@ -811,7 +1238,17 @@ function SourceMix({ upload, whatsapp }: { upload: number; whatsapp: number }) {
   );
 }
 
-function SourceRow({ color, label, count, pct }: { color: string; label: string; count: number; pct: number }) {
+function SourceRow({
+  color,
+  label,
+  count,
+  pct,
+}: {
+  color: string;
+  label: string;
+  count: number;
+  pct: number;
+}) {
   return (
     <div className="flex items-center gap-2.5">
       <span className={`w-2.5 h-2.5 rounded-sm ${color}`} />
@@ -822,14 +1259,24 @@ function SourceRow({ color, label, count, pct }: { color: string; label: string;
   );
 }
 
-function QuickLink({ href, title, desc }: { href: string; title: string; desc: string }) {
+function QuickLink({
+  href,
+  title,
+  desc,
+}: {
+  href: string;
+  title: string;
+  desc: string;
+}) {
   return (
     <Link
       href={href}
       className="group flex items-center justify-between gap-3 p-4 bg-white border border-slate-200 rounded-2xl shadow-sm hover:border-primary/40 hover:shadow-md transition"
     >
       <div className="min-w-0">
-        <p className="text-sm font-bold text-slate-800 group-hover:text-primary transition">{title}</p>
+        <p className="text-sm font-bold text-slate-800 group-hover:text-primary transition">
+          {title}
+        </p>
         <p className="text-xs text-slate-500 mt-0.5 truncate">{desc}</p>
       </div>
       <ArrowUpRight className="w-4 h-4 text-slate-300 group-hover:text-primary transition flex-shrink-0" />
