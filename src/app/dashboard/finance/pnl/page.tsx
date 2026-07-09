@@ -216,6 +216,7 @@ export default function PnlReportPage() {
                   <table className="w-full text-sm">
                     <thead className="bg-slate-50">
                       <tr>
+                        <Th>Group</Th>
                         <Th>Category</Th>
                         <Th align="right">Amount</Th>
                         <Th align="right">VAT</Th>
@@ -225,13 +226,14 @@ export default function PnlReportPage() {
                     <tbody className="divide-y divide-slate-50">
                       {categories.length === 0 ? (
                         <tr>
-                          <td colSpan={4} className="text-center text-xs text-slate-400 py-6">
+                          <td colSpan={5} className="text-center text-xs text-slate-400 py-6">
                             No expenses categorized yet.
                           </td>
                         </tr>
                       ) : (
                         categories.map((c) => (
                           <tr key={c.category} className="hover:bg-slate-50/60">
+                            <Td>{c.groupLabel}</Td>
                             <Td>{c.label}</Td>
                             <Td align="right" mono>{formatMoney(c.amount, totals.currency)}</Td>
                             <Td align="right" mono>{formatMoney(c.vat, totals.currency)}</Td>

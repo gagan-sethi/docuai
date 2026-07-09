@@ -14,7 +14,7 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
-import { apiUrl } from "@/lib/api";
+import { API_BASE_URL, apiUrl } from "@/lib/api";
 
 type CampaignDiscount = {
   type?: "fixed" | "percentage";
@@ -573,6 +573,15 @@ export default function Pricing() {
     async function fetchPlans() {
       try {
         setLoading(true);
+
+        if (!API_BASE_URL) {
+          if (!cancelled) {
+            setPlans(fallbackPlans);
+            setSource("fallback");
+          }
+          return;
+        }
+
         const res = await fetch(apiUrl("/api/plan/list"), {
           credentials: "include",
         });

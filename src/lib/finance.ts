@@ -102,29 +102,124 @@ export function isAutoClassified(doc: Pick<ProcessedDocument, "docTypeCode" | "d
 
 // ─── Expense category metadata ──────────────────────────────────
 
-export const EXPENSE_CATEGORY_OPTIONS: Array<{
+export type ExpenseCategoryGroupValue =
+  | "operating_expenses"
+  | "cogs"
+  | "staff_costs"
+  | "business_expenses"
+  | "other";
+
+type ExpenseCategoryOption = {
   value: ExpenseCategory;
   label: string;
   tone: string;
+};
+
+export const EXPENSE_CATEGORY_GROUPS: Array<{
+  value: ExpenseCategoryGroupValue;
+  label: string;
+  options: ExpenseCategoryOption[];
 }> = [
-  { value: "logistics", label: "Logistics", tone: "bg-cyan-50 text-cyan-700 border-cyan-200" },
-  { value: "marketing", label: "Marketing", tone: "bg-fuchsia-50 text-fuchsia-700 border-fuchsia-200" },
-  { value: "office", label: "Office", tone: "bg-indigo-50 text-indigo-700 border-indigo-200" },
-  { value: "printing", label: "Printing", tone: "bg-violet-50 text-violet-700 border-violet-200" },
-  { value: "utilities", label: "Utilities", tone: "bg-sky-50 text-sky-700 border-sky-200" },
-  { value: "rent", label: "Rent", tone: "bg-amber-50 text-amber-700 border-amber-200" },
-  { value: "food_beverage", label: "Food & Beverage", tone: "bg-emerald-50 text-emerald-700 border-emerald-200" },
-  { value: "transport", label: "Transport", tone: "bg-orange-50 text-orange-700 border-orange-200" },
-  { value: "raw_materials", label: "Raw Materials", tone: "bg-stone-50 text-stone-700 border-stone-200" },
-  { value: "other", label: "Other", tone: "bg-slate-50 text-slate-600 border-slate-200" },
+  {
+    value: "operating_expenses",
+    label: "Operating Expenses",
+    options: [
+      { value: "rent", label: "Rent", tone: "bg-amber-50 text-amber-700 border-amber-200" },
+      { value: "utilities", label: "Utilities", tone: "bg-sky-50 text-sky-700 border-sky-200" },
+      { value: "internet_telecom", label: "Internet & Telecom", tone: "bg-cyan-50 text-cyan-700 border-cyan-200" },
+      { value: "office_supplies", label: "Office Supplies", tone: "bg-indigo-50 text-indigo-700 border-indigo-200" },
+      { value: "printing_stationery", label: "Printing & Stationery", tone: "bg-violet-50 text-violet-700 border-violet-200" },
+      { value: "software_saas", label: "Software & SaaS", tone: "bg-blue-50 text-blue-700 border-blue-200" },
+      { value: "marketing_advertising", label: "Marketing & Advertising", tone: "bg-fuchsia-50 text-fuchsia-700 border-fuchsia-200" },
+      { value: "travel", label: "Travel", tone: "bg-orange-50 text-orange-700 border-orange-200" },
+      { value: "fuel", label: "Fuel", tone: "bg-yellow-50 text-yellow-700 border-yellow-200" },
+      { value: "vehicle_expenses", label: "Vehicle Expenses", tone: "bg-lime-50 text-lime-700 border-lime-200" },
+      { value: "insurance", label: "Insurance", tone: "bg-teal-50 text-teal-700 border-teal-200" },
+      { value: "professional_services", label: "Professional Services", tone: "bg-purple-50 text-purple-700 border-purple-200" },
+      { value: "bank_charges", label: "Bank Charges", tone: "bg-rose-50 text-rose-700 border-rose-200" },
+    ],
+  },
+  {
+    value: "cogs",
+    label: "COGS",
+    options: [
+      { value: "raw_materials", label: "Raw Materials", tone: "bg-stone-50 text-stone-700 border-stone-200" },
+      { value: "inventory_purchases", label: "Inventory Purchases", tone: "bg-emerald-50 text-emerald-700 border-emerald-200" },
+      { value: "packaging", label: "Packaging", tone: "bg-green-50 text-green-700 border-green-200" },
+      { value: "manufacturing_costs", label: "Manufacturing Costs", tone: "bg-neutral-50 text-neutral-700 border-neutral-200" },
+      { value: "freight_logistics", label: "Freight & Logistics", tone: "bg-cyan-50 text-cyan-700 border-cyan-200" },
+    ],
+  },
+  {
+    value: "staff_costs",
+    label: "Staff Costs",
+    options: [
+      { value: "salaries_wages", label: "Salaries & Wages", tone: "bg-emerald-50 text-emerald-700 border-emerald-200" },
+      { value: "employee_benefits", label: "Employee Benefits", tone: "bg-teal-50 text-teal-700 border-teal-200" },
+      { value: "training", label: "Training", tone: "bg-blue-50 text-blue-700 border-blue-200" },
+    ],
+  },
+  {
+    value: "business_expenses",
+    label: "Business Expenses",
+    options: [
+      { value: "repairs_maintenance", label: "Repairs & Maintenance", tone: "bg-orange-50 text-orange-700 border-orange-200" },
+      { value: "equipment", label: "Equipment", tone: "bg-slate-50 text-slate-700 border-slate-200" },
+      { value: "licenses_permits", label: "Licenses & Permits", tone: "bg-indigo-50 text-indigo-700 border-indigo-200" },
+      { value: "legal_fees", label: "Legal Fees", tone: "bg-rose-50 text-rose-700 border-rose-200" },
+      { value: "accounting_fees", label: "Accounting Fees", tone: "bg-purple-50 text-purple-700 border-purple-200" },
+    ],
+  },
+  {
+    value: "other",
+    label: "Other",
+    options: [
+      { value: "food_beverage", label: "Food & Beverage", tone: "bg-emerald-50 text-emerald-700 border-emerald-200" },
+      { value: "miscellaneous", label: "Miscellaneous", tone: "bg-slate-50 text-slate-600 border-slate-200" },
+      { value: "uncategorized", label: "Uncategorized", tone: "bg-zinc-50 text-zinc-600 border-zinc-200" },
+    ],
+  },
 ];
 
-export function getCategoryLabel(c: ExpenseCategory | undefined): string {
-  return EXPENSE_CATEGORY_OPTIONS.find((o) => o.value === c)?.label ?? "—";
+export const EXPENSE_CATEGORY_OPTIONS = EXPENSE_CATEGORY_GROUPS.flatMap((group) =>
+  group.options.map((option) => ({
+    ...option,
+    group: group.value,
+    groupLabel: group.label,
+  }))
+);
+
+const LEGACY_EXPENSE_CATEGORY_MAP: Record<string, ExpenseCategory> = {
+  logistics: "freight_logistics",
+  marketing: "marketing_advertising",
+  office: "office_supplies",
+  printing: "printing_stationery",
+  transport: "travel",
+  other: "miscellaneous",
+};
+
+export function normalizeExpenseCategory(value: unknown): ExpenseCategory | undefined {
+  if (typeof value !== "string") return undefined;
+  const normalized = value.trim().toLowerCase().replace(/[\s/&-]+/g, "_").replace(/_+/g, "_").replace(/^_|_$/g, "");
+  return (
+    LEGACY_EXPENSE_CATEGORY_MAP[normalized] ??
+    (EXPENSE_CATEGORY_OPTIONS.some((o) => o.value === normalized)
+      ? (normalized as ExpenseCategory)
+      : undefined)
+  );
 }
 
-export function getCategoryMeta(c: ExpenseCategory | undefined) {
-  return EXPENSE_CATEGORY_OPTIONS.find((o) => o.value === c) ?? EXPENSE_CATEGORY_OPTIONS[EXPENSE_CATEGORY_OPTIONS.length - 1];
+export function getCategoryLabel(c: ExpenseCategory | string | undefined): string {
+  const normalized = normalizeExpenseCategory(c);
+  return EXPENSE_CATEGORY_OPTIONS.find((o) => o.value === normalized)?.label ?? "—";
+}
+
+export function getCategoryMeta(c: ExpenseCategory | string | undefined) {
+  const normalized = normalizeExpenseCategory(c) ?? "uncategorized";
+  return (
+    EXPENSE_CATEGORY_OPTIONS.find((o) => o.value === normalized) ??
+    EXPENSE_CATEGORY_OPTIONS[EXPENSE_CATEGORY_OPTIONS.length - 1]
+  );
 }
 
 // ─── Legacy-label normaliser ────────────────────────────────────
@@ -541,6 +636,8 @@ export function buildMonthlyBuckets(docs: ProcessedDocument[]): MonthlyBucket[] 
 export interface CategoryBucket {
   category: ExpenseCategory;
   label: string;
+  group: ExpenseCategoryGroupValue;
+  groupLabel: string;
   amount: number;
   vat: number;
   count: number;
@@ -554,11 +651,14 @@ export function buildCategoryBuckets(docs: ProcessedDocument[]): CategoryBucket[
     if (!isFinanciallyCounted(d)) continue;
 
     const fin = deriveFinancialSummary(d);
-    const cat: ExpenseCategory = d.expenseCategory ?? "other";
+    const cat = normalizeExpenseCategory(d.expenseCategory) ?? "uncategorized";
+    const meta = getCategoryMeta(cat);
     if (!map.has(cat)) {
       map.set(cat, {
         category: cat,
-        label: getCategoryLabel(cat),
+        label: meta.label,
+        group: meta.group,
+        groupLabel: meta.groupLabel,
         amount: 0,
         vat: 0,
         count: 0,

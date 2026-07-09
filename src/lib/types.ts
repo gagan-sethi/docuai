@@ -36,16 +36,35 @@ export type DocType =
  * documents. The user can override via the UI dropdown.
  */
 export type ExpenseCategory =
-  | "logistics"
-  | "marketing"
-  | "office"
-  | "printing"
-  | "utilities"
   | "rent"
-  | "food_beverage"
-  | "transport"
+  | "utilities"
+  | "internet_telecom"
+  | "office_supplies"
+  | "printing_stationery"
+  | "software_saas"
+  | "marketing_advertising"
+  | "travel"
+  | "fuel"
+  | "vehicle_expenses"
+  | "insurance"
+  | "professional_services"
+  | "bank_charges"
   | "raw_materials"
-  | "other";
+  | "inventory_purchases"
+  | "packaging"
+  | "manufacturing_costs"
+  | "freight_logistics"
+  | "salaries_wages"
+  | "employee_benefits"
+  | "training"
+  | "repairs_maintenance"
+  | "equipment"
+  | "licenses_permits"
+  | "legal_fees"
+  | "accounting_fees"
+  | "food_beverage"
+  | "miscellaneous"
+  | "uncategorized";
 
 /**
  * Structured financial summary attached to every processed document.

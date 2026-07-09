@@ -15,11 +15,12 @@ import type { ProcessedDocument, ExtractedField, LineItem, DocType, ExpenseCateg
 import { apiUrl } from "@/lib/api";
 import { AiProcessingIndicators, ClassificationConfidenceBadge, DocTypeBadge, DocTypeDropdown } from "@/components/dashboard/DocTypeBadge";
 import {
-  EXPENSE_CATEGORY_OPTIONS,
+  EXPENSE_CATEGORY_GROUPS,
   deriveFinancialSummary,
   formatMoney,
   getCategoryMeta,
   getDocTypeMeta,
+  normalizeExpenseCategory,
   resolveDocTypeCode,
 } from "@/lib/finance";
 
@@ -90,7 +91,7 @@ function CategoryBadge({
     : null;
   return (
     <span className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-semibold ${meta.tone}`}>
-      {meta.label}
+      <span>{meta.label}</span>
       <span className="text-[10px] font-medium opacity-70">
         {manual ? "Manual" : pct ? `AI ${pct}%` : "AI"}
       </span>
@@ -368,16 +369,25 @@ function ReviewPageContent() {
                   confidence={currentDoc.expenseCategoryConfidence}
                   manual={currentDoc.expenseCategoryManual}
                 />
+                {currentDoc.expenseCategory && (
+                  <p className="mt-1 text-[10px] font-medium text-slate-400">
+                    {getCategoryMeta(currentDoc.expenseCategory).groupLabel}
+                  </p>
+                )}
               </div>
               <select
-                value={currentDoc.expenseCategory ?? ""}
+                value={normalizeExpenseCategory(currentDoc.expenseCategory) ?? ""}
                 onChange={(e) => updateExpenseCategory(e.target.value as ExpenseCategory)}
                 disabled={!isEditable}
                 className="rounded-lg border border-gray-300 bg-white px-3 py-1.5 text-xs font-medium text-gray-700 focus:border-indigo-400 focus:outline-none focus:ring-2 focus:ring-indigo-100 disabled:opacity-60"
               >
                 <option value="">Select category…</option>
-                {EXPENSE_CATEGORY_OPTIONS.map((o) => (
-                  <option key={o.value} value={o.value}>{o.label}</option>
+                {EXPENSE_CATEGORY_GROUPS.map((group) => (
+                  <optgroup key={group.value} label={group.label}>
+                    {group.options.map((o) => (
+                      <option key={o.value} value={o.value}>{o.label}</option>
+                    ))}
+                  </optgroup>
                 ))}
               </select>
             </div>

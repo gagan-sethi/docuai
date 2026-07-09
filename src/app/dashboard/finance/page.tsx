@@ -33,6 +33,7 @@ import {
   formatMoney,
   filterDocumentsByCurrency,
   getDocumentCurrencies,
+  isFinanciallyCounted,
   resolveDocTypeCode,
   type SupportedCurrency,
 } from "@/lib/finance";
@@ -212,7 +213,10 @@ export default function FinanceDashboardPage() {
     [docs, period, customRange]
   );
   const periodRange = useMemo(() => calculateFinancialPeriod(period, customRange), [period, customRange]);
-  const periodRangeLabel = useMemo(() => formatDateRangeLabel(periodRange), [periodRange]);
+  const periodRangeLabel = useMemo(
+    () => (period === "all_time" ? "All time" : formatDateRangeLabel(periodRange)),
+    [period, periodRange]
+  );
   const currencies = useMemo(() => getDocumentCurrencies(periodDocs), [periodDocs]);
   const effectiveCurrency = currencies.includes(selectedCurrency)
     ? selectedCurrency
@@ -258,6 +262,10 @@ export default function FinanceDashboardPage() {
   );
 
   const totalProcessed = currencyDocs.filter((d) => d.status === "approved").length;
+  const countedDocsInPeriod = periodDocs.filter((d) => {
+    const code = resolveDocTypeCode(d);
+    return code !== "unknown" && code !== "purchase_order" && isFinanciallyCounted(d);
+  }).length;
   const maxCategory = Math.max(...categories.map((c) => c.amount), 1);
 
   return (
@@ -394,6 +402,21 @@ export default function FinanceDashboardPage() {
             </div>
           ) : (
             <>
+              {docs.length > 0 && periodDocs.length === 0 && (
+                <section className="rounded-2xl border border-amber-200 bg-amber-50 px-5 py-4 text-sm text-amber-900 shadow-sm">
+                  <p className="font-semibold">No documents found for {periodRangeLabel}.</p>
+                </section>
+              )}
+
+              {periodDocs.length > 0 && countedDocsInPeriod === 0 && (
+                <section className="rounded-2xl border border-sky-200 bg-sky-50 px-5 py-4 text-sm text-sky-900 shadow-sm">
+                  <p className="font-semibold">No approved financial documents counted for {periodRangeLabel}.</p>
+                  <p className="mt-1 text-sky-800">
+                    Approve sales invoices, expense invoices, or receipts in Review before they appear in the finance totals.
+                  </p>
+                </section>
+              )}
+
               {/* TOP — KPIs */}
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
                 <KpiCard
@@ -485,7 +508,10 @@ export default function FinanceDashboardPage() {
                       {categories.map((c) => (
                         <div key={c.category}>
                           <div className="flex items-center justify-between text-xs mb-1">
-                            <span className="font-medium text-slate-700">{c.label}</span>
+                            <span className="min-w-0">
+                              <span className="block truncate font-medium text-slate-700">{c.label}</span>
+                              <span className="block truncate text-[10px] font-medium text-slate-400">{c.groupLabel}</span>
+                            </span>
                             <span className="tabular-nums text-slate-600">
                               {formatMoney(c.amount, totals.currency)} <span className="text-slate-400">· {c.count}</span>
                             </span>

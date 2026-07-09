@@ -2,6 +2,7 @@ import type { ProcessedDocument } from "./types";
 import { deriveFinancialSummary } from "./finance";
 
 export type FinancialPeriodValue =
+  | "all_time"
   | "this_month"
   | "last_month"
   | "this_quarter"
@@ -20,10 +21,11 @@ export interface CustomDateRange {
   to: string;
 }
 
-export const FINANCIAL_PERIOD_STORAGE_KEY = "docuai.financialPeriod";
+export const FINANCIAL_PERIOD_STORAGE_KEY = "docuai.financialPeriod.v2";
 export const FINANCIAL_PERIOD_CUSTOM_STORAGE_KEY = "docuai.financialPeriod.custom";
 
 export const FINANCIAL_PERIOD_OPTIONS: Array<{ value: FinancialPeriodValue; label: string }> = [
+  { value: "all_time", label: "All Time" },
   { value: "this_month", label: "This Month" },
   { value: "last_month", label: "Last Month" },
   { value: "this_quarter", label: "This Quarter" },
@@ -46,6 +48,42 @@ function parseInputDate(value: string | undefined, fallback: Date): Date {
   const [year, month, day] = value.split("-").map(Number);
   if (!year || !month || !day) return fallback;
   return new Date(year, month - 1, day);
+}
+
+export function parseDocumentDateValue(value: unknown): Date | null {
+  if (value instanceof Date) {
+    return Number.isNaN(value.getTime()) ? null : value;
+  }
+
+  if (typeof value !== "string" && typeof value !== "number") return null;
+  const raw = String(value).trim();
+  if (!raw) return null;
+
+  const nativeDate = new Date(raw);
+  if (!Number.isNaN(nativeDate.getTime())) return nativeDate;
+
+  const numericDate = raw.match(/^(\d{1,2})[./-](\d{1,2})[./-](\d{2,4})$/);
+  if (numericDate) {
+    const [, first, second, yearPart] = numericDate;
+    const year = Number(yearPart.length === 2 ? `20${yearPart}` : yearPart);
+    const a = Number(first);
+    const b = Number(second);
+    const day = a > 12 ? a : b > 12 ? b : a;
+    const month = a > 12 ? b : b > 12 ? a : b;
+    const parsed = new Date(year, month - 1, day);
+    if (!Number.isNaN(parsed.getTime())) return parsed;
+  }
+
+  const namedDate = raw.match(/^(\d{1,2})\s+([a-z]{3,9})\.?,?\s+(\d{2,4})$/i);
+  if (namedDate) {
+    const [, dayPart, monthName, yearPart] = namedDate;
+    const month = new Date(`${monthName} 1, 2000`).getMonth();
+    const year = Number(yearPart.length === 2 ? `20${yearPart}` : yearPart);
+    const parsed = new Date(year, month, Number(dayPart));
+    if (!Number.isNaN(parsed.getTime())) return parsed;
+  }
+
+  return null;
 }
 
 export function dateToInputValue(date: Date): string {
@@ -109,14 +147,20 @@ export function calculateFinancialPeriod(
 
 export function getDocumentFinancialDate(doc: ProcessedDocument): Date {
   const fin = deriveFinancialSummary(doc);
-  const raw = fin.invoiceDate || doc.batchUploadedAt || doc.createdAt;
-  const date = new Date(raw);
-  return Number.isNaN(date.getTime()) ? new Date(doc.createdAt) : date;
+  return (
+    parseDocumentDateValue(fin.invoiceDate) ??
+    parseDocumentDateValue(doc.batchUploadedAt) ??
+    parseDocumentDateValue(doc.createdAt) ??
+    new Date()
+  );
 }
 
 export function getDocumentUploadDate(doc: ProcessedDocument): Date {
-  const date = new Date(doc.batchUploadedAt || doc.createdAt);
-  return Number.isNaN(date.getTime()) ? new Date(doc.createdAt) : date;
+  return (
+    parseDocumentDateValue(doc.batchUploadedAt) ??
+    parseDocumentDateValue(doc.createdAt) ??
+    new Date()
+  );
 }
 
 export function isDateInRange(date: Date, range: DateRange): boolean {
@@ -129,6 +173,7 @@ export function filterDocumentsByFinancialPeriod(
   value: FinancialPeriodValue,
   custom?: CustomDateRange
 ): ProcessedDocument[] {
+  if (value === "all_time") return docs;
   const range = calculateFinancialPeriod(value, custom);
   return docs.filter((doc) => isDateInRange(getDocumentFinancialDate(doc), range));
 }
@@ -153,6 +198,7 @@ export function formatDateRangeLabel(range: DateRange): string {
 }
 
 export function periodLabel(value: FinancialPeriodValue, custom?: CustomDateRange): string {
+  if (value === "all_time") return "All Time";
   if (value !== "custom") {
     return FINANCIAL_PERIOD_OPTIONS.find((opt) => opt.value === value)?.label ?? "This Month";
   }

@@ -280,7 +280,10 @@ function ExpenseCategoryChip({
       : Math.round(confidence * 100)
     : null;
   return (
-    <span className={`inline-flex max-w-full items-center gap-1 rounded-full border px-2 py-0.5 text-[10px] font-bold ${meta.tone}`}>
+    <span
+      className={`inline-flex max-w-full items-center gap-1 rounded-full border px-2 py-0.5 text-[10px] font-bold ${meta.tone}`}
+      title={`${meta.groupLabel}: ${meta.label}`}
+    >
       <span className="truncate">{meta.label}</span>
       <span className="font-medium opacity-70">{manual ? "Manual" : pct ? `AI ${pct}%` : "AI"}</span>
     </span>

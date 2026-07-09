@@ -9,6 +9,7 @@ import {
   buildMonthlyBuckets,
   deriveFinancialSummary,
   formatMoney,
+  getCategoryMeta,
   getCurrencyExcelFormat,
   getDocTypeMeta,
   resolveDocTypeCode,
@@ -134,9 +135,9 @@ export function buildPnlCsv(docs: ProcessedDocument[]): string {
   rows.push([]);
 
   rows.push(["EXPENSES BY CATEGORY"]);
-  rows.push(["Category", "Amount", "VAT", "Documents"]);
+  rows.push(["Group", "Category", "Amount", "VAT", "Documents"]);
   for (const c of categories) {
-    rows.push([c.label, c.amount.toFixed(2), c.vat.toFixed(2), c.count]);
+    rows.push([c.groupLabel, c.label, c.amount.toFixed(2), c.vat.toFixed(2), c.count]);
   }
 
   return rowsToCsv(rows);
@@ -163,6 +164,7 @@ export function buildLedgerCsv(docs: ProcessedDocument[]): string {
     "VAT %",
     "VAT Amount",
     "Grand Total",
+    "Category Group",
     "Category",
     "Status",
     "File",
@@ -170,6 +172,7 @@ export function buildLedgerCsv(docs: ProcessedDocument[]): string {
   for (const d of docs) {
     const code = resolveDocTypeCode(d);
     const fin = deriveFinancialSummary(d);
+    const categoryMeta = d.expenseCategory ? getCategoryMeta(d.expenseCategory) : null;
     rows.push([
       fin.invoiceDate || d.createdAt.slice(0, 10),
       code,
@@ -181,7 +184,8 @@ export function buildLedgerCsv(docs: ProcessedDocument[]): string {
       fin.vatRate.toFixed(2),
       fin.vatAmount.toFixed(2),
       fin.grandTotal.toFixed(2),
-      d.expenseCategory || "",
+      categoryMeta?.groupLabel || "",
+      categoryMeta?.label || "",
       d.status,
       d.fileName,
     ]);
@@ -284,12 +288,13 @@ export async function downloadPnlXlsx(docs: ProcessedDocument[]) {
   const s = wb.addWorksheet("Profit & Loss");
   s.columns = [
     { header: "", width: 22 },
+    { header: "", width: 24 },
     { header: "", width: 16 },
     { header: "", width: 16 },
     { header: "", width: 16 },
   ];
   s.addRow(["PROFIT & LOSS STATEMENT"]).font = { bold: true, size: 14 };
-  s.mergeCells("A1:D1");
+  s.mergeCells("A1:E1");
   s.addRow(["Currency", totals.currency]);
   s.addRow([]);
 
@@ -310,13 +315,13 @@ export async function downloadPnlXlsx(docs: ProcessedDocument[]) {
   s.addRow([]);
 
   s.addRow(["EXPENSES BY CATEGORY"]).font = { bold: true };
-  const hc = s.addRow(["Category", "Amount", "VAT", "Documents"]);
+  const hc = s.addRow(["Group", "Category", "Amount", "VAT", "Documents"]);
   hc.eachCell((c) => {
     c.font = { bold: true, color: { argb: "FFFFFFFF" } };
     c.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FF1E3A8A" } };
   });
   for (const c of categories) {
-    s.addRow([c.label, c.amount, c.vat, c.count]);
+    s.addRow([c.groupLabel, c.label, c.amount, c.vat, c.count]);
   }
 
   ["B", "C", "D"].forEach((col) => {
@@ -426,6 +431,8 @@ function buildDocumentExportRows(docs: ProcessedDocument[]): Array<Array<unknown
       "Created By",
       "Document Type",
       "Status",
+      "Expense Category Group",
+      "Expense Category",
       "Supplier / Customer",
       "Invoice #",
       "Currency",
@@ -439,6 +446,7 @@ function buildDocumentExportRows(docs: ProcessedDocument[]): Array<Array<unknown
   for (const doc of docs) {
     const fin = deriveFinancialSummary(doc);
     const code = resolveDocTypeCode(doc);
+    const categoryMeta = doc.expenseCategory ? getCategoryMeta(doc.expenseCategory) : null;
     rows.push([
       getDocumentBatchLabel(doc),
       (doc.batchUploadedAt || doc.createdAt || "").slice(0, 10),
@@ -447,6 +455,8 @@ function buildDocumentExportRows(docs: ProcessedDocument[]): Array<Array<unknown
       getCreatedBy(doc),
       getDocTypeMeta(code).label,
       doc.status,
+      categoryMeta?.groupLabel || "",
+      categoryMeta?.label || "",
       fin.counterparty || "",
       fin.invoiceNumber || "",
       fin.currency,
@@ -491,6 +501,8 @@ export async function downloadDocumentsXlsx(
     { header: "Created By", width: 18 },
     { header: "Document Type", width: 20 },
     { header: "Status", width: 14 },
+    { header: "Expense Category Group", width: 24 },
+    { header: "Expense Category", width: 24 },
     { header: "Supplier / Customer", width: 28 },
     { header: "Invoice #", width: 18 },
     { header: "Currency", width: 10 },
@@ -502,8 +514,8 @@ export async function downloadDocumentsXlsx(
 
   rows.slice(1).forEach((row) => {
     const added = s.addRow(row);
-    const currency = String(row[9] || "AED");
-    [11, 12, 13].forEach((cellNumber) => {
+    const currency = String(row[11] || "AED");
+    [13, 14, 15].forEach((cellNumber) => {
       added.getCell(cellNumber).numFmt = getCurrencyExcelFormat(currency);
     });
   });
@@ -516,7 +528,7 @@ export async function downloadDocumentsXlsx(
   s.getRow(1).alignment = { vertical: "middle" };
   s.autoFilter = {
     from: "A1",
-    to: `N${Math.max(rows.length, 1)}`,
+    to: `P${Math.max(rows.length, 1)}`,
   };
 
   const buf = await wb.xlsx.writeBuffer();
@@ -542,10 +554,13 @@ export function printDocumentsPdf(
     .map((doc) => {
       const fin = deriveFinancialSummary(doc);
       const code = resolveDocTypeCode(doc);
+      const categoryMeta = doc.expenseCategory ? getCategoryMeta(doc.expenseCategory) : null;
       return `<tr>
         <td>${escapeHtml(getDocumentBatchLabel(doc))}</td>
         <td>${escapeHtml((doc.batchUploadedAt || doc.createdAt || "").slice(0, 10))}</td>
         <td>${escapeHtml(getDocTypeMeta(code).label)}</td>
+        <td>${escapeHtml(categoryMeta?.groupLabel || "")}</td>
+        <td>${escapeHtml(categoryMeta?.label || "")}</td>
         <td>${escapeHtml(fin.counterparty || "")}</td>
         <td>${escapeHtml(fin.invoiceNumber || "")}</td>
         <td class="num">${escapeHtml(formatMoney(fin.grandTotal || 0, fin.currency))}</td>
@@ -568,8 +583,8 @@ export function printDocumentsPdf(
 <h1>Document Export</h1>
 <div class="meta">Generated ${escapeHtml(new Date().toLocaleString("en-GB"))} - ${docs.length} document${docs.length === 1 ? "" : "s"}</div>
 <table>
-  <thead><tr><th>Batch ID</th><th>Upload Date</th><th>Type</th><th>Supplier / Customer</th><th>Invoice #</th><th class="num">Amount</th><th>Status</th><th>File</th></tr></thead>
-  <tbody>${rows || '<tr><td colspan="8" style="color:#94a3b8">No documents in this export scope.</td></tr>'}</tbody>
+  <thead><tr><th>Batch ID</th><th>Upload Date</th><th>Type</th><th>Category Group</th><th>Category</th><th>Supplier / Customer</th><th>Invoice #</th><th class="num">Amount</th><th>Status</th><th>File</th></tr></thead>
+  <tbody>${rows || '<tr><td colspan="10" style="color:#94a3b8">No documents in this export scope.</td></tr>'}</tbody>
 </table>
 </body></html>`);
   win.document.close();

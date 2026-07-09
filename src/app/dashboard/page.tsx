@@ -924,7 +924,10 @@ export default function DashboardPage() {
                         <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
                           <DocTypeBadge code={resolveDocTypeCode(doc.doc)} />
                           {doc.doc.expenseCategory && (
-                            <span className={`inline-flex items-center gap-1 rounded-full border px-1.5 py-0.5 text-[9px] font-bold ${getCategoryMeta(doc.doc.expenseCategory).tone}`}>
+                            <span
+                              className={`inline-flex items-center gap-1 rounded-full border px-1.5 py-0.5 text-[9px] font-bold ${getCategoryMeta(doc.doc.expenseCategory).tone}`}
+                              title={`${getCategoryMeta(doc.doc.expenseCategory).groupLabel}: ${getCategoryMeta(doc.doc.expenseCategory).label}`}
+                            >
                               {getCategoryMeta(doc.doc.expenseCategory).label}
                               <span className="font-medium opacity-70">
                                 {doc.doc.expenseCategoryManual ? "Manual" : "AI"}

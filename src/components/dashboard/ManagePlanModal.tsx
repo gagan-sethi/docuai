@@ -8,7 +8,7 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import { Sparkles, Zap, CheckCircle2, Gift, Tag } from "lucide-react";
-import { apiUrl } from "@/lib/api";
+import { API_BASE_URL, apiUrl } from "@/lib/api";
 
 const usdFormatter = new Intl.NumberFormat("en-US", {
   style: "currency",
@@ -80,6 +80,12 @@ export default function ManagePlanModal({ open, onClose, planData }: Props) {
     (async () => {
       try {
         setLoadingPlans(true);
+
+        if (!API_BASE_URL) {
+          if (!cancelled) setPlans([]);
+          return;
+        }
+
         const res = await fetch(apiUrl("/api/plan/list"), {
           credentials: "include",
         });

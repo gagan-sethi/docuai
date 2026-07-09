@@ -20,7 +20,8 @@ export default function BrandLogo({
         alt="Invonix"
         width={compact ? 150 : 440}
         height={150}
-        priority={priority}
+        loading={priority ? "eager" : undefined}
+        fetchPriority={priority ? "high" : undefined}
         className={`block object-contain ${imageClassName}`}
       />
     </span>
