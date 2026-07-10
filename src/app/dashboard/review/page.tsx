@@ -280,7 +280,7 @@ function ReviewPageContent() {
     }
   }, [currentDoc, addToast]);
 
-  const updateExpenseCategory = useCallback(async (cat: ExpenseCategory) => {
+  const updateExpenseCategory = useCallback(async (cat: ExpenseCategory, successMessage?: string) => {
     if (!currentDoc) return;
     setDocuments((prev) =>
       prev.map((d) =>
@@ -296,10 +296,17 @@ function ReviewPageContent() {
         credentials: "include",
         body: JSON.stringify({ expenseCategory: cat, expenseCategoryConfidence: 100, expenseCategoryManual: true }),
       });
+      addToast(successMessage || `Category set to ${getCategoryMeta(cat).label}`);
     } catch {
       addToast("Failed to update category", "error");
     }
   }, [currentDoc, addToast]);
+
+  const approveExpenseCategory = useCallback(() => {
+    const category = normalizeExpenseCategory(currentDoc?.expenseCategory);
+    if (!category) return;
+    void updateExpenseCategory(category, "AI category suggestion approved");
+  }, [currentDoc?.expenseCategory, updateExpenseCategory]);
 
   const downloadExcel = useCallback(async () => {
     if (!currentDoc) return;
@@ -319,6 +326,12 @@ function ReviewPageContent() {
     const meta = getDocTypeMeta(code);
     const fin = deriveFinancialSummary(currentDoc);
     const isExpenseLike = code === "expense_invoice" || code === "receipt";
+    const selectedExpenseCategory = normalizeExpenseCategory(currentDoc.expenseCategory);
+    const showApproveExpenseSuggestion =
+      isExpenseLike &&
+      Boolean(selectedExpenseCategory) &&
+      !currentDoc.expenseCategoryManual &&
+      isEditable;
     return (
       <div className="p-5 space-y-5">
         {/* Financial summary card */}
@@ -361,9 +374,11 @@ function ReviewPageContent() {
             </div>
           </div>
           {isExpenseLike && (
-            <div className="border-t border-gray-100 px-4 py-3 flex items-center justify-between gap-3">
+            <div className="border-t border-gray-100 px-4 py-3 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
               <div>
-                <p className="text-[10px] uppercase tracking-wider text-slate-400 mb-1">Expense Category</p>
+                <p className="text-[10px] uppercase tracking-wider text-slate-400 mb-1">
+                  {currentDoc.expenseCategoryManual ? "Approved Category" : "AI Suggested Category"}
+                </p>
                 <CategoryBadge
                   category={currentDoc.expenseCategory}
                   confidence={currentDoc.expenseCategoryConfidence}
@@ -375,21 +390,36 @@ function ReviewPageContent() {
                   </p>
                 )}
               </div>
-              <select
-                value={normalizeExpenseCategory(currentDoc.expenseCategory) ?? ""}
-                onChange={(e) => updateExpenseCategory(e.target.value as ExpenseCategory)}
-                disabled={!isEditable}
-                className="rounded-lg border border-gray-300 bg-white px-3 py-1.5 text-xs font-medium text-gray-700 focus:border-indigo-400 focus:outline-none focus:ring-2 focus:ring-indigo-100 disabled:opacity-60"
-              >
-                <option value="">Select category…</option>
-                {EXPENSE_CATEGORY_GROUPS.map((group) => (
-                  <optgroup key={group.value} label={group.label}>
-                    {group.options.map((o) => (
-                      <option key={o.value} value={o.value}>{o.label}</option>
-                    ))}
-                  </optgroup>
-                ))}
-              </select>
+              <div className="flex flex-wrap items-center gap-2">
+                {showApproveExpenseSuggestion && selectedExpenseCategory && (
+                  <button
+                    type="button"
+                    onClick={approveExpenseCategory}
+                    className="inline-flex items-center gap-1.5 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-1.5 text-xs font-semibold text-emerald-700 transition hover:bg-emerald-100"
+                  >
+                    <CheckCircle2 className="h-3.5 w-3.5" />
+                    Approve suggestion
+                  </button>
+                )}
+                <select
+                  value={selectedExpenseCategory ?? ""}
+                  onChange={(e) => {
+                    const nextCategory = normalizeExpenseCategory(e.target.value);
+                    if (nextCategory) void updateExpenseCategory(nextCategory);
+                  }}
+                  disabled={!isEditable}
+                  className="rounded-lg border border-gray-300 bg-white px-3 py-1.5 text-xs font-medium text-gray-700 focus:border-indigo-400 focus:outline-none focus:ring-2 focus:ring-indigo-100 disabled:opacity-60"
+                >
+                  <option value="">Select category…</option>
+                  {EXPENSE_CATEGORY_GROUPS.map((group) => (
+                    <optgroup key={group.value} label={group.label}>
+                      {group.options.map((o) => (
+                        <option key={o.value} value={o.value}>{o.label}</option>
+                      ))}
+                    </optgroup>
+                  ))}
+                </select>
+              </div>
             </div>
           )}
         </motion.div>

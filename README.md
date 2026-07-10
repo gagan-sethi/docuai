@@ -37,6 +37,12 @@ Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/bui
 
 ## Implementation History
 
+### 2026-07-10 - Point 5: AI Expense Categorization
+
+- Added an approve/change review flow for AI-suggested expense categories.
+- Review cards now distinguish AI suggestions from approved/manual categories and show confidence on the category chip.
+- User category approvals are saved as manual selections so the backend can learn from future supplier/category matches.
+
 ### 2026-07-09 - Point 4: Expanded Expense Categories
 
 - Added the grouped bookkeeping taxonomy for Operating Expenses, COGS, Staff Costs, Business Expenses, and Other.
