@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import {
   ArrowLeft,
@@ -13,22 +13,16 @@ import {
 } from "lucide-react";
 import Sidebar from "@/components/dashboard/Sidebar";
 import TopBar from "@/components/dashboard/TopBar";
-import { apiUrl, handleUnauthorized } from "@/lib/api";
-import type { ProcessedDocument } from "@/lib/types";
+import { apiUrl } from "@/lib/api";
 import {
-  aggregateTotals,
-  buildCategoryBuckets,
-  buildMonthlyBuckets,
-  filterDocumentsByCurrency,
   formatMoney,
-  getDocumentCurrencies,
   type SupportedCurrency,
 } from "@/lib/finance";
-import { downloadPnlCsv, downloadPnlXlsx } from "@/lib/financeExport";
+import { fetchFinancialReport, selectFinancialReport, type FinancialReport } from "@/lib/financeApi";
 
 export default function PnlReportPage() {
   const [sidebarWidth, setSidebarWidth] = useState(260);
-  const [docs, setDocs] = useState<ProcessedDocument[]>([]);
+  const [report, setReport] = useState<FinancialReport | null>(null);
   const [loading, setLoading] = useState(true);
   const [selectedCurrency, setSelectedCurrency] = useState<SupportedCurrency>("AED");
 
@@ -47,28 +41,17 @@ export default function PnlReportPage() {
   useEffect(() => {
     (async () => {
       try {
-        const res = await fetch(apiUrl("/api/documents?limit=1000"), { credentials: "include" });
-        if (await handleUnauthorized(res)) return;
-        if (res.ok) {
-          const data = await res.json();
-          setDocs(data.documents || []);
-        }
+        setReport(await fetchFinancialReport());
       } catch { /* ignore */ }
       setLoading(false);
     })();
   }, []);
 
-  const currencies = useMemo(() => getDocumentCurrencies(docs), [docs]);
+  const currencies = (report?.totalsByCurrency.map((row) => row.currency) ?? []);
   const effectiveCurrency = currencies.includes(selectedCurrency)
     ? selectedCurrency
     : currencies[0] || "AED";
-  const currencyDocs = useMemo(
-    () => filterDocumentsByCurrency(docs, effectiveCurrency),
-    [docs, effectiveCurrency],
-  );
-  const totals = useMemo(() => aggregateTotals(currencyDocs), [currencyDocs]);
-  const monthly = useMemo(() => buildMonthlyBuckets(currencyDocs), [currencyDocs]);
-  const categories = useMemo(() => buildCategoryBuckets(currencyDocs), [currencyDocs]);
+  const { totals, monthly, categories } = selectFinancialReport(report, effectiveCurrency);
 
   return (
     <div className="min-h-screen bg-slate-50">
@@ -108,14 +91,14 @@ export default function PnlReportPage() {
                 </select>
               )}
               <button
-                onClick={() => downloadPnlXlsx(currencyDocs)}
+                onClick={() => window.open(apiUrl(`/api/finance/export?format=xlsx&type=pnl&currency=${effectiveCurrency}`), "_blank")}
                 className="flex items-center gap-2 px-3.5 py-2 text-sm font-semibold text-emerald-700 bg-emerald-50 border border-emerald-200 rounded-xl hover:bg-emerald-100 transition"
               >
                 <FileSpreadsheet className="w-4 h-4" />
                 Excel
               </button>
               <button
-                onClick={() => downloadPnlCsv(currencyDocs)}
+                onClick={() => window.open(apiUrl(`/api/finance/export?format=csv&type=pnl&currency=${effectiveCurrency}`), "_blank")}
                 className="flex items-center gap-2 px-3.5 py-2 text-sm font-medium text-slate-600 bg-white border border-slate-200 rounded-xl hover:bg-slate-50 transition"
               >
                 <FileText className="w-4 h-4" />

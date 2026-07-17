@@ -141,6 +141,8 @@ export interface ProcessedDocument {
   expenseCategoryConfidence?: number;
   expenseCategoryManual?: boolean;
   financial?: FinancialSummary;
+  duplicateOf?: string;
+  duplicateDetectedAt?: string;
   ai_verified?: boolean;
   ocr_accuracy?: number | null;
   auto_categorized?: boolean;

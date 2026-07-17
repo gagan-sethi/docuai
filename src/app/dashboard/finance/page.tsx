@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { motion } from "framer-motion";
 import {
@@ -22,34 +22,22 @@ import {
 } from "lucide-react";
 import Sidebar from "@/components/dashboard/Sidebar";
 import TopBar from "@/components/dashboard/TopBar";
-import { apiUrl, handleUnauthorized } from "@/lib/api";
+import { apiUrl } from "@/lib/api";
 import type { ProcessedDocument } from "@/lib/types";
 import {
-  aggregateTotals,
-  buildCategoryBuckets,
-  buildMonthlyBuckets,
   deriveFinancialSummary,
   formatCompactMoney,
   formatMoney,
   filterDocumentsByCurrency,
-  getDocumentCurrencies,
-  isFinanciallyCounted,
   resolveDocTypeCode,
+  type MonthlyBucket,
   type SupportedCurrency,
 } from "@/lib/finance";
+import { fetchFinancialReport, selectFinancialReport, type FinancialReport } from "@/lib/financeApi";
 import { AiProcessingIndicators, DocTypeBadge } from "@/components/dashboard/DocTypeBadge";
-import {
-  downloadLedgerCsv,
-  downloadPnlCsv,
-  downloadPnlXlsx,
-  downloadVatSummaryCsv,
-  downloadVatSummaryXlsx,
-  printVatSummary,
-} from "@/lib/financeExport";
 import {
   calculateFinancialPeriod,
   dateToInputValue,
-  filterDocumentsByFinancialPeriod,
   FINANCIAL_PERIOD_CUSTOM_STORAGE_KEY,
   FINANCIAL_PERIOD_OPTIONS,
   FINANCIAL_PERIOD_STORAGE_KEY,
@@ -139,7 +127,7 @@ function KpiCard({
 
 export default function FinanceDashboardPage() {
   const [sidebarWidth, setSidebarWidth] = useState(260);
-  const [docs, setDocs] = useState<ProcessedDocument[]>([]);
+  const [report, setReport] = useState<FinancialReport | null>(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [exportOpen, setExportOpen] = useState(false);
@@ -164,19 +152,20 @@ export default function FinanceDashboardPage() {
     };
   }, []);
 
-  const fetchDocs = async (showSpinner = false) => {
+  const fetchDocs = useCallback(async (showSpinner = false) => {
     if (showSpinner) setRefreshing(true);
     try {
-      const res = await fetch(apiUrl("/api/documents?limit=1000"), { credentials: "include" });
-      if (await handleUnauthorized(res)) return;
-      if (res.ok) {
-        const data = await res.json();
-        setDocs(data.documents || []);
+      const params = new URLSearchParams();
+      if (period !== "all_time") {
+        const range = calculateFinancialPeriod(period, customRange);
+        params.set("fromDate", range.from.toISOString().slice(0, 10));
+        params.set("toDate", range.to.toISOString().slice(0, 10));
       }
+      setReport(await fetchFinancialReport(params));
     } catch { /* ignore */ }
     setLoading(false);
     setRefreshing(false);
-  };
+  }, [period, customRange]);
 
   useEffect(() => {
     const first = window.setTimeout(() => fetchDocs(), 0);
@@ -185,7 +174,7 @@ export default function FinanceDashboardPage() {
       window.clearTimeout(first);
       window.clearInterval(t);
     };
-  }, []);
+  }, [fetchDocs]);
 
   useEffect(() => {
     try {
@@ -208,64 +197,39 @@ export default function FinanceDashboardPage() {
     } catch { /* ignore local preference failures */ }
   }, [period, customRange]);
 
-  const periodDocs = useMemo(
-    () => filterDocumentsByFinancialPeriod(docs, period, customRange),
-    [docs, period, customRange]
-  );
   const periodRange = useMemo(() => calculateFinancialPeriod(period, customRange), [period, customRange]);
   const periodRangeLabel = useMemo(
     () => (period === "all_time" ? "All time" : formatDateRangeLabel(periodRange)),
     [period, periodRange]
   );
-  const currencies = useMemo(() => getDocumentCurrencies(periodDocs), [periodDocs]);
+  const currencies = (report?.totalsByCurrency.map((row) => row.currency) ?? []);
   const effectiveCurrency = currencies.includes(selectedCurrency)
     ? selectedCurrency
     : currencies[0] || "AED";
 
-  const currencyDocs = useMemo(
-    () => filterDocumentsByCurrency(periodDocs, effectiveCurrency),
-    [periodDocs, effectiveCurrency],
-  );
-
-  const totals = useMemo(() => aggregateTotals(currencyDocs), [currencyDocs]);
-  const monthly = useMemo(() => buildMonthlyBuckets(currencyDocs), [currencyDocs]);
-  const categories = useMemo(() => buildCategoryBuckets(currencyDocs), [currencyDocs]);
+  const currencyDocs = filterDocumentsByCurrency(report?.documents ?? [], effectiveCurrency);
+  const { totals, monthly, categories } = selectFinancialReport(report, effectiveCurrency);
 
   const revenueTrend = monthly.map((m) => m.salesAmount);
   const expenseTrend = monthly.map((m) => m.expenseAmount);
   const profitTrend = monthly.map((m) => m.netProfit);
   const vatTrend = monthly.map((m) => m.netVat);
 
-  const recentSales = useMemo(
-    () =>
-      currencyDocs
-        .filter((d) => resolveDocTypeCode(d) === "sales_invoice")
-        .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
-        .slice(0, 5),
-    [currencyDocs]
-  );
-  const recentExpenses = useMemo(
-    () =>
-      currencyDocs
-        .filter((d) => resolveDocTypeCode(d) === "expense_invoice" || resolveDocTypeCode(d) === "receipt")
-        .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
-        .slice(0, 5),
-    [currencyDocs]
-  );
-  const pendingPos = useMemo(
-    () =>
-      currencyDocs
-        .filter((d) => resolveDocTypeCode(d) === "purchase_order")
-        .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
-        .slice(0, 5),
-    [currencyDocs]
-  );
+  const recentSales = currencyDocs
+    .filter((d) => resolveDocTypeCode(d) === "sales_invoice")
+    .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+    .slice(0, 5);
+  const recentExpenses = currencyDocs
+    .filter((d) => resolveDocTypeCode(d) === "expense_invoice" || resolveDocTypeCode(d) === "receipt")
+    .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+    .slice(0, 5);
+  const pendingPos = currencyDocs
+    .filter((d) => resolveDocTypeCode(d) === "purchase_order")
+    .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+    .slice(0, 5);
 
   const totalProcessed = currencyDocs.filter((d) => d.status === "approved").length;
-  const countedDocsInPeriod = periodDocs.filter((d) => {
-    const code = resolveDocTypeCode(d);
-    return code !== "unknown" && code !== "purchase_order" && isFinanciallyCounted(d);
-  }).length;
+  const countedDocsInPeriod = report?.totalsByCurrency.reduce((sum, row) => sum + row.documentCount, 0) ?? 0;
   const maxCategory = Math.max(...categories.map((c) => c.amount), 1);
 
   return (
@@ -371,12 +335,12 @@ export default function FinanceDashboardPage() {
                 {exportOpen && (
                   <div className="absolute right-0 mt-2 z-30 min-w-[220px] rounded-xl border border-slate-200 bg-white shadow-xl overflow-hidden">
                     {[
-                      { label: "VAT Summary (Excel)", icon: FileSpreadsheet, run: () => downloadVatSummaryXlsx(currencyDocs) },
-                      { label: "VAT Summary (CSV)", icon: FileText, run: () => downloadVatSummaryCsv(currencyDocs) },
-                      { label: "VAT Summary (PDF)", icon: Printer, run: () => printVatSummary(currencyDocs) },
-                      { label: "P&L (Excel)", icon: FileSpreadsheet, run: () => downloadPnlXlsx(currencyDocs) },
-                      { label: "P&L (CSV)", icon: FileText, run: () => downloadPnlCsv(currencyDocs) },
-                      { label: "Accounting Ledger (CSV)", icon: FileText, run: () => downloadLedgerCsv(currencyDocs) },
+                      { label: "VAT Summary (Excel)", icon: FileSpreadsheet, run: () => window.open(apiUrl(`/api/finance/export?format=xlsx&type=vat&currency=${effectiveCurrency}`), "_blank") },
+                      { label: "VAT Summary (CSV)", icon: FileText, run: () => window.open(apiUrl(`/api/finance/export?format=csv&type=vat&currency=${effectiveCurrency}`), "_blank") },
+                      { label: "VAT Summary (PDF)", icon: Printer, run: () => window.open(apiUrl(`/api/finance/export?format=pdf&type=vat&currency=${effectiveCurrency}`), "_blank") },
+                      { label: "P&L (Excel)", icon: FileSpreadsheet, run: () => window.open(apiUrl(`/api/finance/export?format=xlsx&type=pnl&currency=${effectiveCurrency}`), "_blank") },
+                      { label: "P&L (CSV)", icon: FileText, run: () => window.open(apiUrl(`/api/finance/export?format=csv&type=pnl&currency=${effectiveCurrency}`), "_blank") },
+                      { label: "Accounting Ledger (CSV)", icon: FileText, run: () => window.open(apiUrl(`/api/finance/export?format=csv&type=ledger&currency=${effectiveCurrency}`), "_blank") },
                     ].map((item) => (
                       <button
                         key={item.label}
@@ -402,13 +366,7 @@ export default function FinanceDashboardPage() {
             </div>
           ) : (
             <>
-              {docs.length > 0 && periodDocs.length === 0 && (
-                <section className="rounded-2xl border border-amber-200 bg-amber-50 px-5 py-4 text-sm text-amber-900 shadow-sm">
-                  <p className="font-semibold">No documents found for {periodRangeLabel}.</p>
-                </section>
-              )}
-
-              {periodDocs.length > 0 && countedDocsInPeriod === 0 && (
+              {report && countedDocsInPeriod === 0 && (
                 <section className="rounded-2xl border border-sky-200 bg-sky-50 px-5 py-4 text-sm text-sky-900 shadow-sm">
                   <p className="font-semibold">No approved financial documents counted for {periodRangeLabel}.</p>
                   <p className="mt-1 text-sky-800">
@@ -583,8 +541,8 @@ function TrendCard({
 }: {
   title: string;
   color: string;
-  months: ReturnType<typeof buildMonthlyBuckets>;
-  accessor: (m: ReturnType<typeof buildMonthlyBuckets>[number]) => number;
+  months: MonthlyBucket[];
+  accessor: (m: MonthlyBucket) => number;
   currency: string;
 }) {
   const vals = months.map(accessor);
