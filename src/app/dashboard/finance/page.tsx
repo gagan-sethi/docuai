@@ -22,7 +22,7 @@ import {
 } from "lucide-react";
 import Sidebar from "@/components/dashboard/Sidebar";
 import TopBar from "@/components/dashboard/TopBar";
-import { apiUrl } from "@/lib/api";
+import { apiUrl, downloadApiFile } from "@/lib/api";
 import type { ProcessedDocument } from "@/lib/types";
 import {
   deriveFinancialSummary,
@@ -335,12 +335,12 @@ export default function FinanceDashboardPage() {
                 {exportOpen && (
                   <div className="absolute right-0 mt-2 z-30 min-w-[220px] rounded-xl border border-slate-200 bg-white shadow-xl overflow-hidden">
                     {[
-                      { label: "VAT Summary (Excel)", icon: FileSpreadsheet, run: () => window.open(apiUrl(`/api/finance/export?format=xlsx&type=vat&currency=${effectiveCurrency}`), "_blank") },
-                      { label: "VAT Summary (CSV)", icon: FileText, run: () => window.open(apiUrl(`/api/finance/export?format=csv&type=vat&currency=${effectiveCurrency}`), "_blank") },
-                      { label: "VAT Summary (PDF)", icon: Printer, run: () => window.open(apiUrl(`/api/finance/export?format=pdf&type=vat&currency=${effectiveCurrency}`), "_blank") },
-                      { label: "P&L (Excel)", icon: FileSpreadsheet, run: () => window.open(apiUrl(`/api/finance/export?format=xlsx&type=pnl&currency=${effectiveCurrency}`), "_blank") },
-                      { label: "P&L (CSV)", icon: FileText, run: () => window.open(apiUrl(`/api/finance/export?format=csv&type=pnl&currency=${effectiveCurrency}`), "_blank") },
-                      { label: "Accounting Ledger (CSV)", icon: FileText, run: () => window.open(apiUrl(`/api/finance/export?format=csv&type=ledger&currency=${effectiveCurrency}`), "_blank") },
+                      { label: "VAT Summary (Excel)", icon: FileSpreadsheet, run: () => void downloadApiFile(apiUrl(`/api/finance/export?format=xlsx&type=vat&currency=${effectiveCurrency}`)) },
+                      { label: "VAT Summary (CSV)", icon: FileText, run: () => void downloadApiFile(apiUrl(`/api/finance/export?format=csv&type=vat&currency=${effectiveCurrency}`)) },
+                      { label: "VAT Summary (PDF)", icon: Printer, run: () => void downloadApiFile(apiUrl(`/api/finance/export?format=pdf&type=vat&currency=${effectiveCurrency}`)) },
+                      { label: "P&L (Excel)", icon: FileSpreadsheet, run: () => void downloadApiFile(apiUrl(`/api/finance/export?format=xlsx&type=pnl&currency=${effectiveCurrency}`)) },
+                      { label: "P&L (CSV)", icon: FileText, run: () => void downloadApiFile(apiUrl(`/api/finance/export?format=csv&type=pnl&currency=${effectiveCurrency}`)) },
+                      { label: "Accounting Ledger (CSV)", icon: FileText, run: () => void downloadApiFile(apiUrl(`/api/finance/export?format=csv&type=ledger&currency=${effectiveCurrency}`)) },
                     ].map((item) => (
                       <button
                         key={item.label}

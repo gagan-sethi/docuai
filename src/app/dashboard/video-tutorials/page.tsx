@@ -13,7 +13,7 @@ import {
 } from "lucide-react";
 import Sidebar from "@/components/dashboard/Sidebar";
 import TopBar from "@/components/dashboard/TopBar";
-import { apiUrl, handleUnauthorized } from "@/lib/api";
+import { apiFetch, apiUrl, handleUnauthorized } from "@/lib/api";
 import { toast } from "react-toastify";
 
 interface VideoTutorial {
@@ -84,7 +84,7 @@ export default function VideoTutorialsPage() {
                 params.append("search", search);
             }
 
-            const res = await fetch(apiUrl(`/api/support/video-tutorials?${params}`), {
+            const res = await apiFetch(apiUrl(`/api/support/video-tutorials?${params}`), {
                 credentials: "include",
             });
 

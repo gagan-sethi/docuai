@@ -4,7 +4,7 @@ import { useCallback, useEffect, useState, useRef } from "react";
 import { useParams } from "next/navigation";
 import Sidebar from "@/components/dashboard/Sidebar";
 import TopBar from "@/components/dashboard/TopBar";
-import { apiUrl } from "@/lib/api";
+import { apiFetch, apiUrl } from "@/lib/api";
 import { toast } from "react-toastify"; // ✅ Import toast
 import {
   Paperclip,
@@ -64,7 +64,7 @@ export default function TicketDetailPage() {
 
   const fetchTicket = useCallback(async () => {
     try {
-      const res = await fetch(apiUrl(`/api/support/${id}`), {
+      const res = await apiFetch(apiUrl(`/api/support/${id}`), {
         credentials: "include",
       });
       const data = await res.json();
@@ -117,7 +117,7 @@ export default function TicketDetailPage() {
     try {
       setSendingReply(true);
 
-      const res = await fetch(apiUrl(`/api/support/${id}/reply`), {
+      const res = await apiFetch(apiUrl(`/api/support/${id}/reply`), {
         method: "POST",
         credentials: "include",
         body: formData,
@@ -196,7 +196,7 @@ export default function TicketDetailPage() {
     try {
       setResolving(true);
 
-      const res = await fetch(apiUrl(`/api/support/${id}`), {
+      const res = await apiFetch(apiUrl(`/api/support/${id}`), {
         method: "PATCH",
         credentials: "include",
       });

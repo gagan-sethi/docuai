@@ -8,7 +8,7 @@
  */
 
 import { NextRequest, NextResponse } from "next/server";
-import { apiUrl } from "@/lib/api";
+import { apiFetch, apiUrl } from "@/lib/api";
 
 export const runtime = "nodejs";
 
@@ -17,7 +17,7 @@ export async function POST(req: NextRequest) {
   const auth = req.headers.get("authorization") ?? "";
   const body = await req.text();
 
-  const upstream = await fetch(apiUrl("/api/merge-csv"), {
+  const upstream = await apiFetch(apiUrl("/api/merge-csv"), {
     method: "POST",
     headers: {
       "Content-Type": "application/json",

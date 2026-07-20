@@ -16,7 +16,7 @@ import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import AuthLayout from "@/components/auth/AuthLayout";
 import BrandLogo from "@/components/BrandLogo";
-import { apiUrl } from "@/lib/api";
+import { apiFetch, apiUrl, setAuthToken } from "@/lib/api";
 // import { GoogleLogin } from "@react-oauth/google";
 import { useGoogleLogin } from "@react-oauth/google";
 
@@ -42,7 +42,7 @@ function GoogleSignInButton({
         setIsLoading(true);
         setError("");
 
-        const res = await fetch(apiUrl("/api/auth/google-login"), {
+        const res = await apiFetch(apiUrl("/api/auth/google-login"), {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
@@ -61,6 +61,8 @@ function GoogleSignInButton({
           return;
         }
 
+        // Cookie-independent fallback for browsers blocking third-party cookies
+        setAuthToken(data.token);
         router.push("/dashboard");
       } catch {
         setError("Google login failed");
@@ -124,7 +126,7 @@ function LoginPageContent() {
     setError("");
 
     try {
-      const res = await fetch(apiUrl("/api/auth/login"), {
+      const res = await apiFetch(apiUrl("/api/auth/login"), {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         credentials: "include",
@@ -142,6 +144,9 @@ function LoginPageContent() {
         setIsLoading(false);
         return;
       }
+
+      // Cookie-independent fallback for browsers blocking third-party cookies
+      setAuthToken(data.token);
 
       // Redirect to dashboard on success
       router.push("/dashboard");

@@ -43,7 +43,7 @@ import {
 import Sidebar from "@/components/dashboard/Sidebar";
 import TopBar from "@/components/dashboard/TopBar";
 import ManagePlanModal from "@/components/dashboard/ManagePlanModal";
-import { apiUrl } from "@/lib/api";
+import { apiFetch, apiUrl } from "@/lib/api";
 
 type TeamRole = "owner" | "admin" | "member";
 
@@ -134,7 +134,7 @@ export default function TeamPage() {
   const load = async () => {
     setError(null);
     try {
-      const res = await fetch(apiUrl("/api/team"), { credentials: "include" });
+      const res = await apiFetch(apiUrl("/api/team"), { credentials: "include" });
       if (!res.ok) {
         if (res.status === 401) {
           window.location.href = "/login";
@@ -193,7 +193,7 @@ export default function TeamPage() {
   const handleRevokeInvite = async (id: string) => {
     if (!confirm("Revoke this invitation? The link will no longer work.")) return;
     try {
-      const res = await fetch(apiUrl(`/api/team/invite/${id}`), {
+      const res = await apiFetch(apiUrl(`/api/team/invite/${id}`), {
         method: "DELETE",
         credentials: "include",
       });
@@ -222,7 +222,7 @@ export default function TeamPage() {
 
   const handleResendInvite = async (id: string) => {
     try {
-      const res = await fetch(apiUrl(`/api/team/invite/${id}/resend`), {
+      const res = await apiFetch(apiUrl(`/api/team/invite/${id}/resend`), {
         method: "POST",
         credentials: "include",
       });
@@ -245,7 +245,7 @@ export default function TeamPage() {
 
   const handleChangeRole = async (userId: string, role: "admin" | "member") => {
     try {
-      const res = await fetch(apiUrl(`/api/team/member/${userId}`), {
+      const res = await apiFetch(apiUrl(`/api/team/member/${userId}`), {
         method: "PATCH",
         credentials: "include",
         headers: { "Content-Type": "application/json" },
@@ -271,7 +271,7 @@ export default function TeamPage() {
   const handleRemoveMember = async (userId: string, name: string) => {
     if (!confirm(`Remove ${name} from this workspace? They'll lose access immediately.`)) return;
     try {
-      const res = await fetch(apiUrl(`/api/team/member/${userId}`), {
+      const res = await apiFetch(apiUrl(`/api/team/member/${userId}`), {
         method: "DELETE",
         credentials: "include",
       });
@@ -904,7 +904,7 @@ function InviteModal({
     }
     setSubmitting(true);
     try {
-      const res = await fetch(apiUrl("/api/team/invite"), {
+      const res = await apiFetch(apiUrl("/api/team/invite"), {
         method: "POST",
         credentials: "include",
         headers: { "Content-Type": "application/json" },

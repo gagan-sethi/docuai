@@ -4,7 +4,7 @@ import { useSearchParams, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import StripeWrapper from "./StripeWrapper";
 import CheckoutForm from "./CheckoutForm";
-import { apiUrl } from "@/lib/api";
+import { apiFetch, apiUrl } from "@/lib/api";
 import BrandLogo from "@/components/BrandLogo";
 
 type PaymentInit = {
@@ -38,7 +38,7 @@ function getPaymentInit(planId: string, inviteToken: string | null) {
     return cached.request;
   }
 
-  const request = fetch(apiUrl("/api/plan/payment"), {
+  const request = apiFetch(apiUrl("/api/plan/payment"), {
     method: "POST",
     credentials: "include",
     headers: { "Content-Type": "application/json" },

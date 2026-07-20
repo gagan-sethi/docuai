@@ -36,7 +36,7 @@ import {
 import Sidebar from "@/components/dashboard/Sidebar";
 import TopBar from "@/components/dashboard/TopBar";
 import ManagePlanModal from "@/components/dashboard/ManagePlanModal";
-import { apiUrl, handleUnauthorized } from "@/lib/api";
+import { apiFetch, apiUrl, handleUnauthorized } from "@/lib/api";
 
 interface PlanInfo {
   plan: string;
@@ -124,9 +124,9 @@ export default function BillingPage() {
     setError(null);
     try {
       const [planRes, meRes, payRes] = await Promise.all([
-        fetch(apiUrl("/api/plan"), { credentials: "include" }),
-        fetch(apiUrl("/api/auth/me"), { credentials: "include" }),
-        fetch(apiUrl("/api/plan/payments?limit=20"), { credentials: "include" }),
+        apiFetch(apiUrl("/api/plan"), { credentials: "include" }),
+        apiFetch(apiUrl("/api/auth/me"), { credentials: "include" }),
+        apiFetch(apiUrl("/api/plan/payments?limit=20"), { credentials: "include" }),
       ]);
 
       if (await handleUnauthorized(planRes)) return;

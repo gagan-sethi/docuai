@@ -4,7 +4,7 @@
  */
 
 import { NextRequest, NextResponse } from "next/server";
-import { apiUrl } from "@/lib/api";
+import { apiFetch, apiUrl } from "@/lib/api";
 
 export const runtime = "nodejs";
 
@@ -23,7 +23,7 @@ export async function GET(
   const cookie = req.headers.get("cookie") ?? "";
   const auth = req.headers.get("authorization") ?? "";
 
-  const upstream = await fetch(apiUrl(upstreamPath), {
+  const upstream = await apiFetch(apiUrl(upstreamPath), {
     method: "GET",
     headers: {
       ...(cookie ? { cookie } : {}),

@@ -29,7 +29,7 @@ import Sidebar from "@/components/dashboard/Sidebar";
 import TopBar from "@/components/dashboard/TopBar";
 import MergeBar from "@/components/dashboard/MergeBar";
 import { DocTypeBadge } from "@/components/dashboard/DocTypeBadge";
-import { apiUrl } from "@/lib/api";
+import { apiFetch, apiUrl, downloadApiFile } from "@/lib/api";
 import type { ProcessedDocument, DocumentStatus } from "@/lib/types";
 import { getClassificationConfidence, resolveDocTypeCode } from "@/lib/finance";
 
@@ -235,7 +235,7 @@ export default function WhatsAppInboxPage() {
     let cancelled = false;
     (async () => {
       try {
-        const res = await fetch(apiUrl("/api/user/preferences"), {
+        const res = await apiFetch(apiUrl("/api/user/preferences"), {
           credentials: "include",
           cache: "no-store",
         });
@@ -283,7 +283,7 @@ export default function WhatsAppInboxPage() {
       localStorage.setItem("whatsapp.autoMerge", next ? "1" : "0");
       // Best-effort: notify backend so the WhatsApp ingestion pipeline can apply it.
       // If the endpoint doesn't exist, we silently keep the local preference.
-      await fetch(apiUrl("/api/user/preferences"), {
+      await apiFetch(apiUrl("/api/user/preferences"), {
         method: "PATCH",
         credentials: "include",
         headers: { "Content-Type": "application/json" },
@@ -306,7 +306,7 @@ export default function WhatsAppInboxPage() {
 
   // Fetch user info
  useEffect(() => {
-  fetch(apiUrl("/api/auth/me"), {
+  apiFetch(apiUrl("/api/auth/me"), {
     credentials: "include",
   })
     .then((r) => {
@@ -329,7 +329,7 @@ export default function WhatsAppInboxPage() {
   const fetchDocs = useCallback(async (showSpinner = false) => {
     if (showSpinner) setRefreshing(true);
     try {
-      const res = await fetch(apiUrl("/api/documents?source=whatsapp&limit=200"), {
+      const res = await apiFetch(apiUrl("/api/documents?source=whatsapp&limit=200"), {
         credentials: "include",
       });
       if (res.status === 401) {
@@ -775,7 +775,7 @@ function DocRow({
             <Eye className="w-4 h-4" />
           </Link>
           <a
-            href={apiUrl(`/api/documents/${doc.id}/excel`)}
+            href={apiUrl(`/api/documents/${doc.id}/excel`)} onClick={(e) => { e.preventDefault(); void downloadApiFile(apiUrl(`/api/documents/${doc.id}/excel`)); }}
             className="p-1.5 rounded-lg text-slate-400 hover:text-green-600 hover:bg-green-50 transition-colors"
             title="Download"
           >

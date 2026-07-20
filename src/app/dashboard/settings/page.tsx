@@ -38,7 +38,7 @@ import {
 } from "lucide-react";
 import Sidebar from "@/components/dashboard/Sidebar";
 import TopBar from "@/components/dashboard/TopBar";
-import { apiUrl } from "@/lib/api";
+import { apiFetch, apiUrl, clearAuthToken } from "@/lib/api";
 
 interface MeUser {
   _id?: string;
@@ -71,8 +71,8 @@ export default function SettingsPage() {
     (async () => {
       try {
         const [meRes, prefRes] = await Promise.all([
-          fetch(apiUrl("/api/auth/me"), { credentials: "include" }),
-          fetch(apiUrl("/api/user/preferences"), { credentials: "include" }),
+          apiFetch(apiUrl("/api/auth/me"), { credentials: "include" }),
+          apiFetch(apiUrl("/api/user/preferences"), { credentials: "include" }),
         ]);
         if (meRes.status === 401) {
           router.replace("/login");
@@ -253,7 +253,7 @@ function ProfileSection({
     if (!dirty) return;
     setSaving(true);
     try {
-      const res = await fetch(apiUrl("/api/auth/me"), {
+      const res = await apiFetch(apiUrl("/api/auth/me"), {
         method: "PATCH",
         credentials: "include",
         headers: { "Content-Type": "application/json" },
@@ -352,7 +352,7 @@ function EmailSection({
     if (!trimmed || trimmed === (me?.email ?? "").toLowerCase()) return;
     setSaving(true);
     try {
-      const res = await fetch(apiUrl("/api/auth/update-email"), {
+      const res = await apiFetch(apiUrl("/api/auth/update-email"), {
         method: "POST",
         credentials: "include",
         headers: { "Content-Type": "application/json" },
@@ -456,7 +456,7 @@ function PasswordSection({
     if (!email) return;
     setSending(true);
     try {
-      const res = await fetch(apiUrl("/api/auth/forgot-password"), {
+      const res = await apiFetch(apiUrl("/api/auth/forgot-password"), {
         method: "POST",
         credentials: "include",
         headers: { "Content-Type": "application/json" },
@@ -524,7 +524,7 @@ function PreferencesSection({
   const save = async () => {
     setSaving(true);
     try {
-      const res = await fetch(apiUrl("/api/user/preferences"), {
+      const res = await apiFetch(apiUrl("/api/user/preferences"), {
         method: "PATCH",
         credentials: "include",
         headers: { "Content-Type": "application/json" },
@@ -636,8 +636,9 @@ function AccountSection({ me }: { me: MeUser | null }) {
 
   const signOut = async () => {
     setSigningOut(true);
+    clearAuthToken();
     try {
-      await fetch(apiUrl("/api/auth/logout"), {
+      await apiFetch(apiUrl("/api/auth/logout"), {
         method: "POST",
         credentials: "include",
       });

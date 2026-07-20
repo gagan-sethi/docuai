@@ -17,7 +17,7 @@ import {
   HelpCircle,
   Ticket,
 } from "lucide-react";
-import { apiUrl } from "@/lib/api";
+import { apiFetch, apiUrl } from "@/lib/api";
 import { toast } from "react-toastify"; // ✅ Import toast
 
 interface SupportTicket {
@@ -64,7 +64,7 @@ export default function TicketsListPage() {
       if (status !== "all") params.append("status", status);
       if (searchQuery.trim()) params.append("search", searchQuery);
 
-      const res = await fetch(apiUrl(`/api/support?${params.toString()}`), {
+      const res = await apiFetch(apiUrl(`/api/support?${params.toString()}`), {
         method: "GET",
         credentials: "include",
       });

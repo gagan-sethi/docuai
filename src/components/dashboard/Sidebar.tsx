@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
-import { apiUrl } from "@/lib/api";
+import { apiFetch, apiUrl, clearAuthToken } from "@/lib/api";
 import BrandLogo from "@/components/BrandLogo";
 import {
   LayoutDashboard,
@@ -120,7 +120,7 @@ const companyNav = {
 };
 
 async function deleteCookie() {
-  await fetch(apiUrl("/api/company/switch/clear"), {
+  await apiFetch(apiUrl("/api/company/switch/clear"), {
     method: "POST",
     credentials: "include",
   });
@@ -135,7 +135,7 @@ export default function Sidebar() {
   const [waUnprocessed, setWaUnprocessed] = useState(0);
 
   useEffect(() => {
-    fetch(apiUrl("/api/auth/me"), { credentials: "include" })
+    apiFetch(apiUrl("/api/auth/me"), { credentials: "include" })
       .then((r) => (r.ok ? r.json() : null))
       .then((data) => {
         if (data?.user) setUser(data.user);
@@ -144,7 +144,7 @@ export default function Sidebar() {
 
     // Fetch stats for badges
     const fetchStats = () => {
-      fetch(apiUrl("/api/documents?limit=1"), { credentials: "include" })
+      apiFetch(apiUrl("/api/documents?limit=1"), { credentials: "include" })
         .then((r) => (r.ok ? r.json() : null))
         .then((data) => {
           if (data?.stats) {
@@ -162,7 +162,8 @@ export default function Sidebar() {
   const handleLogout = useCallback(async () => {
     await deleteCookie();
 
-    await fetch(apiUrl("/api/auth/logout"), { method: "POST", credentials: "include" });
+    clearAuthToken();
+    await apiFetch(apiUrl("/api/auth/logout"), { method: "POST", credentials: "include" });
     router.push("/login");
   }, [router]);
 

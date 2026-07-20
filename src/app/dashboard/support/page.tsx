@@ -7,7 +7,7 @@ import Sidebar from "@/components/dashboard/Sidebar";
 import TopBar from "@/components/dashboard/TopBar";
 import { useFormik } from "formik";
 import * as Yup from "yup";
-import { apiUrl } from "@/lib/api";
+import { apiFetch, apiUrl } from "@/lib/api";
 import { toast } from "react-toastify"; // ✅ Import toast
 import {
   Search,
@@ -338,7 +338,7 @@ function SupportTicketForm({ onSuccess }: { onSuccess: () => void }) {
   useEffect(() => {
     const fetchIssueTypes = async () => {
       try {
-        const res = await fetch(apiUrl("/api/support/issue-types/active"), {
+        const res = await apiFetch(apiUrl("/api/support/issue-types/active"), {
           method: "GET",
           credentials: "include",
         });
@@ -393,7 +393,7 @@ function SupportTicketForm({ onSuccess }: { onSuccess: () => void }) {
         formData.append("message", values.message);
         attachments.forEach((attachment) => formData.append("attachments", attachment.file));
 
-        const res = await fetch(apiUrl("/api/support"), {
+        const res = await apiFetch(apiUrl("/api/support"), {
           method: "POST",
           credentials: "include",
           body: formData,
@@ -565,7 +565,7 @@ export default function SupportPage() {
   const fetchTickets = useCallback(async () => {
     try {
       setLoadingTickets(true);
-      const res = await fetch(apiUrl("/api/support?limit=5&offset=0"), {
+      const res = await apiFetch(apiUrl("/api/support?limit=5&offset=0"), {
         method: "GET",
         credentials: "include",
       });

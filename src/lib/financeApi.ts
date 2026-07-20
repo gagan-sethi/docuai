@@ -1,4 +1,4 @@
-import { apiUrl, handleUnauthorized } from "./api";
+import { apiFetch, apiUrl, handleUnauthorized } from "./api";
 import type { ProcessedDocument } from "./types";
 import type { CategoryBucket, FinancialTotals, MonthlyBucket, SupportedCurrency } from "./finance";
 
@@ -41,7 +41,7 @@ export type FinancialReport = {
 };
 
 export async function fetchFinancialReport(params: URLSearchParams = new URLSearchParams()) {
-  const res = await fetch(apiUrl(`/api/finance/report?${params}`), { credentials: "include" });
+  const res = await apiFetch(apiUrl(`/api/finance/report?${params}`), { credentials: "include" });
   if (await handleUnauthorized(res)) return null;
   if (!res.ok) throw new Error(`Financial report failed (${res.status})`);
   return (await res.json()) as FinancialReport;

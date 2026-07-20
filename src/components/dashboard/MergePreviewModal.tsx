@@ -30,7 +30,7 @@ import {
   ExternalLink,
   Loader2,
 } from "lucide-react";
-import { apiUrl } from "@/lib/api";
+import { apiFetch, apiUrl } from "@/lib/api";
 import {
   cleanMergedCsv,
   buildAccountingTable,
@@ -481,7 +481,7 @@ function SourceDocViewer({
 
     (async () => {
       try {
-        const res = await fetch(apiUrl(`/api/documents/${documentId}/preview`), {
+        const res = await apiFetch(apiUrl(`/api/documents/${documentId}/preview`), {
           credentials: "include",
         });
         if (!res.ok) throw new Error(`HTTP ${res.status}`);

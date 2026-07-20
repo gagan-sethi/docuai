@@ -32,7 +32,7 @@ import TopBar from "@/components/dashboard/TopBar";
 import MergeBar from "@/components/dashboard/MergeBar";
 import UpgradeModal from "@/components/dashboard/UpgradeModal";
 import ManagePlanModal from "@/components/dashboard/ManagePlanModal";
-import { apiUrl } from "@/lib/api";
+import { apiFetch, apiUrl, downloadApiFile } from "@/lib/api";
 import { handleUnauthorized } from "@/lib/api";
 import {
   batchSummaryLine,
@@ -162,7 +162,7 @@ async function detectDocumentType(
     const formData = new FormData();
     formData.append("file", file.file);
 
-    const res = await fetch(apiUrl("/api/detect-type"), {
+    const res = await apiFetch(apiUrl("/api/detect-type"), {
       method: "POST",
       credentials: "include",
       body: formData,
@@ -214,7 +214,7 @@ async function processFile(
     }
     
     const companyId = localStorage.getItem("selected");
-    const uploadRes = await fetch(apiUrl("/api/upload"), {
+    const uploadRes = await apiFetch(apiUrl("/api/upload"), {
        method: "POST", 
        credentials: "include", 
        headers: companyId 
@@ -270,7 +270,7 @@ async function processFile(
       const processingProgress = 55 + Math.round((index / uploadedDocs.length) * 25);
       onUpdate({ status: "processing", progress: processingProgress });
 
-      const processRes = await fetch(apiUrl("/api/process"), {
+      const processRes = await apiFetch(apiUrl("/api/process"), {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         credentials: "include",
@@ -376,7 +376,7 @@ export default function UploadPage() {
   // and avoid silently spamming the upload endpoint when the limit is hit.
   const refreshPlan = useCallback(async () => {
     try {
-      const res = await fetch(apiUrl("/api/plan"), { credentials: "include" });
+      const res = await apiFetch(apiUrl("/api/plan"), { credentials: "include" });
       
       if (await handleUnauthorized(res)) return;
 
@@ -1044,7 +1044,7 @@ export default function UploadPage() {
                             </motion.button>
                           )}
                           {file.status === "done" && rowDocumentIds[0] && (
-                            <a href={apiUrl(`/api/documents/${rowDocumentIds[0]}/excel`)} download
+                            <a href={apiUrl(`/api/documents/${rowDocumentIds[0]}/excel`)} onClick={(e) => { e.preventDefault(); void downloadApiFile(apiUrl(`/api/documents/${rowDocumentIds[0]}/excel`)); }} download
                               className="p-1.5 rounded-lg text-success hover:bg-success/10 transition-colors opacity-0 group-hover:opacity-100" title="Download Excel">
                               <FileSpreadsheet className="w-4 h-4" />
                             </a>
@@ -1102,7 +1102,7 @@ export default function UploadPage() {
                       <p className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider">Download individual files:</p>
                       <div className="flex flex-wrap gap-2">
                         {processedDownloadLinks.map((link) => (
-                          <a key={link.documentId} href={apiUrl(`/api/documents/${link.documentId}/excel`)} download
+                          <a key={link.documentId} href={apiUrl(`/api/documents/${link.documentId}/excel`)} onClick={(e) => { e.preventDefault(); void downloadApiFile(apiUrl(`/api/documents/${link.documentId}/excel`)); }} download
                             className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-success bg-success/10 rounded-lg hover:bg-success/20 transition-colors">
                             <FileSpreadsheet className="w-3 h-3" />{link.label}
                           </a>

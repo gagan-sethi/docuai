@@ -231,7 +231,7 @@ export default function PricingPage() {
   // useEffect(() => {
   //   const fetchPlans = async () => {
   //     try {
-  //       const res = await fetch(apiUrl("/api/plan/list"), {
+  //       const res = await apiFetch(apiUrl("/api/plan/list"), {
   //         method: "GET",
   //         headers: {
   //           "Content-Type": "application/json",

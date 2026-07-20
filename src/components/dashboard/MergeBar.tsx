@@ -26,7 +26,7 @@ import {
   Bell,
   AlertTriangle,
 } from "lucide-react";
-import { apiUrl } from "@/lib/api";
+import { apiFetch, apiUrl } from "@/lib/api";
 import MergePreviewModal from "./MergePreviewModal";
 import UpgradeModal, { UpgradeModalPlanInfo } from "./UpgradeModal";
 import ManagePlanModal from "./ManagePlanModal";
@@ -91,7 +91,7 @@ export default function MergeBar({
     let cancelled = false;
     (async () => {
       try {
-        const res = await fetch(apiUrl("/api/plan"), { credentials: "include" });
+        const res = await apiFetch(apiUrl("/api/plan"), { credentials: "include" });
         if (!res.ok) return;
         const data = (await res.json()) as UpgradeModalPlanInfo;
         if (!cancelled) setPlanInfo(data);
@@ -137,7 +137,7 @@ export default function MergeBar({
 
   /** Fetch the finished merged CSV text (does NOT trigger a download). */
   const fetchJobCsv = useCallback(async (jobId: string): Promise<string> => {
-    const res = await fetch(apiUrl(`/api/merge-csv/${jobId}/download`), {
+    const res = await apiFetch(apiUrl(`/api/merge-csv/${jobId}/download`), {
       credentials: "include",
     });
     if (!res.ok) throw new Error("Could not fetch merged CSV");
@@ -149,7 +149,7 @@ export default function MergeBar({
       stopPolling();
       pollRef.current = setInterval(async () => {
         try {
-          const res = await fetch(apiUrl(`/api/merge-csv/${jobId}`), {
+          const res = await apiFetch(apiUrl(`/api/merge-csv/${jobId}`), {
             credentials: "include",
           });
           if (!res.ok) return;
@@ -214,7 +214,7 @@ export default function MergeBar({
     }
 
     try {
-      const res = await fetch(apiUrl("/api/merge-csv"), {
+      const res = await apiFetch(apiUrl("/api/merge-csv"), {
         method: "POST",
         credentials: "include",
         headers: { "Content-Type": "application/json" },

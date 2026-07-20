@@ -36,7 +36,7 @@ import {
   Mail,
   Lock,
 } from "lucide-react";
-import { apiUrl } from "@/lib/api";
+import { apiFetch, apiUrl } from "@/lib/api";
 
 interface InvitePreview {
   email: string;
@@ -71,7 +71,7 @@ function AcceptInner() {
     }
     (async () => {
       try {
-        const res = await fetch(apiUrl(`/api/team/accept/${encodeURIComponent(token)}`), {
+        const res = await apiFetch(apiUrl(`/api/team/accept/${encodeURIComponent(token)}`), {
           credentials: "include",
         });
         const data = await res.json();
@@ -103,7 +103,7 @@ function AcceptInner() {
     }
     setSubmitting(true);
     try {
-      const res = await fetch(apiUrl(`/api/team/accept/${encodeURIComponent(token)}`), {
+      const res = await apiFetch(apiUrl(`/api/team/accept/${encodeURIComponent(token)}`), {
         method: "POST",
         credentials: "include",
         headers: { "Content-Type": "application/json" },

@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
-import { apiUrl } from "@/lib/api";
+import { apiFetch, apiUrl, clearAuthToken } from "@/lib/api";
 import {
   Bell,
   Search,
@@ -81,7 +81,7 @@ function timeAgo(dateStr: string): string {
 
 
 async function setCookie(companyId: string) {
-  await fetch(apiUrl("/api/company/switch/select"), {
+  await apiFetch(apiUrl("/api/company/switch/select"), {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
@@ -96,7 +96,7 @@ async function setCookie(companyId: string) {
 }
 
 async function deleteCookie() {
-  await fetch(apiUrl("/api/company/switch/clear"), {
+  await apiFetch(apiUrl("/api/company/switch/clear"), {
     method: "POST",
     credentials: "include",
   });
@@ -121,7 +121,7 @@ export default function TopBar({ title }: { title: string }) {
 
   const fetchNotifications = useCallback(async () => {
     try {
-      const res = await fetch(apiUrl("/api/notifications?limit=10"), { credentials: "include" });
+      const res = await apiFetch(apiUrl("/api/notifications?limit=10"), { credentials: "include" });
       if (res.ok) {
         const data = await res.json();
         setNotifications(data.notifications || []);
@@ -176,7 +176,7 @@ export default function TopBar({ title }: { title: string }) {
   };
 
   useEffect(() => {
-    fetch(apiUrl("/api/company/switch"), {
+    apiFetch(apiUrl("/api/company/switch"), {
       credentials: "include",
     })
       .then((r) => (r.ok ? r.json() : null))
@@ -199,7 +199,7 @@ export default function TopBar({ title }: { title: string }) {
 
     fetchNotifications();
     // Fetch user
-    fetch(apiUrl("/api/auth/me"), { credentials: "include" })
+    apiFetch(apiUrl("/api/auth/me"), { credentials: "include" })
       .then((r) => (r.ok ? r.json() : null))
       .then((data) => {
         if (data?.user) setUser(data.user);
@@ -212,7 +212,7 @@ export default function TopBar({ title }: { title: string }) {
   }, [fetchNotifications]);
 
   const handleMarkAllRead = async () => {
-    await fetch(apiUrl("/api/notifications"), {
+    await apiFetch(apiUrl("/api/notifications"), {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       credentials: "include",
@@ -225,7 +225,8 @@ export default function TopBar({ title }: { title: string }) {
   const handleLogout = async () => {
     await deleteCookie();
 
-    await fetch(apiUrl("/api/auth/logout"), { method: "POST", credentials: "include" });
+    clearAuthToken();
+    await apiFetch(apiUrl("/api/auth/logout"), { method: "POST", credentials: "include" });
     router.push("/login");
   };
 

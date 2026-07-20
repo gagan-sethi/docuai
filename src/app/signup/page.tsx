@@ -31,7 +31,7 @@ import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import AuthLayout from "@/components/auth/AuthLayout";
 import BrandLogo from "@/components/BrandLogo";
-import { apiUrl } from "@/lib/api";
+import { apiFetch, apiUrl, setAuthToken } from "@/lib/api";
 
 // New step order: details → OTP → WhatsApp → verify-email → complete
 type Step = "details" | "verify-otp" | "whatsapp" | "verify-email" | "complete";
@@ -218,7 +218,7 @@ function SignupPageContent() {
       (async () => {
         setPromoChecking(true);
         try {
-          const res = await fetch(apiUrl(`/api/referrals/validate?code=${encodeURIComponent(code)}`));
+          const res = await apiFetch(apiUrl(`/api/referrals/validate?code=${encodeURIComponent(code)}`));
           const data = await res.json();
           if (res.ok) {
             setPromoValidation(data);
@@ -239,7 +239,7 @@ function SignupPageContent() {
     if (step !== "verify-email" || emailVerified) return;
     const interval = setInterval(async () => {
       try {
-        const res = await fetch(apiUrl(`/api/auth/email-status?email=${encodeURIComponent(form.email)}`), { credentials: "include" });
+        const res = await apiFetch(apiUrl(`/api/auth/email-status?email=${encodeURIComponent(form.email)}`), { credentials: "include" });
         if (res.ok) {
           const data = await res.json();
           if (data.verified) {
@@ -280,7 +280,7 @@ function SignupPageContent() {
 
     setIsLoading(true);
     try {
-      const res = await fetch(apiUrl("/api/auth/signup"), {
+      const res = await apiFetch(apiUrl("/api/auth/signup"), {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         credentials: "include",
@@ -302,6 +302,9 @@ function SignupPageContent() {
         return;
       }
 
+      // Cookie-independent fallback for browsers blocking third-party cookies
+      setAuthToken(data.token);
+
       setIsLoading(false);
       setOtpCountdown(30);
       setStep("verify-otp");
@@ -315,7 +318,7 @@ function SignupPageContent() {
     setOtpError("");
     setIsLoading(true);
     try {
-      const res = await fetch(apiUrl("/api/auth/verify-otp"), {
+      const res = await apiFetch(apiUrl("/api/auth/verify-otp"), {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         credentials: "include",
@@ -352,7 +355,7 @@ function SignupPageContent() {
     setPromoError("");
     setPromoValidation(null);
     try {
-      const res = await fetch(apiUrl(`/api/referrals/validate?code=${encodeURIComponent(form.promoCode.trim())}`));
+      const res = await apiFetch(apiUrl(`/api/referrals/validate?code=${encodeURIComponent(form.promoCode.trim())}`));
       const data = await res.json();
       if (!res.ok) {
         setPromoError(data.error || "Invalid promo code");
@@ -368,7 +371,7 @@ function SignupPageContent() {
   const handleLinkWhatsApp = useCallback(async () => {
     setIsLoading(true);
     try {
-      const res = await fetch(apiUrl("/api/auth/link-whatsapp"), {
+      const res = await apiFetch(apiUrl("/api/auth/link-whatsapp"), {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         credentials: "include",
@@ -386,7 +389,7 @@ function SignupPageContent() {
     setEmailResending(true);
     setEmailResent(false);
     try {
-      const res = await fetch(apiUrl("/api/auth/resend-verification"), {
+      const res = await apiFetch(apiUrl("/api/auth/resend-verification"), {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         credentials: "include",
@@ -408,7 +411,7 @@ function SignupPageContent() {
     }
     setIsLoading(true);
     try {
-      const res = await fetch(apiUrl("/api/auth/update-email"), {
+      const res = await apiFetch(apiUrl("/api/auth/update-email"), {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         credentials: "include",

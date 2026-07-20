@@ -34,7 +34,7 @@ import {
 } from "lucide-react";
 import Sidebar from "@/components/dashboard/Sidebar";
 import TopBar from "@/components/dashboard/TopBar";
-import { apiUrl, handleUnauthorized } from "@/lib/api";
+import { apiFetch, apiUrl, handleUnauthorized } from "@/lib/api";
 import { formatMoney } from "@/lib/finance";
 
 const STATUS_COLORS: Record<string, { fg: string; bg: string; ring: string }> = {
@@ -119,7 +119,7 @@ export default function AnalyticsPage() {
       if (fromDate) params.append("fromDate", fromDate);
       if (toDate) params.append("toDate", toDate);
 
-      const res = await fetch(apiUrl(`/api/documents/analytics?${params.toString()}`), {
+      const res = await apiFetch(apiUrl(`/api/documents/analytics?${params.toString()}`), {
         credentials: "include",
       });
 

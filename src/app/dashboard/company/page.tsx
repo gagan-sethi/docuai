@@ -24,7 +24,7 @@ import {
 } from "lucide-react";
 import Sidebar from "@/components/dashboard/Sidebar";
 import TopBar from "@/components/dashboard/TopBar";
-import { apiUrl, handleUnauthorized } from "@/lib/api";
+import { apiFetch, apiUrl, handleUnauthorized } from "@/lib/api";
 import { toast } from "react-toastify";
 import ManagePlanModal from "@/components/dashboard/ManagePlanModal";
 
@@ -228,7 +228,7 @@ export default function CompaniesPage() {
 
   const fetchPlan = useCallback(async () => {
     try {
-      const res = await fetch(apiUrl("/api/plan"), {
+      const res = await apiFetch(apiUrl("/api/plan"), {
         credentials: "include",
       });
       if (await handleUnauthorized(res)) return;
@@ -344,7 +344,7 @@ export default function CompaniesPage() {
 
       const submitData = buildCompanyPayload();
 
-      const res = await fetch(apiUrl("/api/company"), {
+      const res = await apiFetch(apiUrl("/api/company"), {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         credentials: "include",
@@ -392,7 +392,7 @@ export default function CompaniesPage() {
 
       const submitData = buildCompanyPayload();
 
-      const res = await fetch(apiUrl(`/api/company/${selectedCompany._id}`), {
+      const res = await apiFetch(apiUrl(`/api/company/${selectedCompany._id}`), {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         credentials: "include",

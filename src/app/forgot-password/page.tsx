@@ -19,7 +19,7 @@ import {
 import Link from "next/link";
 import AuthLayout from "@/components/auth/AuthLayout";
 import BrandLogo from "@/components/BrandLogo";
-import { apiUrl } from "@/lib/api";
+import { apiFetch, apiUrl } from "@/lib/api";
 import { useSearchParams } from "next/navigation";
 
 // ─── Step indicator ─────────────────────────────────────────────
@@ -159,7 +159,7 @@ function ForgotPasswordContent() {
     setIsLoading(true);
 
     try {
-      const res = await fetch(apiUrl("/api/auth/forgot-password"), {
+      const res = await apiFetch(apiUrl("/api/auth/forgot-password"), {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email: email.trim() }),
@@ -189,7 +189,7 @@ function ForgotPasswordContent() {
     setIsLoading(true);
 
     try {
-      await fetch(apiUrl("/api/auth/forgot-password"), {
+      await apiFetch(apiUrl("/api/auth/forgot-password"), {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email: email.trim() }),
@@ -232,7 +232,7 @@ function ForgotPasswordContent() {
     setIsLoading(true);
 
     try {
-      const res = await fetch(apiUrl("/api/auth/reset-password"), {
+      const res = await apiFetch(apiUrl("/api/auth/reset-password"), {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({

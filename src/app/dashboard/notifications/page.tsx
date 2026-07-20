@@ -21,7 +21,7 @@ import {
 import Sidebar from "@/components/dashboard/Sidebar";
 import TopBar from "@/components/dashboard/TopBar";
 
-import { apiUrl, handleUnauthorized } from "@/lib/api";
+import { apiFetch, apiUrl, handleUnauthorized } from "@/lib/api";
 import { toast } from "react-toastify";
 
 interface Notification {
@@ -181,7 +181,7 @@ export default function NotificationsPage() {
         params.append("unread", "true");
       }
 
-      const res = await fetch(apiUrl(`/api/notifications?${params}`), {
+      const res = await apiFetch(apiUrl(`/api/notifications?${params}`), {
         credentials: "include",
       });
 
@@ -218,7 +218,7 @@ export default function NotificationsPage() {
   const markAllAsRead = async () => {
     try {
       setActionLoading(true);
-      const res = await fetch(apiUrl("/api/notifications"), {
+      const res = await apiFetch(apiUrl("/api/notifications"), {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         credentials: "include",

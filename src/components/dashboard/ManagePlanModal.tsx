@@ -8,7 +8,7 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import { Sparkles, Zap, CheckCircle2, Gift, Tag } from "lucide-react";
-import { API_BASE_URL, apiUrl } from "@/lib/api";
+import { API_BASE_URL, apiFetch, apiUrl } from "@/lib/api";
 
 const usdFormatter = new Intl.NumberFormat("en-US", {
   style: "currency",
@@ -86,7 +86,7 @@ export default function ManagePlanModal({ open, onClose, planData }: Props) {
           return;
         }
 
-        const res = await fetch(apiUrl("/api/plan/list"), {
+        const res = await apiFetch(apiUrl("/api/plan/list"), {
           credentials: "include",
         });
         const json = await res.json();
@@ -118,7 +118,7 @@ export default function ManagePlanModal({ open, onClose, planData }: Props) {
 
       console.log("Starting trial for plan:", planId);
 
-      const res = await fetch(apiUrl("/api/plan/trial"), {
+      const res = await apiFetch(apiUrl("/api/plan/trial"), {
         method: "POST",
         credentials: "include",
         headers: { "Content-Type": "application/json" },
@@ -160,7 +160,7 @@ export default function ManagePlanModal({ open, onClose, planData }: Props) {
 
       // Free plan: activate immediately and refresh.
       if (price === 0) {
-        const res = await fetch(apiUrl("/api/plan/free"), {
+        const res = await apiFetch(apiUrl("/api/plan/free"), {
           method: "POST",
           credentials: "include",
           headers: { "Content-Type": "application/json" },

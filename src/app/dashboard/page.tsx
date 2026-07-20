@@ -31,7 +31,7 @@ import Sidebar from "@/components/dashboard/Sidebar";
 import TopBar from "@/components/dashboard/TopBar";
 import { AiProcessingIndicators, DocTypeBadge } from "@/components/dashboard/DocTypeBadge";
 import AiInsightsWidget from "@/components/dashboard/AiInsightsWidget";
-import { apiUrl } from "@/lib/api";
+import { apiFetch, apiUrl, downloadApiFile } from "@/lib/api";
 import type { ProcessedDocument } from "@/lib/types";
 import type { FinancialInsight } from "@/lib/financialIntelligence";
 import { getCategoryMeta, getClassificationConfidence, resolveDocTypeCode } from "@/lib/finance";
@@ -345,7 +345,7 @@ export default function DashboardPage() {
 
   // Fetch user
   useEffect(() => {
-    fetch(apiUrl("/api/auth/me"), { credentials: "include" })
+    apiFetch(apiUrl("/api/auth/me"), { credentials: "include" })
       .then((r) => (r.ok ? r.json() : null))
       .then((data) => {
         if (data?.user?.fullName) {
@@ -360,11 +360,11 @@ export default function DashboardPage() {
     const fetchData = async () => {
       try {
         const [docRes, actRes, planRes, insightsRes, notifRes] = await Promise.all([
-          fetch(apiUrl("/api/documents?limit=1000"), { credentials: "include" }),
-          fetch(apiUrl("/api/activities?limit=5"), { credentials: "include" }),
-          fetch(apiUrl("/api/plan"), { credentials: "include" }),
-          fetch(apiUrl("/api/finance/insights?limit=1000"), { credentials: "include" }),
-          fetch(apiUrl("/api/notifications?limit=20&unread=true"), { credentials: "include" }),
+          apiFetch(apiUrl("/api/documents?limit=1000"), { credentials: "include" }),
+          apiFetch(apiUrl("/api/activities?limit=5"), { credentials: "include" }),
+          apiFetch(apiUrl("/api/plan"), { credentials: "include" }),
+          apiFetch(apiUrl("/api/finance/insights?limit=1000"), { credentials: "include" }),
+          apiFetch(apiUrl("/api/notifications?limit=20&unread=true"), { credentials: "include" }),
         ]);
 
         if (
@@ -431,7 +431,7 @@ export default function DashboardPage() {
     setDismissingLimitAlert(true);
 
     try {
-      const res = await fetch(apiUrl("/api/notifications"), {
+      const res = await apiFetch(apiUrl("/api/notifications"), {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         credentials: "include",
@@ -452,7 +452,7 @@ export default function DashboardPage() {
   // useEffect(() => {
   //   const fetchPlans = async () => {
   //     try {
-  //       const res = await fetch(apiUrl("/api/plan/list"), {
+  //       const res = await apiFetch(apiUrl("/api/plan/list"), {
   //         credentials: "include",
   //       });
   //       const json = await res.json();
@@ -500,7 +500,7 @@ export default function DashboardPage() {
 
   //     // ✅ FREE PLAN FLOW
   //     if (price === 0) {
-  //       const res = await fetch(apiUrl("/api/plan/free"), {
+  //       const res = await apiFetch(apiUrl("/api/plan/free"), {
   //         method: "POST",
   //         credentials: "include",
   //         headers: {
@@ -981,7 +981,7 @@ export default function DashboardPage() {
                         )}
                         {(doc.status === "approved" || doc.status === "completed") && (
                           <Link
-                            href={apiUrl(`/api/documents/${doc.id}/excel`)}
+                            href={apiUrl(`/api/documents/${doc.id}/excel`)} onClick={(e) => { e.preventDefault(); void downloadApiFile(apiUrl(`/api/documents/${doc.id}/excel`)); }}
                             className="p-1.5 rounded-lg text-slate-400 hover:text-primary hover:bg-primary/10 transition-colors"
                             title="Download Excel"
                           >

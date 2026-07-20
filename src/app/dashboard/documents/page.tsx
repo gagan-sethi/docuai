@@ -40,7 +40,7 @@ import { toast } from "react-toastify";
 import Sidebar from "@/components/dashboard/Sidebar";
 import TopBar from "@/components/dashboard/TopBar";
 import MergeBar from "@/components/dashboard/MergeBar";
-import { apiUrl, handleUnauthorized } from "@/lib/api";
+import { apiFetch, apiUrl, downloadApiFile, handleUnauthorized } from "@/lib/api";
 import type { ProcessedDocument, DocumentStatus, DocType, ExpenseCategory } from "@/lib/types";
 import { AiProcessingIndicators, ClassificationConfidenceBadge, DocTypeBadge, DocTypeDropdown } from "@/components/dashboard/DocTypeBadge";
 import { deriveFinancialSummary, formatMoney, getClassificationConfidence, resolveDocTypeCode, getDocTypeMeta, getCategoryMeta } from "@/lib/finance";
@@ -530,7 +530,7 @@ export default function DocumentsPage() {
   const fetchDocs = useCallback(async (showSpinner = false) => {
     if (showSpinner) setRefreshing(true);
     try {
-      const res = await fetch(apiUrl("/api/documents?limit=500"), { credentials: "include" });
+      const res = await apiFetch(apiUrl("/api/documents?limit=500"), { credentials: "include" });
       if (await handleUnauthorized(res)) return;
 
       if (res.ok) {
@@ -551,7 +551,7 @@ export default function DocumentsPage() {
       )
     );
     try {
-      await fetch(apiUrl(`/api/documents/${docId}`), {
+      await apiFetch(apiUrl(`/api/documents/${docId}`), {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         credentials: "include",
@@ -575,7 +575,7 @@ export default function DocumentsPage() {
     if (!docToDelete) return;
     setIsDeleting(true);
     try {
-      const res = await fetch(apiUrl(`/api/documents/${docToDelete.id}`), {
+      const res = await apiFetch(apiUrl(`/api/documents/${docToDelete.id}`), {
         method: "DELETE",
         credentials: "include",
       });
@@ -1897,7 +1897,7 @@ function ListRow({
             <FileText className="w-4 h-4" />
           </Link>
           <a
-            href={apiUrl(`/api/documents/${doc.id}/excel`)}
+            href={apiUrl(`/api/documents/${doc.id}/excel`)} onClick={(e) => { e.preventDefault(); void downloadApiFile(apiUrl(`/api/documents/${doc.id}/excel`)); }}
             className="p-1.5 rounded-lg text-slate-400 hover:text-green-600 hover:bg-green-50 transition-colors"
             title="Download"
           >
@@ -2025,7 +2025,7 @@ function GridCard({
           </Link>
           <a
             href={apiUrl(`/api/documents/${doc.id}/excel`)}
-            onClick={(e) => e.stopPropagation()}
+            onClick={(e) => { e.stopPropagation(); e.preventDefault(); void downloadApiFile(apiUrl(`/api/documents/${doc.id}/excel`)); }}
             className="p-1.5 rounded-lg text-slate-400 hover:text-green-600 hover:bg-green-50 transition-colors"
           >
             <Download className="w-3.5 h-3.5" />
@@ -2221,7 +2221,7 @@ function DocDetailDrawer({ doc, onClose, onDelete }: { doc: ProcessedDocument; o
           Review & Edit
         </Link>
         <a
-          href={apiUrl(`/api/documents/${doc.id}/excel`)}
+          href={apiUrl(`/api/documents/${doc.id}/excel`)} onClick={(e) => { e.preventDefault(); void downloadApiFile(apiUrl(`/api/documents/${doc.id}/excel`)); }}
           className="flex items-center justify-center gap-2 px-4 py-2.5 text-sm font-medium text-slate-600 bg-white border border-slate-200 rounded-xl hover:bg-slate-50 transition"
         >
           <Download className="w-4 h-4" />

@@ -12,7 +12,7 @@ import {
 } from "lucide-react";
 import Sidebar from "@/components/dashboard/Sidebar";
 import TopBar from "@/components/dashboard/TopBar";
-import { apiUrl } from "@/lib/api";
+import { apiUrl, downloadApiFile } from "@/lib/api";
 import {
   formatMoney,
   type SupportedCurrency,
@@ -95,21 +95,21 @@ export default function VatReportPage() {
                 </select>
               )}
               <button
-                onClick={() => window.open(apiUrl(`/api/finance/export?format=xlsx&type=vat&currency=${effectiveCurrency}`), "_blank")}
+                onClick={() => void downloadApiFile(apiUrl(`/api/finance/export?format=xlsx&type=vat&currency=${effectiveCurrency}`))}
                 className="flex items-center gap-2 px-3.5 py-2 text-sm font-semibold text-emerald-700 bg-emerald-50 border border-emerald-200 rounded-xl hover:bg-emerald-100 transition"
               >
                 <FileSpreadsheet className="w-4 h-4" />
                 Excel
               </button>
               <button
-                onClick={() => window.open(apiUrl(`/api/finance/export?format=csv&type=vat&currency=${effectiveCurrency}`), "_blank")}
+                onClick={() => void downloadApiFile(apiUrl(`/api/finance/export?format=csv&type=vat&currency=${effectiveCurrency}`))}
                 className="flex items-center gap-2 px-3.5 py-2 text-sm font-medium text-slate-600 bg-white border border-slate-200 rounded-xl hover:bg-slate-50 transition"
               >
                 <FileText className="w-4 h-4" />
                 CSV
               </button>
               <button
-                onClick={() => window.open(apiUrl(`/api/finance/export?format=pdf&type=vat&currency=${effectiveCurrency}`), "_blank")}
+                onClick={() => void downloadApiFile(apiUrl(`/api/finance/export?format=pdf&type=vat&currency=${effectiveCurrency}`))}
                 className="flex items-center gap-2 px-3.5 py-2 text-sm font-medium text-slate-600 bg-white border border-slate-200 rounded-xl hover:bg-slate-50 transition"
               >
                 <Printer className="w-4 h-4" />

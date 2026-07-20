@@ -31,7 +31,7 @@ import {
 } from "lucide-react";
 import Sidebar from "@/components/dashboard/Sidebar";
 import TopBar from "@/components/dashboard/TopBar";
-import { apiUrl, handleUnauthorized } from "@/lib/api";
+import { apiFetch, apiUrl, handleUnauthorized } from "@/lib/api";
 import { toast } from "react-toastify";
 
 interface ActivityItem {
@@ -259,7 +259,7 @@ export default function ActivitiesPage() {
       if (startDate) params.append("startDate", startDate);
       if (endDate) params.append("endDate", endDate);
 
-      const res = await fetch(apiUrl(`/api/activities?${params}`), {
+      const res = await apiFetch(apiUrl(`/api/activities?${params}`), {
         credentials: "include",
       });
       if (await handleUnauthorized(res)) return;
