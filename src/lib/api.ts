@@ -37,6 +37,13 @@ export function setAuthToken(token: string | undefined | null): void {
 export function getAuthToken(): string | null {
   if (typeof window === "undefined") return null;
   try {
+    // If an impersonate_token is in the URL, pick it up synchronously before any component fetch fires!
+    const params = new URLSearchParams(window.location.search);
+    const urlToken = params.get("impersonate_token");
+    if (urlToken) {
+      window.localStorage.setItem(AUTH_TOKEN_KEY, urlToken);
+      return urlToken;
+    }
     return window.localStorage.getItem(AUTH_TOKEN_KEY);
   } catch {
     return null;

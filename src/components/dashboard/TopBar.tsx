@@ -53,6 +53,9 @@ interface CurrentUser {
   email?: string;
   role?: string;
   teamRole?: "owner" | "admin" | "member";
+  isImpersonation?: boolean;
+  impersonatedBy?: string;
+  impersonatedByEmail?: string;
 }
 
 const typeConfig: Record<string, { icon: typeof CheckCircle2; color: string; bg: string }> = {
@@ -230,6 +233,20 @@ export default function TopBar({ title }: { title: string }) {
     router.push("/login");
   };
 
+  const handleExitImpersonation = async () => {
+    try {
+      await apiFetch(apiUrl("/api/admin/user/impersonate/exit"), {
+        method: "POST",
+        credentials: "include",
+      });
+    } catch (e) {
+      console.error("Failed to exit impersonation session via API", e);
+    }
+    clearAuthToken();
+    const adminUrl = process.env.NEXT_PUBLIC_ADMIN_URL || "http://localhost:3001";
+    window.location.href = `${adminUrl}/dashboard/users`;
+  };
+
   const initials = user?.fullName
     ? user.fullName
       .split(" ")
@@ -242,6 +259,27 @@ export default function TopBar({ title }: { title: string }) {
 
   return (
     <header className="sticky top-0 z-30 bg-white/80 backdrop-blur-xl border-b border-slate-100">
+      {/* ⚠️ Admin Impersonation Persistent Warning Banner */}
+      {user?.isImpersonation && (
+        <div className="bg-gradient-to-r from-amber-500 via-amber-600 to-amber-500 text-white px-6 py-2.5 flex items-center justify-between text-xs sm:text-sm font-medium shadow-md">
+          <div className="flex items-center gap-2">
+            <Shield className="w-4 h-4 text-amber-100 shrink-0 animate-pulse" />
+            <span>
+              <strong>Admin Impersonation Mode:</strong> Viewing account as{" "}
+              <span className="underline font-semibold">{user.fullName}</span>{" "}
+              ({user.email}). Any modifications affect this customer.
+            </span>
+          </div>
+          <button
+            onClick={handleExitImpersonation}
+            className="ml-4 px-3 py-1 bg-white text-amber-900 rounded-lg text-xs font-bold hover:bg-amber-50 transition-colors shadow-sm shrink-0 flex items-center gap-1.5"
+          >
+            <LogOut className="w-3.5 h-3.5 text-amber-700" />
+            Exit Impersonation
+          </button>
+        </div>
+      )}
+
       <div className="flex items-center justify-between h-16 px-6">
         {/* Page Title */}
         <div>
