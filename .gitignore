@@ -43,3 +43,16 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# Client correspondence and QA reports.
+# These document live, unpatched weaknesses (admin credentials, disabled
+# 2FA, reproduction steps), so they are kept out of the repository
+# regardless of its visibility. Share them through the client's own
+# channel instead.
+Remarks-*/
+/*.docx
+/*.doc
+/*.pdf
+/*.xlsx
+/*.xls
+/*.pptx
