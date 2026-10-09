@@ -32,6 +32,8 @@ import { useSearchParams } from "next/navigation";
 import AuthLayout from "@/components/auth/AuthLayout";
 import BrandLogo from "@/components/BrandLogo";
 import { apiFetch, apiUrl, setAuthToken } from "@/lib/api";
+import { loadPublicPlans, type DisplayPlan } from "@/lib/plans";
+import { PHONE_PLACEHOLDER, SIGNUP_SUBHEADING, WHATSAPP_LIVE, whatsAppDisplayNumber } from "@/lib/siteConfig";
 
 // New step order: details → OTP → WhatsApp → verify-email → complete
 type Step = "details" | "verify-otp" | "whatsapp" | "verify-email" | "complete";
@@ -59,10 +61,12 @@ const DEMO_OTP = "123456";
 
 // ─── Step Indicator ─────────────────────────────────────────────
 function StepIndicator({ currentStep }: { currentStep: Step }) {
+  // The WhatsApp step is omitted while WhatsApp intake is not live, so the
+  // progress bar never advertises a step the product cannot deliver (HB-10).
   const steps = [
     { key: "details", label: "Account" },
     { key: "verify-otp", label: "Phone" },
-    { key: "whatsapp", label: "WhatsApp" },
+    ...(WHATSAPP_LIVE ? [{ key: "whatsapp", label: "WhatsApp" }] : []),
     { key: "verify-email", label: "Email" },
     { key: "complete", label: "Done" },
   ];
@@ -193,6 +197,11 @@ function SignupPageContent() {
   const [promoValidation, setPromoValidation] = useState<PromoValidation | null>(null);
   const [promoError, setPromoError] = useState("");
   const [promoChecking, setPromoChecking] = useState(false);
+  // B-02: the plan picked on /pricing arrives as ?plan=<planId>. Without this
+  // every "Choose Plan" button silently dropped the choice and the visitor
+  // landed on the Free plan.
+  const [selectedPlan, setSelectedPlan] = useState<DisplayPlan | null>(null);
+  const [freePlan, setFreePlan] = useState<DisplayPlan | null>(null);
   const [form, setForm] = useState<SignupForm>({
     fullName: "",
     companyName: "",
@@ -207,6 +216,26 @@ function SignupPageContent() {
   const updateField = (field: keyof SignupForm, value: string) => {
     setForm((prev) => ({ ...prev, [field]: value }));
   };
+
+  // ── Resolve ?plan=<planId> against the live plan list ──
+  useEffect(() => {
+    const requestedPlanId = searchParams.get("plan");
+    let cancelled = false;
+
+    loadPublicPlans().then(({ plans }) => {
+      if (cancelled) return;
+      setFreePlan(plans.find((plan) => plan.isFree) ?? null);
+      if (!requestedPlanId) return;
+      const match = plans.find((plan) => plan.planId === requestedPlanId);
+      if (match && !match.isFree && !match.isEnterprise) {
+        setSelectedPlan(match);
+      }
+    });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [searchParams]);
 
   // ── Auto-fill referral code from ?ref= URL parameter ──
   useEffect(() => {
@@ -332,7 +361,7 @@ function SignupPageContent() {
       }
       setOtpVerified(true);
       setIsLoading(false);
-      setTimeout(() => { setStep("whatsapp"); }, 1500);
+      setTimeout(() => { setStep(WHATSAPP_LIVE ? "whatsapp" : "verify-email"); }, 1500);
     } catch {
       setOtpError("Something went wrong. Please try again.");
       setIsLoading(false);
@@ -465,8 +494,32 @@ function SignupPageContent() {
             <motion.div key="details" variants={slideVariants} initial="enter" animate="center" exit="exit" transition={{ duration: 0.3 }}>
               <div className="mb-6">
                 <h1 className="text-2xl font-bold text-slate-900 tracking-tight">Create your account</h1>
-                <p className="mt-1.5 text-sm text-muted">Start with your free plan. No credit card needed.</p>
+                <p className="mt-1.5 text-sm text-muted">
+                  {selectedPlan
+                    ? `You're signing up for ${selectedPlan.displayName}. Payment comes after your account is created.`
+                    : SIGNUP_SUBHEADING}
+                </p>
               </div>
+
+              {selectedPlan && (
+                <div className="mb-6 flex items-start justify-between gap-3 rounded-xl border border-primary/20 bg-primary/5 p-4">
+                  <div className="min-w-0">
+                    <p className="text-xs font-semibold uppercase tracking-wider text-primary">
+                      Selected plan
+                    </p>
+                    <p className="mt-0.5 text-sm font-bold text-slate-900">
+                      {selectedPlan.displayName}
+                    </p>
+                    <p className="text-xs text-muted">{selectedPlan.billingNote}</p>
+                  </div>
+                  <span className="shrink-0 text-sm font-extrabold text-slate-900">
+                    {selectedPlan.displayPrice}
+                    <span className="text-xs font-semibold text-muted">
+                      {selectedPlan.period}
+                    </span>
+                  </span>
+                </div>
+              )}
 
               {/* Role Selection */}
               <div className="mb-6">
@@ -631,7 +684,7 @@ function SignupPageContent() {
                   </label>
                   <div className="relative">
                     <Phone className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
-                    <input type="tel" required value={form.mobile} onChange={(e) => updateField("mobile", e.target.value)} placeholder="+91 98765 43210"
+                    <input type="tel" required value={form.mobile} onChange={(e) => updateField("mobile", e.target.value)} placeholder={PHONE_PLACEHOLDER}
                       className="w-full pl-11 pr-4 py-3 text-sm bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all placeholder:text-slate-400" />
                   </div>
                 </div>
@@ -677,8 +730,8 @@ function SignupPageContent() {
 
                 <p className="text-xs text-muted leading-relaxed">
                   By creating an account, you agree to our{" "}
-                  <Link href="#" className="text-primary hover:underline font-medium">Terms of Service</Link>{" "}and{" "}
-                  <Link href="#" className="text-primary hover:underline font-medium">Privacy Policy</Link>.
+                  <Link href="/terms" target="_blank" className="text-primary hover:underline font-medium">Terms of Service</Link>{" "}and{" "}
+                  <Link href="/privacy" target="_blank" className="text-primary hover:underline font-medium">Privacy Policy</Link>.
                 </p>
 
                 <button type="submit" disabled={isLoading}
@@ -757,7 +810,7 @@ function SignupPageContent() {
                     )}
                   </div>
 
-                  <button onClick={() => setStep("whatsapp")} className="w-full mt-3 text-center text-sm text-muted hover:text-slate-600 transition-colors">
+                  <button onClick={() => setStep(WHATSAPP_LIVE ? "whatsapp" : "verify-email")} className="w-full mt-3 text-center text-sm text-muted hover:text-slate-600 transition-colors">
                     Skip — I&apos;ll verify later
                   </button>
                 </>
@@ -766,7 +819,7 @@ function SignupPageContent() {
           )}
 
           {/* ─── STEP 3: WhatsApp Linking ───────────────────────── */}
-          {step === "whatsapp" && (
+          {step === "whatsapp" && WHATSAPP_LIVE && (
             <motion.div key="whatsapp" variants={slideVariants} initial="enter" animate="center" exit="exit" transition={{ duration: 0.3 }}>
               <div className="text-center mb-8">
                 <div className="w-16 h-16 mx-auto mb-5 rounded-2xl bg-gradient-to-br from-green-500/10 to-green-600/10 flex items-center justify-center">
@@ -780,7 +833,7 @@ function SignupPageContent() {
                 <p className="text-xs font-semibold text-green-700 uppercase tracking-wider mb-3">Our WhatsApp Business Number</p>
                 <div className="flex items-center justify-center gap-3">
                   <div className="w-10 h-10 rounded-full bg-green-500 flex items-center justify-center"><MessageCircle className="w-5 h-5 text-white" /></div>
-                  <span className="text-2xl font-bold text-green-800 tracking-wide">+91 XXXXX XXXXX</span>
+                  <span className="text-2xl font-bold text-green-800 tracking-wide">{whatsAppDisplayNumber()}</span>
                 </div>
                 <p className="text-xs text-green-600 text-center mt-3">Save this number to start sending documents</p>
               </div>
@@ -973,9 +1026,18 @@ function SignupPageContent() {
                     { label: "Account Type", value: form.role === "accounting" ? "Accounting Firm" : "Business" },
                     { label: "Email", value: form.email || "—", verified: emailVerified },
                     { label: "Mobile", value: form.mobile || "—", verified: otpVerified },
-                    { label: "WhatsApp", value: whatsAppLinked ? "Linked" : "Not linked", verified: whatsAppLinked },
+                    ...(WHATSAPP_LIVE
+                      ? [{ label: "WhatsApp", value: whatsAppLinked ? "Linked" : "Not linked", verified: whatsAppLinked }]
+                      : []),
                     ...(promoValidation ? [{ label: "Promo Code", value: `${promoValidation.code} (${promoValidation.discountPercent}% off)` }] : []),
-                    { label: "Plan", value: "Free (5 docs/month)" },
+                    {
+                      label: "Plan",
+                      value: selectedPlan
+                        ? `${selectedPlan.displayName} — ${selectedPlan.displayPrice}${selectedPlan.period}`
+                        : freePlan
+                          ? `${freePlan.displayName} (${freePlan.docsDisplay})`
+                          : "Free",
+                    },
                   ].map((row) => (
                     <div key={row.label} className="flex items-center justify-between">
                       <span className="text-xs text-muted">{row.label}</span>
@@ -989,10 +1051,24 @@ function SignupPageContent() {
                 </div>
               </div>
 
-              <Link href="/dashboard"
-                className="btn-shine group w-full mt-8 flex items-center justify-center gap-2 px-6 py-3.5 text-sm font-semibold text-white bg-gradient-to-r from-primary to-primary-dark rounded-xl shadow-lg shadow-primary/20 hover:shadow-primary/30 hover:scale-[1.02] transition-all duration-200">
-                Go to Dashboard<ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
-              </Link>
+              {selectedPlan?.planId ? (
+                <>
+                  <Link href={`/checkout?planId=${encodeURIComponent(selectedPlan.planId)}`}
+                    className="btn-shine group w-full mt-8 flex items-center justify-center gap-2 px-6 py-3.5 text-sm font-semibold text-white bg-gradient-to-r from-primary to-primary-dark rounded-xl shadow-lg shadow-primary/20 hover:shadow-primary/30 hover:scale-[1.02] transition-all duration-200">
+                    Continue to {selectedPlan.displayName} checkout
+                    <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
+                  </Link>
+                  <Link href="/dashboard"
+                    className="mt-3 block w-full text-center text-xs font-medium text-muted hover:text-slate-600 transition-colors">
+                    Skip for now — stay on the free plan
+                  </Link>
+                </>
+              ) : (
+                <Link href="/dashboard"
+                  className="btn-shine group w-full mt-8 flex items-center justify-center gap-2 px-6 py-3.5 text-sm font-semibold text-white bg-gradient-to-r from-primary to-primary-dark rounded-xl shadow-lg shadow-primary/20 hover:shadow-primary/30 hover:scale-[1.02] transition-all duration-200">
+                  Go to Dashboard<ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
+                </Link>
+              )}
             </motion.div>
           )}
         </AnimatePresence>

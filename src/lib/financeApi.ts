@@ -1,6 +1,7 @@
 import { apiFetch, apiUrl, handleUnauthorized } from "./api";
 import type { ProcessedDocument } from "./types";
 import type { CategoryBucket, FinancialTotals, MonthlyBucket, SupportedCurrency } from "./finance";
+import { formatShortMonthUtc } from "./dates";
 
 type BackendTotals = {
   currency: SupportedCurrency;
@@ -66,7 +67,7 @@ export function selectFinancialReport(report: FinancialReport | null, currency: 
     .filter((row) => row.currency === currency)
     .map((row) => ({
       month: row.month,
-      monthLabel: new Date(`${row.month}-01T00:00:00Z`).toLocaleDateString("en-GB", { month: "short", year: "numeric", timeZone: "UTC" }),
+      monthLabel: formatShortMonthUtc(`${row.month}-01T00:00:00Z`),
       salesAmount: row.revenue,
       salesVat: row.vatCollected,
       expenseAmount: row.expenses,

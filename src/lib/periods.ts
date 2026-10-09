@@ -1,3 +1,4 @@
+import { formatShortDate } from "./dates";
 import type { ProcessedDocument } from "./types";
 import { deriveFinancialSummary } from "./finance";
 
@@ -189,12 +190,7 @@ export function filterDocumentsByDateRange(
 }
 
 export function formatDateRangeLabel(range: DateRange): string {
-  const fmt = new Intl.DateTimeFormat("en-GB", {
-    day: "2-digit",
-    month: "short",
-    year: "numeric",
-  });
-  return `${fmt.format(range.from)} - ${fmt.format(range.to)}`;
+  return `${formatShortDate(range.from)} - ${formatShortDate(range.to)}`;
 }
 
 export function periodLabel(value: FinancialPeriodValue, custom?: CustomDateRange): string {

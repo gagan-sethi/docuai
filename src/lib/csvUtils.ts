@@ -819,7 +819,7 @@ export async function downloadAccountingXlsx(
 ): Promise<void> {
   const ExcelJS = (await import("exceljs")).default;
   const wb = new ExcelJS.Workbook();
-  wb.creator = "DocuAI";
+  wb.creator = "Invonix";
   wb.created = new Date();
 
   const ws = wb.addWorksheet("Invoices", {

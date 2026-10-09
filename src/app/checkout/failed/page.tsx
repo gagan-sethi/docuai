@@ -134,7 +134,7 @@ export default function FailedPage() {
 
         <p className="text-white/30 text-xs mt-6">
           Need help?{" "}
-          <a href="mailto:support@docuai.com" className="text-[#60d9fa] hover:underline">
+          <a href="mailto:support@invonix.ai" className="text-[#60d9fa] hover:underline">
             Contact support
           </a>
         </p>

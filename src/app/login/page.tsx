@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, Suspense } from "react";
+import { useState, useEffect, Suspense } from "react";
 import { motion } from "framer-motion";
 import {
   Mail,
@@ -119,6 +119,31 @@ function LoginPageContent() {
   const [successMessage] = useState(
     verificationStatus === "success" ? verificationMessage : "",
   );
+  const [checkingSession, setCheckingSession] = useState(true);
+
+  /**
+   * S-07: a signed-in visitor was shown the login form again. Send them to
+   * the dashboard instead, and hold the form back until we know.
+   */
+  useEffect(() => {
+    let cancelled = false;
+    apiFetch(apiUrl("/api/auth/me"), { credentials: "include" })
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data) => {
+        if (cancelled) return;
+        if (data?.user) {
+          router.replace("/dashboard");
+          return;
+        }
+        setCheckingSession(false);
+      })
+      .catch(() => {
+        if (!cancelled) setCheckingSession(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [router]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -155,6 +180,16 @@ function LoginPageContent() {
       setIsLoading(false);
     }
   };
+
+  if (checkingSession) {
+    return (
+      <AuthLayout>
+        <div className="flex items-center justify-center py-20">
+          <Loader2 className="h-8 w-8 animate-spin text-primary" />
+        </div>
+      </AuthLayout>
+    );
+  }
 
   return (
     <AuthLayout>
@@ -298,7 +333,7 @@ function LoginPageContent() {
               className="text-sm text-slate-600 cursor-pointer select-none"
               onClick={() => setRememberMe(!rememberMe)}
             >
-              Remember me for 30 days
+              Keep me signed in for 7 days
             </label>
           </div>
 

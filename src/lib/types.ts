@@ -1,4 +1,4 @@
-// ─── Shared types for the DocuAI processing pipeline ────────────
+// ─── Shared types for the Invonix processing pipeline ───────────
 
 export type DocumentStatus =
   | "uploading"

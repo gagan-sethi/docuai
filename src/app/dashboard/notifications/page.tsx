@@ -254,12 +254,12 @@ export default function NotificationsPage() {
     <div className="min-h-screen bg-slate-50">
       <Sidebar />
       <div
-        className="flex flex-col min-h-screen transition-all duration-200"
+        className="flex min-h-screen min-w-0 flex-col transition-all duration-200"
         style={{ marginLeft: sidebarWidth }}
       >
         <TopBar title="Notifications" />
 
-        <main className="flex-1 p-6">
+        <main className="min-w-0 flex-1 p-4 sm:p-6">
           <div className="space-y-6">
         
       {/* Header */}
@@ -296,12 +296,11 @@ export default function NotificationsPage() {
       </div>
 
       {/* Stats Summary */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+      <div className="grid grid-cols-3 gap-4">
         {[
           { label: "Total Notifications", value: pagination.total, icon: Bell, color: "text-primary" },
           { label: "Unread", value: notifications.filter((n) => !n.isRead).length, icon: EyeOff, color: "text-amber-500" },
           { label: "Read", value: notifications.filter((n) => n.isRead).length, icon: CheckCircle2, color: "text-success" },
-          { label: "Pages", value: pagination.pages, icon: FileText, color: "text-accent" },
         ].map((s) => (
           <div key={s.label} className="bg-white rounded-xl border border-slate-100 p-4 flex items-center gap-3">
             <div className="w-10 h-10 rounded-lg bg-slate-50 flex items-center justify-center">
@@ -330,7 +329,7 @@ export default function NotificationsPage() {
             <p className="text-sm text-slate-400">
               {filterUnread
                 ? "You don't have any unread notifications"
-                : "You're all caught up! Check back later for updates"}
+                : "You're all caught up. Check back later for updates."}
             </p>
           </div>
         ) : (

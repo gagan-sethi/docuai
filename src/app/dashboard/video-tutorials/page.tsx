@@ -29,19 +29,25 @@ interface VideoTutorial {
     updatedAt: string;
 }
 
-function formatDate(dateStr: string): string {
+function formatDate(dateStr?: string | null): string {
+    // HB-11: 7 of 9 cards rendered "Invalid Date" because createdAt was
+    // missing or unparsable. Show nothing rather than an error string.
+    if (!dateStr) return "—";
     const date = new Date(dateStr);
+    if (Number.isNaN(date.getTime())) return "—";
+
     const now = new Date();
     const diffMs = now.getTime() - date.getTime();
     const diffDays = Math.floor(diffMs / 86400000);
 
+    if (diffDays < 0) return date.toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" });
     if (diffDays === 0) return "Today";
     if (diffDays === 1) return "Yesterday";
     if (diffDays < 7) return `${diffDays} days ago`;
 
-    return date.toLocaleDateString("en-US", {
+    return date.toLocaleDateString("en-GB", {
+        day: "2-digit",
         month: "short",
-        day: "numeric",
         year: "numeric",
     });
 }
@@ -195,18 +201,18 @@ export default function VideoTutorialsPage() {
         <div className="min-h-screen bg-slate-50">
             <Sidebar />
             <div
-                className="flex flex-col min-h-screen transition-all duration-200"
+                className="flex min-h-screen min-w-0 flex-col transition-all duration-200"
                 style={{ marginLeft: sidebarWidth }}
             >
                 <TopBar title="Video Tutorials" />
 
-                <main className="flex-1 p-6">
+                <main className="min-w-0 flex-1 p-4 sm:p-6">
                     <div className="space-y-6">
                         {/* Header */}
                         <div>
                             <h2 className="text-xl font-bold text-slate-900">Video Tutorials</h2>
                             <p className="text-sm text-slate-500">
-                                Learn how to use DocuAI with our step-by-step video guides
+                                Learn how to use Invonix with our step-by-step video guides
                             </p>
                         </div>
 

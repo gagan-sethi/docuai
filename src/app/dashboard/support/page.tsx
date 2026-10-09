@@ -9,6 +9,12 @@ import { useFormik } from "formik";
 import * as Yup from "yup";
 import { apiFetch, apiUrl } from "@/lib/api";
 import { toast } from "react-toastify"; // ✅ Import toast
+import FaqAnswer from "@/components/FaqAnswer";
+import {
+  faqAnswerToText,
+  faqCategories,
+  type FaqCategoryId,
+} from "@/lib/faqContent";
 import {
   Search,
   ChevronDown,
@@ -58,6 +64,49 @@ interface IssueType {
   priority: string;
 }
 
+/**
+ * UX-09: the API returns issue types sorted alphabetically, which put
+ * "Account suspended by admin" at the top of the dropdown — an alarming
+ * first option for a routine support request. Order by how likely a customer
+ * is to need each topic, and fall back to alphabetical for any type the
+ * admin adds later that is not listed here.
+ */
+const ISSUE_TYPE_PRIORITY = [
+  "document",
+  "processing",
+  "extraction",
+  "ocr",
+  "export",
+  "billing",
+  "invoice",
+  "payment",
+  "plan",
+  "subscription",
+  "account",
+  "login",
+  "access",
+  "team",
+  "bug",
+  "feature",
+];
+
+function issueTypeRank(name: string): number {
+  const normalized = name.toLowerCase();
+  // "Account suspended" must not win on the "account" keyword alone.
+  if (normalized.includes("suspend")) return ISSUE_TYPE_PRIORITY.length + 1;
+  const index = ISSUE_TYPE_PRIORITY.findIndex((keyword) =>
+    normalized.includes(keyword)
+  );
+  return index === -1 ? ISSUE_TYPE_PRIORITY.length : index;
+}
+
+function sortIssueTypes(types: IssueType[]): IssueType[] {
+  return [...types].sort((a, b) => {
+    const rankDiff = issueTypeRank(a.name) - issueTypeRank(b.name);
+    return rankDiff !== 0 ? rankDiff : a.name.localeCompare(b.name);
+  });
+}
+
 interface SupportTicket {
   _id: string;
   issueType: string;
@@ -67,193 +116,41 @@ interface SupportTicket {
 }
 
 // ============================================================
-// FAQ Data with Lucide Icons
+// FAQ Data
 // ============================================================
-const faqCategories = [
-  {
-    title: "General",
-    icon: HelpCircle,
-    iconColor: "text-primary",
-    iconBg: "bg-primary/8",
-    description: "General information about Invonix platform",
-    faqs: [
-      { q: "What is Invonix?", a: "Invonix is an AI-powered document processing platform that automatically extracts data from invoices, receipts, purchase orders, and financial documents, helping businesses reduce manual data entry and improve operational efficiency." },
-      { q: "Who is Invonix designed for?", a: "Invonix is ideal for:\n\n• Accounting Firms\n• Bookkeepers\n• SMEs\n• Trading Companies\n• Logistics Companies\n• Construction Companies\n• Manufacturing Companies\n• Retail Businesses\n• Corporate Finance Teams" },
-      { q: "Which countries does Invonix serve?", a: "Invonix serves businesses across the UAE, GCC, and Africa." }
-    ]
-  },
-  {
-    title: "Document Processing",
-    icon: FileText,
-    iconColor: "text-cyan-600",
-    iconBg: "bg-cyan-50",
-    description: "Supported documents, formats, and batch processing",
-    faqs: [
-      { q: "What document types can Invonix process?", a: "Invonix supports:\n\n• Sales Invoices\n• Purchase Invoices\n• Receipts\n• Purchase Orders\n• Credit Notes\n• Expense Documents" },
-      { q: "What file formats are supported?", a: "• PDF\n• JPG\n• JPEG\n• PNG\n• TIFF" },
-      { q: "Can I upload multiple documents at once?", a: "Yes. Invonix supports bulk uploads and batch processing." },
-      { q: "Does Invonix support Arabic documents?", a: "Yes. Both Arabic and English documents are supported." },
-      { q: "Does Invonix support handwritten documents?", a: "Yes. Invonix can process both handwritten and typed documents." },
-      { q: "What happens if AI extracts incorrect information?", a: "Users can review, edit, and approve extracted information before exporting or using the data." }
-    ]
-  },
-  {
-    title: "AI & OCR",
-    icon: Brain,
-    iconColor: "text-violet-600",
-    iconBg: "bg-violet-50",
-    description: "Accuracy, identification, and VAT extraction",
-    faqs: [
-      { q: "How accurate is Invonix?", a: "Document extraction accuracy typically exceeds 90%, depending on document quality." },
-      { q: "Does Invonix automatically identify document types?", a: "Yes. Invonix automatically classifies invoices, receipts, purchase orders, and other supported document types." },
-      { q: "Can Invonix extract VAT information?", a: "Yes. VAT amounts and tax-related fields are automatically extracted where available." },
-      { q: "Does Invonix learn from corrections?", a: "AI learning capabilities are being continuously improved to enhance classification and extraction accuracy over time." }
-    ]
-  },
-  {
-    title: "Upload Batch Management",
-    icon: BarChart3,
-    iconColor: "text-orange-600",
-    iconBg: "bg-orange-50",
-    description: "Batch IDs, organization, and audit workflows",
-    faqs: [
-      { q: "What is Upload Batch Management?", a: "Every upload session automatically receives a unique Batch ID.\n\nExample:\n\n• Batch #001\n• Batch #002\n• Batch #003" },
-      { q: "Why is Batch Management useful?", a: "It allows users to:\n\n• Process documents by upload session\n• Export only recent uploads\n• Organize documents by period\n• Improve audit and reconciliation workflows" }
-    ]
-  },
-  {
-    title: "Financial Dashboard",
-    icon: BarChart3,
-    iconColor: "text-emerald-600",
-    iconBg: "bg-emerald-50",
-    description: "Reports, filters, and exports",
-    faqs: [
-      { q: "What information is available in the Financial Dashboard?", a: "The dashboard provides:\n\n• Revenue\n• Expenses\n• Net Profit\n• VAT Payable\n• Financial Trends\n• Processing Statistics" },
-      { q: "Can I filter reports by date?", a: "Yes.\n\nAvailable filters include:\n\n• This Month\n• Last Month\n• This Quarter\n• Last Quarter\n• This Year\n• Last Year\n• Custom Date Range" },
-      { q: "Can I export reports?", a: "Yes.\n\nAvailable export formats:\n\n• Excel (XLSX)\n• CSV\n• PDF" }
-    ]
-  },
-  {
-    title: "Multi-Company & Users",
-    icon: Users,
-    iconColor: "text-primary",
-    iconBg: "bg-primary/8",
-    description: "Team management and access control",
-    faqs: [
-      { q: "Can I manage multiple companies?", a: "Yes, depending on your subscription plan.\n\nWhich plans support multiple companies?\nMulti-Company access is available on eligible plans. Company limits depend on the selected subscription." },
-      { q: "Can multiple users access the same company?", a: "Yes, depending on the subscription plan.\n\n• Starter Plan: Single User\n• Professional Plan: Multiple Users\n• Enterprise Plan: Custom User Limits" },
-      { q: "Can I create Sub-Admins?", a: "Yes. Supported plans allow role-based access and user permissions." }
-    ]
-  },
-  {
-    title: "Exports",
-    icon: Download,
-    iconColor: "text-teal-600",
-    iconBg: "bg-teal-50",
-    description: "Export options for documents and reports",
-    faqs: [
-      { q: "Can I export only today's uploaded documents?", a: "Yes.\n\nUsers can export:\n\n• Latest Upload Batch\n• Selected Batch\n• Selected Documents\n• Date Range\n• Current Month\n• Current Quarter\n• Current Year" },
-      { q: "Can I export approved documents only?", a: "Yes. Filters are available for:\n\n• Approved Documents\n• Pending Review\n• All Documents" }
-    ]
-  },
-  {
-    title: "Accounting Software",
-    icon: Link2,
-    iconColor: "text-indigo-600",
-    iconBg: "bg-indigo-50",
-    description: "Integration with accounting platforms",
-    faqs: [
-      { q: "Does Invonix integrate directly with QuickBooks, Xero, Wafeq, or Zoho Books?", a: "Not currently.\n\nInvonix exports structured financial data in Excel and CSV formats that can be imported into most accounting systems." },
-      { q: "Can I use Invonix alongside my existing accounting software?", a: "Yes.\n\nInvonix is designed to complement existing accounting workflows by providing clean, structured data for finance teams and accountants." }
-    ]
-  },
-  {
-    title: "Security & Privacy",
-    icon: ShieldCheck,
-    iconColor: "text-slate-600",
-    iconBg: "bg-slate-100",
-    description: "Data protection and access control",
-    faqs: [
-      { q: "Is my data secure?", a: "Yes. Invonix uses secure cloud infrastructure and access controls to protect customer data." },
-      { q: "Who can access my documents?", a: "Only authorized users within your organization can access your documents." },
-      { q: "Do you share customer data?", a: "No. Customer data is never sold or shared with third parties without authorization." }
-    ]
-  },
-  {
-    title: "Pricing & Billing",
-    icon: CreditCard,
-    iconColor: "text-rose-600",
-    iconBg: "bg-rose-50",
-    description: "Plans, trials, and payments",
-    faqs: [
-      { q: "Is there a free trial?", a: "Yes. New customers can request a free trial before subscribing." },
-      { q: "What currency are subscription plans priced in?", a: "All plans are priced in USD." },
-      { q: "Can I upgrade my plan later?", a: "Yes. Plans can be upgraded at any time." },
-      { q: "Can I cancel my subscription?", a: "Yes. Subscriptions can be cancelled according to the terms of your plan." },
-      { q: "What payment methods do you accept?", a: "Major credit and debit cards are accepted through our secure payment platform." }
-    ]
-  },
-  {
-    title: "Referral Program",
-    icon: Gift,
-    iconColor: "text-pink-600",
-    iconBg: "bg-pink-50",
-    description: "Referral benefits and tracking",
-    faqs: [
-      { q: "How does the referral program work?", a: "Share your referral code with friends, colleagues, or clients.\n\nWhen they subscribe using your code, the configured referral discount is automatically applied." },
-      { q: "Can I track my referrals?", a: "Yes. Eligible users can view referral activity through their account dashboard." }
-    ]
-  },
-  {
-    title: "Training & Support",
-    icon: GraduationCap,
-    iconColor: "text-amber-600",
-    iconBg: "bg-amber-50",
-    description: "Training materials and customer support",
-    faqs: [
-      { q: "Do you provide training?", a: "Yes.\n\nAll customers receive access to:\n\n• Video Tutorials\n• User Guides\n• Knowledge Base\n• FAQ Center" },
-      { q: "Do you provide customer support?", a: "Yes.\n\nSupport is available through:\n\n• Email Support\n• WhatsApp Support\n• Help Center" },
-      { q: "How quickly can my team learn Invonix?", a: "Most users can begin processing documents within minutes using our onboarding materials and video guides." }
-    ]
-  },
-  {
-    title: "Enterprise Onboarding",
-    icon: Building2,
-    iconColor: "text-primary-dark",
-    iconBg: "bg-primary/8",
-    description: "Enterprise features and onboarding",
-    faqs: [
-      { q: "Do you offer enterprise onboarding?", a: "Yes.\n\nEnterprise customers receive:\n\n• Dedicated onboarding sessions\n• Team training workshops\n• Multi-user setup assistance\n• Workflow configuration support\n• Best practice consultation\n• Priority support\n• Dedicated account management" },
-      { q: "Who should choose the Enterprise Onboarding Package?", a: "Recommended for:\n\n• Accounting Firms\n• Large SMEs\n• Corporate Finance Teams\n• Multi-Company Organizations\n• High-Volume Document Processing Businesses" }
-    ]
-  },
-  {
-    title: "Getting Started",
-    icon: Rocket,
-    iconColor: "text-secondary",
-    iconBg: "bg-secondary/8",
-    description: "Setup and onboarding",
-    faqs: [
-      { q: "How do I start using Invonix?", a: "Step 1: Create an account\n\nStep 2: Create your company\n\nStep 3: Upload documents\n\nStep 4: Review AI-extracted data\n\nStep 5: Approve documents\n\nStep 6: Analyze financial insights\n\nStep 7: Export reports and structured data" },
-      { q: "How long does setup take?", a: "Most businesses can start processing documents on the same day." }
-    ]
-  }
-];
+// Questions and answers come from src/lib/faqContent.ts, shared with the
+// public /faq page. This file keeps only the per-category presentation —
+// previously both carried their own copy and they disagreed on question
+// counts and on the answers about integrations, security and accuracy
+// (UX-06, Oct 2026 QA review).
+const categoryStyles: Record<
+  FaqCategoryId,
+  { icon: React.ElementType; iconColor: string; iconBg: string; dot: string }
+> = {
+  general: { icon: HelpCircle, iconColor: "text-primary", iconBg: "bg-primary/8", dot: "bg-primary" },
+  documents: { icon: FileText, iconColor: "text-cyan-600", iconBg: "bg-cyan-50", dot: "bg-cyan-500" },
+  ai: { icon: Brain, iconColor: "text-violet-600", iconBg: "bg-violet-50", dot: "bg-violet-500" },
+  batches: { icon: BarChart3, iconColor: "text-orange-600", iconBg: "bg-orange-50", dot: "bg-orange-500" },
+  dashboard: { icon: BarChart3, iconColor: "text-emerald-600", iconBg: "bg-emerald-50", dot: "bg-emerald-500" },
+  users: { icon: Users, iconColor: "text-primary", iconBg: "bg-primary/8", dot: "bg-primary" },
+  exports: { icon: Download, iconColor: "text-teal-600", iconBg: "bg-teal-50", dot: "bg-teal-500" },
+  integrations: { icon: Link2, iconColor: "text-indigo-600", iconBg: "bg-indigo-50", dot: "bg-indigo-500" },
+  security: { icon: ShieldCheck, iconColor: "text-slate-600", iconBg: "bg-slate-100", dot: "bg-slate-500" },
+  billing: { icon: CreditCard, iconColor: "text-rose-600", iconBg: "bg-rose-50", dot: "bg-rose-500" },
+  referral: { icon: Gift, iconColor: "text-pink-600", iconBg: "bg-pink-50", dot: "bg-pink-500" },
+  support: { icon: GraduationCap, iconColor: "text-amber-600", iconBg: "bg-amber-50", dot: "bg-amber-500" },
+  enterprise: { icon: Building2, iconColor: "text-primary-dark", iconBg: "bg-primary/8", dot: "bg-primary-dark" },
+  "getting-started": { icon: Rocket, iconColor: "text-secondary", iconBg: "bg-secondary/8", dot: "bg-secondary" },
+};
 
-// Get all unique category titles for search filter
-const categoryOptions = ["All Categories", ...faqCategories.map(cat => cat.title)];
+const helpCenterCategories = faqCategories.map((category) => ({
+  title: category.label,
+  description: category.description,
+  faqs: category.items,
+  ...categoryStyles[category.id],
+}));
 
-// ============================================================
-// Helper function to render text with line breaks
-// ============================================================
-function renderWithLineBreaks(text: string) {
-  return text.split('\n').map((line, i) => (
-    <span key={i}>
-      {line}
-      {i < text.split('\n').length - 1 && <br />}
-    </span>
-  ));
-}
+const categoryOptions = ["All Categories", ...helpCenterCategories.map((cat) => cat.title)];
 
 // ============================================================
 // Components
@@ -343,7 +240,7 @@ function SupportTicketForm({ onSuccess }: { onSuccess: () => void }) {
           credentials: "include",
         });
         const data = await res.json();
-        if (data.success) setIssueTypes(data.data);
+        if (data.success) setIssueTypes(sortIssueTypes(data.data));
       } catch (err) {
         console.error("Failed to fetch issue types", err);
         toast.error("Failed to load issue types"); // ✅ Error toast
@@ -603,7 +500,7 @@ export default function SupportPage() {
     setSelectedCategory("All Categories");
   };
 
-  const filteredCategories = faqCategories
+  const filteredCategories = helpCenterCategories
     .filter(category => {
       if (selectedCategory !== "All Categories" && category.title !== selectedCategory) {
         return false;
@@ -612,10 +509,10 @@ export default function SupportPage() {
     })
     .map(category => ({
       ...category,
-      faqs: category.faqs.filter(faq => 
-        searchQuery === "" || 
+      faqs: category.faqs.filter(faq =>
+        searchQuery === "" ||
         faq.q.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        faq.a.toLowerCase().includes(searchQuery.toLowerCase())
+        faqAnswerToText(faq.a).toLowerCase().includes(searchQuery.toLowerCase())
       )
     }))
     .filter(category => category.faqs.length > 0);
@@ -637,14 +534,14 @@ export default function SupportPage() {
     <div className="flex h-screen bg-[#f8f9fb]">
       <Sidebar />
       <motion.div
-        className="flex-1 flex flex-col overflow-hidden"
+        className="flex min-w-0 flex-1 flex-col overflow-hidden"
         initial={{ opacity: 0 }}
         animate={{ opacity: 1, marginLeft: mounted ? sidebarWidth : 260 }}
         transition={{ duration: 0.2, ease: "easeInOut" }}
       >
         <TopBar title="Help & Support" />
         
-        <main className="flex-1 overflow-y-auto">
+        <main className="min-w-0 flex-1 overflow-y-auto">
           <section className="relative overflow-hidden bg-gradient-to-br from-indigo-600 via-indigo-700 to-violet-800 text-white">
             <div className="max-w-4xl mx-auto px-6 py-16 text-center relative z-10">
               <span className="inline-flex items-center gap-2 rounded-full border border-white/20 bg-white/10 px-4 py-1 text-xs font-medium mb-5">
@@ -763,10 +660,12 @@ export default function SupportPage() {
                               </button>
                               {isOpen && (
                                 <div className="px-4 pb-4">
-                                  <div className="pl-2 border-l-2 border-indigo-200">
-                                    <p className="text-sm text-slate-600 leading-relaxed whitespace-pre-line">
-                                      {renderWithLineBreaks(faq.a)}
-                                    </p>
+                                  <div className="border-l-2 border-indigo-200 pl-3 text-sm">
+                                    <FaqAnswer
+                                      answer={faq.a}
+                                      accent={category.iconColor}
+                                      accentBg={category.dot}
+                                    />
                                   </div>
                                 </div>
                               )}

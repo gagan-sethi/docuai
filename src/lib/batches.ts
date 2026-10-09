@@ -1,4 +1,5 @@
 import type { ProcessedDocument } from "./types";
+import { formatShortDate } from "./dates";
 
 export interface UploadBatchRecord {
   id: string;
@@ -71,7 +72,7 @@ export function batchFileReference(batch: Pick<BatchSummary, "id" | "number" | "
 export function batchDateLabel(iso: string): string {
   const date = new Date(iso);
   if (Number.isNaN(date.getTime())) return "Unknown date";
-  return date.toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" });
+  return formatShortDate(date);
 }
 
 export function batchSummaryLine(batch: Pick<BatchSummary, "label" | "documentCount" | "uploadedAt">): string {
