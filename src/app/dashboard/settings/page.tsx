@@ -38,6 +38,7 @@ import {
 } from "lucide-react";
 import Sidebar from "@/components/dashboard/Sidebar";
 import TopBar from "@/components/dashboard/TopBar";
+import { useSidebarOffset } from "@/lib/useSidebarOffset";
 import { apiFetch, apiUrl, clearAuthToken } from "@/lib/api";
 
 interface MeUser {
@@ -57,12 +58,26 @@ interface Preferences {
   whatsappAutoMergeWindowSec: number;
 }
 
+type WorkspacePlan = {
+  plan?: string;
+  label?: string;
+  viewerIsOwner?: boolean;
+  ownerName?: string;
+};
+
 type Toast = { type: "success" | "error"; message: string } | null;
 
 export default function SettingsPage() {
+  const sidebarOffset = useSidebarOffset();
   const router = useRouter();
   const [me, setMe] = useState<MeUser | null>(null);
   const [prefs, setPrefs] = useState<Preferences | null>(null);
+  /**
+   * HB-05: Settings showed "CURRENT PLAN Free" to a member of a Starter
+   * workspace, because /api/auth/me reports the member's own plan field.
+   * The workspace plan comes from /api/plan, which resolves the owner.
+   */
+  const [workspacePlan, setWorkspacePlan] = useState<WorkspacePlan | null>(null);
   const [loading, setLoading] = useState(true);
   const [toast, setToast] = useState<Toast>(null);
 
@@ -70,9 +85,10 @@ export default function SettingsPage() {
     let cancelled = false;
     (async () => {
       try {
-        const [meRes, prefRes] = await Promise.all([
+        const [meRes, prefRes, planRes] = await Promise.all([
           apiFetch(apiUrl("/api/auth/me"), { credentials: "include" }),
           apiFetch(apiUrl("/api/user/preferences"), { credentials: "include" }),
+          apiFetch(apiUrl("/api/plan"), { credentials: "include" }),
         ]);
         if (meRes.status === 401) {
           router.replace("/login");
@@ -80,8 +96,10 @@ export default function SettingsPage() {
         }
         const meData = meRes.ok ? await meRes.json() : null;
         const prefData = prefRes.ok ? await prefRes.json() : null;
+        const planData = planRes.ok ? await planRes.json() : null;
         if (!cancelled) {
           setMe(meData?.user ?? null);
+          setWorkspacePlan(planData ?? null);
           setPrefs(
             prefData?.preferences ?? {
               whatsappAutoMerge: false,
@@ -110,7 +128,7 @@ export default function SettingsPage() {
   return (
     <div className="min-h-screen bg-slate-50/50">
       <Sidebar />
-      <main className="ml-[260px] p-6">
+      <main style={{ marginLeft: sidebarOffset }} className="p-4 transition-[margin] duration-200 sm:p-6">
         <TopBar title="Settings" />
 
         <div className="max-w-3xl mx-auto mt-6">
@@ -137,7 +155,7 @@ export default function SettingsPage() {
               <EmailSection me={me} onUpdated={(email) => { setMe((prev) => prev ? { ...prev, email, isEmailVerified: false } : prev); showToast({ type: "success", message: "Verification email sent" }); }} onError={(m) => showToast({ type: "error", message: m })} />
               <PasswordSection email={me?.email} onSent={() => showToast({ type: "success", message: "Password reset link sent" })} onError={(m) => showToast({ type: "error", message: m })} />
               <PreferencesSection prefs={prefs} onSaved={(p) => { setPrefs(p); showToast({ type: "success", message: "Preferences saved" }); }} onError={(m) => showToast({ type: "error", message: m })} />
-              <AccountSection me={me} />
+              <AccountSection me={me} workspacePlan={workspacePlan} />
             </div>
           )}
         </div>
@@ -566,7 +584,7 @@ function PreferencesSection({
             <p className="text-sm font-semibold text-slate-800">Auto-merge bursts</p>
             <p className="text-xs text-slate-500 mt-0.5 max-w-md">
               When enabled, multiple files received within the burst window are
-              automatically combined into a single audit-ready CSV.
+              automatically combined into one audit-ready Excel file.
             </p>
           </div>
           <button
@@ -630,7 +648,13 @@ function PreferencesSection({
 }
 
 // ─── 5. Account ────────────────────────────────────────────────
-function AccountSection({ me }: { me: MeUser | null }) {
+function AccountSection({
+  me,
+  workspacePlan,
+}: {
+  me: MeUser | null;
+  workspacePlan: WorkspacePlan | null;
+}) {
   const router = useRouter();
   const [signingOut, setSigningOut] = useState(false);
 
@@ -654,7 +678,18 @@ function AccountSection({ me }: { me: MeUser | null }) {
       description="Plan, role, and session management."
     >
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-5">
-        <InfoTile label="Current plan" value={(me?.plan || "free").replace(/^./, (c) => c.toUpperCase())} />
+        <InfoTile
+          label="Current plan"
+          value={
+            workspacePlan?.label ||
+            (workspacePlan?.plan || me?.plan || "free").replace(/^./, (c) => c.toUpperCase())
+          }
+          hint={
+            workspacePlan?.viewerIsOwner === false
+              ? `Workspace plan, managed by ${workspacePlan.ownerName || "the owner"}`
+              : undefined
+          }
+        />
         <InfoTile label="Role" value={me?.role ? me.role.charAt(0).toUpperCase() + me.role.slice(1) : "—"} />
         <InfoTile
           label="WhatsApp"
@@ -693,10 +728,12 @@ function InfoTile({
   label,
   value,
   tone = "default",
+  hint,
 }: {
   label: string;
   value: string;
   tone?: "default" | "success" | "muted";
+  hint?: string;
 }) {
   const cls =
     tone === "success"
@@ -708,6 +745,7 @@ function InfoTile({
     <div className="bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5">
       <p className="text-[10px] uppercase tracking-widest font-semibold text-slate-400">{label}</p>
       <p className={`text-sm font-bold mt-0.5 ${cls}`}>{value}</p>
+      {hint && <p className="mt-0.5 text-[10px] leading-snug text-slate-400">{hint}</p>}
     </div>
   );
 }

@@ -61,7 +61,25 @@ function StatusBadge({ status }: { status: string }) {
   return (<span className={`inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-xs font-medium ${c.cls}`}>{c.icon} {c.label}</span>);
 }
 
-function ConfidenceBadge({ value }: { value: number }) {
+/**
+ * A confidence score only means something when the model actually returned a
+ * value. Empty fields were showing "80%" next to nothing at all (HB-06, Oct
+ * 2026 QA review), which read as "we are 80% sure this field is blank".
+ * Pass the field's value so an empty one shows a dash instead.
+ */
+function ConfidenceBadge({ value, fieldValue }: { value: number; fieldValue?: string }) {
+  const isEmpty = fieldValue !== undefined && String(fieldValue).trim() === "";
+  if (isEmpty) {
+    return (
+      <span
+        className="rounded-full bg-slate-100 px-2 py-0.5 text-xs font-medium text-slate-400"
+        title="Nothing was extracted for this field"
+      >
+        —
+      </span>
+    );
+  }
+
   const pct = value > 1 ? Math.round(value) : Math.round(value * 100);
   const cls = pct >= 90 ? "bg-green-100 text-green-700" : pct >= 70 ? "bg-amber-100 text-amber-700" : "bg-red-100 text-red-700";
   return <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${cls}`}>{pct}%</span>;
@@ -432,7 +450,7 @@ function ReviewPageContent() {
                 <div key={field.id} className="flex items-center gap-3 px-4 py-2.5 hover:bg-gray-50/50 transition">
                   <div className="w-2/5 min-w-0"><span className="text-xs font-medium text-gray-600">{field.label}</span>{field.edited && <span className="ml-1.5 text-[10px] text-amber-600 font-medium">(edited)</span>}</div>
                   <div className="flex-1 min-w-0">{isEditing ? (<input type="text" value={editingFields[field.id] ?? field.value} onChange={(e) => setEditingFields((p) => ({ ...p, [field.id]: e.target.value }))} className="w-full rounded-md border border-gray-300 bg-white px-2.5 py-1 text-sm focus:border-indigo-400 focus:outline-none focus:ring-2 focus:ring-indigo-100" />) : (<span className="text-sm text-gray-900 break-words">{field.value}</span>)}</div>
-                  <ConfidenceBadge value={field.confidence} />
+                  <ConfidenceBadge value={field.confidence} fieldValue={field.value} />
                 </div>
               ))}
             </div>
@@ -515,16 +533,16 @@ function ReviewPageContent() {
             <div className="flex h-full items-center justify-center"><div className="text-center max-w-sm"><AlertTriangle className="mx-auto h-12 w-12 text-red-400" /><h3 className="mt-4 text-lg font-semibold text-red-700">Processing Error</h3><p className="mt-2 text-sm text-gray-600">{currentDoc.error || "An error occurred."}</p><a href="/dashboard/upload" className="mt-4 inline-flex items-center gap-2 rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700 transition"><Upload className="h-4 w-4" /> Re-upload</a></div></div>
           ) : (
             <div className="flex h-full flex-col overflow-hidden">
-              <div className="flex-shrink-0 border-b border-gray-200 bg-white px-5 py-3">
-                <div className="flex items-center justify-between">
-                  <div className="flex flex-wrap items-center gap-2 min-w-0">
+              <div className="flex-shrink-0 border-b border-gray-200 bg-white px-4 py-3 sm:px-5">
+                <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                  <div className="flex min-w-0 flex-wrap items-center gap-2">
                     <h1 className="text-lg font-bold text-gray-900 truncate">{currentDoc.fileName}</h1>
                     <DocTypeBadge code={resolveDocTypeCode(currentDoc)} />
                     <StatusBadge status={currentDoc.status} />
                     {!isEditable && (currentDoc.status === "approved" || currentDoc.status === "rejected") && (<span className="inline-flex items-center gap-1 rounded-full bg-gray-100 px-2 py-0.5 text-[10px] font-medium text-gray-500 border border-gray-200">{currentDoc.status === "approved" ? <ShieldCheck className="h-3 w-3" /> : <ShieldX className="h-3 w-3" />} Read-only</span>)}
                   </div>
-                  <div className="flex items-center gap-2">
-                    <button onClick={() => setShowPreview((p) => !p)} className={`flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-medium transition ${showPreview ? "border-indigo-300 bg-indigo-50 text-indigo-700 hover:bg-indigo-100" : "border-gray-300 bg-white text-gray-600 hover:bg-gray-50"}`}>{showPreview ? <PanelLeftClose className="h-3.5 w-3.5" /> : <PanelLeftOpen className="h-3.5 w-3.5" />}{showPreview ? " Hide Preview" : " Show Preview"}</button>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <button onClick={() => setShowPreview((p) => !p)} className={`flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-medium transition ${showPreview ? "border-indigo-300 bg-indigo-50 text-indigo-700 hover:bg-indigo-100" : "border-gray-300 bg-white text-gray-600 hover:bg-gray-50"}`}>{showPreview ? <PanelLeftClose className="h-3.5 w-3.5" /> : <PanelLeftOpen className="h-3.5 w-3.5" />}<span className="hidden sm:inline">{showPreview ? " Hide Preview" : " Show Preview"}</span><span className="sm:hidden">{showPreview ? " Hide" : " Preview"}</span></button>
                     <button onClick={copyJson} className="flex items-center gap-1 rounded-lg border border-gray-300 bg-white px-2.5 py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-50 transition"><Copy className="h-3.5 w-3.5" /> JSON</button>
                     {(currentDoc.fields.length > 0 || currentDoc.lineItems.length > 0) && (<button onClick={downloadExcel} className="flex items-center gap-1 rounded-lg border border-green-300 bg-green-50 px-2.5 py-1.5 text-xs font-medium text-green-700 hover:bg-green-100 transition"><Download className="h-3.5 w-3.5" /> Excel</button>)}
                     {isEditable && (isEditing ? (<button onClick={saveEdits} disabled={actionLoading} className="flex items-center gap-1 rounded-lg bg-indigo-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-indigo-700 transition disabled:opacity-60">{actionLoading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Save className="h-3.5 w-3.5" />} Save</button>) : (<button onClick={startEditing} className="flex items-center gap-1 rounded-lg bg-indigo-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-indigo-700 transition"><Edit3 className="h-3.5 w-3.5" /> Edit</button>))}

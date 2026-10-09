@@ -11,6 +11,7 @@ import {
   ScanLine,
   ShieldCheck,
   ShoppingCart,
+  TriangleAlert,
   WandSparkles,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
@@ -21,6 +22,7 @@ import {
   DOC_TYPE_OPTIONS,
   getClassificationConfidence,
   getDocTypeMeta,
+  isAiVerified,
   isAutoClassified,
   normalizeDocTypeCode,
   normalizePercent,
@@ -141,22 +143,51 @@ export function ClassificationConfidenceBadge({
   );
 }
 
+/**
+ * Shown in place of "AI Verified" when the extraction did not clear the
+ * confidence threshold, so a failed read is never presented as a good one.
+ */
+export function NeedsReviewBadge({ reason }: { reason?: string }) {
+  return (
+    <span
+      className={`${BADGE_BASE} border-amber-200 bg-amber-50 text-amber-700 dark:border-amber-400/30 dark:bg-amber-400/15 dark:text-amber-200`}
+      title={reason || "Low extraction confidence — please check every field"}
+    >
+      <TriangleAlert className="h-3.5 w-3.5" aria-hidden />
+      Needs review
+    </span>
+  );
+}
+
 export function AiProcessingIndicators({
   doc,
   className,
 }: {
-  doc: Pick<ProcessedDocument, "ai_verified" | "ocr_accuracy" | "auto_categorized">;
+  doc: Pick<
+    ProcessedDocument,
+    | "ai_verified"
+    | "ocr_accuracy"
+    | "auto_categorized"
+    | "overallConfidence"
+    | "docTypeCode"
+  >;
   className?: string;
 }) {
   const accuracy = normalizeOcrAccuracy(doc.ocr_accuracy);
+  // HB-06: `ai_verified` alone is derived from status, so a 60%-confidence
+  // read with empty fields was still badged "AI Verified". Gate it on the
+  // actual confidence and on the document having been classified at all.
+  const verified = isAiVerified(doc);
+  const lowConfidence = doc.ai_verified === true && !verified;
 
-  if (doc.ai_verified !== true && accuracy === null && doc.auto_categorized !== true) {
+  if (!verified && !lowConfidence && accuracy === null && doc.auto_categorized !== true) {
     return null;
   }
 
   return (
     <div className={`flex flex-wrap items-center gap-1.5 ${className ?? ""}`}>
-      {doc.ai_verified === true && <AiVerifiedBadge />}
+      {verified && <AiVerifiedBadge />}
+      {lowConfidence && <NeedsReviewBadge />}
       {accuracy !== null && <OcrAccuracyBadge value={accuracy} />}
       {doc.auto_categorized === true && <AutoCategorizedBadge />}
     </div>

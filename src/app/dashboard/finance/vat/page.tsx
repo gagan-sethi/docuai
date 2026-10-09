@@ -59,7 +59,7 @@ export default function VatReportPage() {
     <div className="min-h-screen bg-slate-50">
       <Sidebar />
       <div
-        className="flex flex-col min-h-screen transition-all duration-200"
+        className="flex min-h-screen min-w-0 flex-col transition-all duration-200"
         style={{ marginLeft: sidebarWidth }}
       >
         <TopBar title="VAT Summary Report" />

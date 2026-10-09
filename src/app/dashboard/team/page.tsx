@@ -42,8 +42,10 @@ import {
 } from "lucide-react";
 import Sidebar from "@/components/dashboard/Sidebar";
 import TopBar from "@/components/dashboard/TopBar";
+import { useSidebarOffset } from "@/lib/useSidebarOffset";
 import ManagePlanModal from "@/components/dashboard/ManagePlanModal";
 import { apiFetch, apiUrl } from "@/lib/api";
+import { formatShortDate } from "@/lib/dates";
 
 type TeamRole = "owner" | "admin" | "member";
 
@@ -119,10 +121,11 @@ function formatDate(d?: string | null): string {
   if (diff < 3_600_000) return `${Math.floor(diff / 60_000)} min ago`;
   if (diff < 86_400_000) return `${Math.floor(diff / 3_600_000)} hr ago`;
   if (diff < 7 * 86_400_000) return `${Math.floor(diff / 86_400_000)} day${Math.floor(diff / 86_400_000) === 1 ? "" : "s"} ago`;
-  return date.toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" });
+  return formatShortDate(date);
 }
 
 export default function TeamPage() {
+  const sidebarOffset = useSidebarOffset();
   const [data, setData] = useState<TeamData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -301,7 +304,7 @@ export default function TeamPage() {
   return (
     <div className="min-h-screen bg-slate-50/50">
       <Sidebar />
-      <main className="ml-[260px] p-6">
+      <main style={{ marginLeft: sidebarOffset }} className="p-4 transition-[margin] duration-200 sm:p-6">
         <TopBar title="Team" />
 
         <div className="max-w-6xl mx-auto mt-6">

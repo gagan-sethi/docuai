@@ -63,6 +63,7 @@ import {
 } from "@/lib/periods";
 import type { DocumentExportFormat } from "@/lib/financeExport";
 import { exportDocuments } from "@/lib/financeExport";
+import { formatShortDate } from "@/lib/dates";
 
 // ─── Helpers ────────────────────────────────────────────────────
 function timeAgo(dateStr: string): string {
@@ -74,7 +75,7 @@ function timeAgo(dateStr: string): string {
   if (hrs < 24) return `${hrs}h ago`;
   const days = Math.floor(hrs / 24);
   if (days < 7) return `${days}d ago`;
-  return new Date(dateStr).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" });
+  return formatShortDate(dateStr);
 }
 
 function formatFileSize(bytes: number): string {
@@ -858,12 +859,12 @@ export default function DocumentsPage() {
     <div className="min-h-screen bg-slate-50">
       <Sidebar />
       <div
-        className="flex flex-col min-h-screen transition-all duration-200"
+        className="flex min-h-screen min-w-0 flex-col transition-all duration-200"
         style={{ marginLeft: sidebarWidth }}
       >
         <TopBar title="Documents" />
 
-        <main className="flex-1 p-6">
+        <main className="min-w-0 flex-1 p-4 sm:p-6">
           {/* Header */}
           <div className="flex items-center justify-between mb-6">
             <div className="flex items-center gap-3">
@@ -2164,8 +2165,12 @@ function DocDetailDrawer({ doc, onClose, onDelete }: { doc: ProcessedDocument; o
                   <div key={field.id} className="grid grid-cols-[minmax(96px,0.8fr)_minmax(0,1fr)_auto] items-center gap-2 rounded-lg bg-slate-50 px-3 py-2">
                     <span className="truncate text-xs font-medium text-slate-500">{field.label}</span>
                     <span className="truncate text-xs font-semibold text-slate-800" title={field.value}>{field.value || "--"}</span>
-                    <span className="rounded-full bg-white px-2 py-0.5 text-[10px] font-bold text-slate-500 ring-1 ring-slate-200">
-                      {Math.round(field.confidence)}%
+                    {/* HB-06: an empty field has no confidence to report. */}
+                    <span
+                      className="rounded-full bg-white px-2 py-0.5 text-[10px] font-bold text-slate-500 ring-1 ring-slate-200"
+                      title={String(field.value ?? "").trim() === "" ? "Nothing was extracted for this field" : undefined}
+                    >
+                      {String(field.value ?? "").trim() === "" ? "—" : `${Math.round(field.confidence)}%`}
                     </span>
                   </div>
                 ))}

@@ -35,6 +35,7 @@ import {
 } from "lucide-react";
 import Sidebar from "@/components/dashboard/Sidebar";
 import TopBar from "@/components/dashboard/TopBar";
+import { useSidebarOffset } from "@/lib/useSidebarOffset";
 import ManagePlanModal from "@/components/dashboard/ManagePlanModal";
 import { apiFetch, apiUrl, handleUnauthorized } from "@/lib/api";
 
@@ -111,6 +112,7 @@ function formatDate(d?: string | null): string {
 }
 
 export default function BillingPage() {
+  const sidebarOffset = useSidebarOffset();
   const [plan, setPlan] = useState<PlanInfo | null>(null);
   const [me, setMe] = useState<Me | null>(null);
   const [payments, setPayments] = useState<Payment[]>([]);
@@ -123,28 +125,40 @@ export default function BillingPage() {
   const load = async () => {
     setError(null);
     try {
-      const [planRes, meRes, payRes] = await Promise.all([
+      const [planRes, meRes] = await Promise.all([
         apiFetch(apiUrl("/api/plan"), { credentials: "include" }),
         apiFetch(apiUrl("/api/auth/me"), { credentials: "include" }),
-        apiFetch(apiUrl("/api/plan/payments?limit=20"), { credentials: "include" }),
       ]);
 
       if (await handleUnauthorized(planRes)) return;
       if (await handleUnauthorized(meRes)) return;
-      if (await handleUnauthorized(payRes)) return;
 
+      let planData: PlanInfo | null = null;
       if (planRes.ok) {
-        setPlan(await planRes.json());
+        planData = await planRes.json();
+        setPlan(planData);
       }
       if (meRes.ok) {
         const data = await meRes.json();
         setMe(data?.user ?? null);
       }
-      if (payRes.ok) {
-        const data = await payRes.json();
-        setPayments(Array.isArray(data?.data) ? data.data : []);
-      } else {
+
+      // CB-07: payment history belongs to the workspace owner. A teammate
+      // could previously read the owner's full transaction list, so the
+      // request is not made at all for them (the API also returns 403).
+      if (planData?.viewerIsOwner === false) {
         setPayments([]);
+      } else {
+        const payRes = await apiFetch(apiUrl("/api/plan/payments?limit=20"), {
+          credentials: "include",
+        });
+        if (await handleUnauthorized(payRes)) return;
+        if (payRes.ok) {
+          const data = await payRes.json();
+          setPayments(Array.isArray(data?.data) ? data.data : []);
+        } else {
+          setPayments([]);
+        }
       }
     } catch (e) {
       setError(e instanceof Error ? e.message : "Failed to load billing info");
@@ -173,7 +187,7 @@ export default function BillingPage() {
   return (
     <div className="min-h-screen bg-slate-50/50">
       <Sidebar />
-      <main className="ml-[260px] p-6">
+      <main style={{ marginLeft: sidebarOffset }} className="p-4 transition-[margin] duration-200 sm:p-6">
         <TopBar title="Billing" />
 
         <div className="max-w-6xl mx-auto mt-6">
@@ -353,31 +367,78 @@ export default function BillingPage() {
                     </span>
                     Billing Contact
                   </h3>
-                  <dl className="space-y-3 text-sm">
-                    <div>
-                      <dt className="text-[11px] uppercase tracking-wider font-semibold text-slate-400">Name</dt>
-                      <dd className="text-slate-800 font-semibold mt-0.5">{me?.fullName || "—"}</dd>
-                    </div>
-                    <div>
-                      <dt className="text-[11px] uppercase tracking-wider font-semibold text-slate-400">Email</dt>
-                      <dd className="text-slate-800 mt-0.5 break-all">{me?.email || "—"}</dd>
-                    </div>
-                    <div>
-                      <dt className="text-[11px] uppercase tracking-wider font-semibold text-slate-400">Company</dt>
-                      <dd className="text-slate-800 mt-0.5">{me?.companyName || "—"}</dd>
-                    </div>
-                  </dl>
-                  <Link
-                    href="/dashboard/settings"
-                    className="mt-4 inline-flex items-center gap-1 text-xs font-semibold text-primary hover:underline"
-                  >
-                    Edit billing details
-                    <ArrowUpRight className="w-3 h-3" />
-                  </Link>
+                  {/*
+                    CB-07: this card showed the *viewing* teammate's name and
+                    email as the billing contact. The billing contact is the
+                    workspace owner; a member sees who that is, not their own
+                    details presented as the payer.
+                  */}
+                  {plan?.viewerIsOwner === false ? (
+                    <>
+                      <dl className="space-y-3 text-sm">
+                        <div>
+                          <dt className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">
+                            Billed to
+                          </dt>
+                          <dd className="mt-0.5 font-semibold text-slate-800">
+                            {plan?.ownerName || "Workspace owner"}
+                          </dd>
+                        </div>
+                      </dl>
+                      <p className="mt-4 rounded-xl bg-slate-50 px-3 py-2 text-xs leading-relaxed text-slate-500">
+                        Contact the workspace owner to change the plan or
+                        billing details.
+                      </p>
+                    </>
+                  ) : (
+                    <>
+                      <dl className="space-y-3 text-sm">
+                        <div>
+                          <dt className="text-[11px] uppercase tracking-wider font-semibold text-slate-400">Name</dt>
+                          <dd className="text-slate-800 font-semibold mt-0.5">{me?.fullName || "—"}</dd>
+                        </div>
+                        <div>
+                          <dt className="text-[11px] uppercase tracking-wider font-semibold text-slate-400">Email</dt>
+                          <dd className="text-slate-800 mt-0.5 break-all">{me?.email || "—"}</dd>
+                        </div>
+                        <div>
+                          <dt className="text-[11px] uppercase tracking-wider font-semibold text-slate-400">Company</dt>
+                          <dd className="text-slate-800 mt-0.5">{me?.companyName || "—"}</dd>
+                        </div>
+                      </dl>
+                      <Link
+                        href="/dashboard/settings"
+                        className="mt-4 inline-flex items-center gap-1 text-xs font-semibold text-primary hover:underline"
+                      >
+                        Edit billing details
+                        <ArrowUpRight className="w-3 h-3" />
+                      </Link>
+                    </>
+                  )}
                 </motion.div>
               </div>
 
-              {/* ─── Payment history ──────────────────────────── */}
+              {/* ─── Payment history (owner only, CB-07) ───────── */}
+              {plan?.viewerIsOwner === false ? (
+                <motion.div
+                  initial={{ opacity: 0, y: 8 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: 0.15 }}
+                  className="rounded-2xl border border-slate-200 bg-white p-8 text-center shadow-sm"
+                >
+                  <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-2xl bg-slate-100">
+                    <ShieldCheck className="h-6 w-6 text-slate-400" />
+                  </div>
+                  <p className="text-sm font-semibold text-slate-700">
+                    Billing is managed by {plan?.ownerName || "the workspace owner"}
+                  </p>
+                  <p className="mx-auto mt-1 max-w-sm text-xs text-slate-500">
+                    Payment history, invoices and the renewal date are visible
+                    only to the account owner. You can still see the plan and
+                    the usage allowance for this workspace above.
+                  </p>
+                </motion.div>
+              ) : (
               <motion.div
                 initial={{ opacity: 0, y: 8 }}
                 animate={{ opacity: 1, y: 0 }}
@@ -495,6 +556,7 @@ export default function BillingPage() {
                   </div>
                 )}
               </motion.div>
+              )}
 
               {/* ─── Trust footer ────────────────────────────── */}
               <div className="mt-6 flex items-center justify-center gap-2 text-xs text-slate-500">

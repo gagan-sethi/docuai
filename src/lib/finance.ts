@@ -91,6 +91,39 @@ export function getClassificationConfidence(doc: Pick<ProcessedDocument, "docTyp
   return normalizePercent(doc.docTypeConfidence);
 }
 
+/**
+ * Minimum overall confidence before an extraction may be presented as
+ * "AI Verified". A document that came back at 60% with every field empty was
+ * still badged verified and approved (HB-06 / O-01, Oct 2026 QA review).
+ */
+export const AI_VERIFIED_CONFIDENCE_THRESHOLD = 85;
+
+/**
+ * Whether the "AI Verified" badge may be shown.
+ *
+ * The API's `ai_verified` flag alone is not enough: it is derived from the
+ * document's status, so anything that reached review or approval carried the
+ * badge regardless of how the extraction actually went. Require a real
+ * confidence score above the threshold, a recognised document type, and at
+ * least something extracted.
+ */
+export function isAiVerified(
+  doc: Pick<
+    ProcessedDocument,
+    "ai_verified" | "ocr_accuracy" | "overallConfidence" | "docTypeCode"
+  >
+): boolean {
+  if (doc.ai_verified !== true) return false;
+
+  const confidence =
+    normalizePercent(doc.ocr_accuracy) ?? normalizePercent(doc.overallConfidence);
+  if (confidence === null || confidence < AI_VERIFIED_CONFIDENCE_THRESHOLD) return false;
+
+  // An unclassified document has not been understood, whatever its OCR score.
+  const code = normalizeDocTypeCode(doc.docTypeCode);
+  return !!code && code !== "unknown";
+}
+
 export function isAutoClassified(doc: Pick<ProcessedDocument, "docTypeCode" | "docTypeConfidence">): boolean {
   const code = normalizeDocTypeCode(doc.docTypeCode);
   return (

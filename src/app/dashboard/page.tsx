@@ -28,6 +28,11 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import Sidebar from "@/components/dashboard/Sidebar";
+import {
+  WHATSAPP_LIVE,
+  whatsAppDisplayNumber,
+  whatsAppLink,
+} from "@/lib/siteConfig";
 import TopBar from "@/components/dashboard/TopBar";
 import { AiProcessingIndicators, DocTypeBadge } from "@/components/dashboard/DocTypeBadge";
 import AiInsightsWidget from "@/components/dashboard/AiInsightsWidget";
@@ -86,7 +91,9 @@ const stats = [
     bgLight: "bg-amber-50",
   },
   {
-    label: "Accuracy Rate",
+    // F-03: this is the mean of the per-document confidence scores, which is
+    // not the same thing as measured accuracy. Label it for what it is.
+    label: "Avg. AI Confidence",
     value: 0,
     suffix: "%",
     change: "",
@@ -96,6 +103,7 @@ const stats = [
     bgLight: "bg-success/5",
   },
   {
+    // Only rendered when WHATSAPP_LIVE — see the Stats Grid below.
     label: "WhatsApp Received",
     value: 0,
     change: "",
@@ -204,7 +212,7 @@ const pipelineDefaults = [
   { stage: "OCR Running", count: 0, color: "bg-primary" },
   { stage: "AI Extraction", count: 0, color: "bg-secondary" },
   { stage: "Pending Review", count: 0, color: "bg-amber-500" },
-  { stage: "Completed Today", count: 0, color: "bg-success" },
+  { stage: "Approved", count: 0, color: "bg-success" },
 ];
 
 // ─── Relative Time Helper ──────────────────────────────────────
@@ -241,16 +249,21 @@ const quickActions = [
     name: "Download Excel",
     desc: "Export extracted data",
     icon: FileSpreadsheet,
-    href: "/dashboard/review",
+    // HB-04: this used to open /dashboard/review, which is not an export.
+    href: "/dashboard/documents?export=excel",
     color: "from-success to-emerald-600",
   },
-  {
-    name: "WhatsApp Inbox",
-    desc: "Coming soon",
-    icon: MessageSquare,
-    href: "/dashboard/whatsapp",
-    color: "from-secondary to-cyan-600",
-  },
+  ...(WHATSAPP_LIVE
+    ? [
+        {
+          name: "WhatsApp Inbox",
+          desc: "Documents sent on WhatsApp",
+          icon: MessageSquare,
+          href: "/dashboard/whatsapp",
+          color: "from-secondary to-cyan-600",
+        },
+      ]
+    : []),
 ];
 
 // const usdFormatter = new Intl.NumberFormat("en-US", {
@@ -537,7 +550,9 @@ export default function DashboardPage() {
       { stage: "OCR Running", count: apiStats.processing, color: "bg-primary" },
       { stage: "AI Extraction", count: 0, color: "bg-secondary" },
       { stage: "Pending Review", count: apiStats.review, color: "bg-amber-500" },
-      { stage: "Completed Today", count: apiStats.approved, color: "bg-success" },
+      // HB-02: apiStats.approved is the lifetime total, not today's, so the
+      // stage is labelled for what the number actually is.
+      { stage: "Approved", count: apiStats.approved, color: "bg-success" },
     ].map(p => ({ ...p, count: Math.max(0, p.count) }))
     : pipelineDefaults;
 
@@ -581,7 +596,7 @@ export default function DashboardPage() {
       >
         <TopBar title="Dashboard" />
 
-        <main className="p-6 space-y-6 max-w-[1600px] mx-auto">
+        <main className="mx-auto min-w-0 max-w-[1600px] space-y-6 p-4 sm:p-6">
           {/* Welcome Banner */}
           <motion.div
             initial={{ opacity: 0, y: 20 }}
@@ -600,7 +615,7 @@ export default function DashboardPage() {
                 </h2>
                 <p className="text-sm text-slate-300 mt-1">
                   You have <span className="text-amber-400 font-semibold">{apiStats ? apiStats.review : 0} documents</span> pending review and{" "}
-                  <span className="text-success font-semibold">{apiStats ? apiStats.approved : 0} approved</span> today.
+                  <span className="text-success font-semibold">{apiStats ? apiStats.approved : 0} approved</span> in total.
                 </p>
               </div>
               <Link
@@ -684,12 +699,15 @@ export default function DashboardPage() {
           </AnimatePresence>
 
           {/* Stats Grid */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
             {[
               { ...stats[0], value: apiStats ? apiStats.total : stats[0].value },
               { ...stats[1], value: apiStats ? apiStats.review : stats[1].value },
-              { ...stats[2], value: apiStats ? apiStats.avgConfidence || 94 : stats[2].value },
-              { ...stats[3], value: stats[3].value },
+              // Show the real average confidence. This used to fall back to a
+              // hard-coded 94% whenever the API returned 0, which displayed a
+              // number the platform had not measured.
+              { ...stats[2], value: apiStats ? apiStats.avgConfidence : stats[2].value },
+              ...(WHATSAPP_LIVE ? [{ ...stats[3], value: stats[3].value }] : []),
             ].map((stat, i) => (
               <motion.div
                 key={stat.label}
@@ -751,7 +769,10 @@ export default function DashboardPage() {
             ))}
           </div>
 
-          {/* WhatsApp Automation CTA */}
+          {/* WhatsApp Automation CTA — hidden until a verified WhatsApp
+              Business number is configured. Advertising "+1 (555) 071-0321"
+              beside a "Coming soon" inbox was a launch blocker (CB-09). */}
+          {WHATSAPP_LIVE && (
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
@@ -778,7 +799,7 @@ export default function DashboardPage() {
                   <div className="mt-3 flex items-center gap-3">
                     <div className="flex items-center gap-2 px-3 py-1.5 bg-white/10 rounded-lg">
                       <Smartphone className="w-4 h-4 text-green-200" />
-                      <span className="text-sm font-bold text-white tracking-wide">+1 (555) 071-0321</span>
+                      <span className="text-sm font-bold text-white tracking-wide">{whatsAppDisplayNumber()}</span>
                     </div>
                     <div className="hidden sm:flex items-center gap-1.5 text-xs text-green-200">
                       <CheckCircle2 className="w-3.5 h-3.5" />
@@ -789,7 +810,7 @@ export default function DashboardPage() {
               </div>
               <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 w-full sm:w-auto">
                 <a
-                  href="https://wa.me/15550710321?text=Hi%2C%20I%20want%20to%20process%20a%20document"
+                  href={whatsAppLink("Hi, I want to process a document")}
                   target="_blank"
                   rel="noopener noreferrer"
                   className="inline-flex items-center justify-center gap-2 px-5 py-3 text-sm font-bold text-green-700 bg-white rounded-xl hover:bg-green-50 hover:scale-105 transition-all shadow-lg"
@@ -808,6 +829,7 @@ export default function DashboardPage() {
               </div>
             </div>
           </motion.div>
+          )}
 
           {/* Processing Pipeline */}
           <motion.div
@@ -827,12 +849,12 @@ export default function DashboardPage() {
                 View details
               </Link>
             </div>
-            <div className="flex items-center gap-2">
+            <div className="grid grid-cols-2 items-start gap-3 sm:flex sm:items-center sm:gap-2">
               {pipeline.map((stage, i) => (
-                <div key={stage.stage} className="flex-1">
-                  <div className="flex items-center gap-2 mb-2">
-                    <div className={`w-2.5 h-2.5 rounded-full ${stage.color}`} />
-                    <span className="text-xs text-muted truncate">
+                <div key={stage.stage} className="min-w-0 sm:flex-1">
+                  <div className="mb-2 flex min-w-0 items-center gap-2">
+                    <div className={`h-2.5 w-2.5 shrink-0 rounded-full ${stage.color}`} />
+                    <span className="min-w-0 truncate text-xs text-muted">
                       {stage.stage}
                     </span>
                   </div>

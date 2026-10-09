@@ -26,6 +26,7 @@ import {
 } from "lucide-react";
 import Sidebar from "@/components/dashboard/Sidebar";
 import TopBar from "@/components/dashboard/TopBar";
+import { useSidebarOffset } from "@/lib/useSidebarOffset";
 import { apiFetch, apiUrl, handleUnauthorized } from "@/lib/api";
 
 // ─── Types ──────────────────────────────────────────────────────
@@ -268,6 +269,7 @@ function PlanBadge({ plan }: { plan: string }) {
 
 // ─── Main Page ──────────────────────────────────────────────────
 export default function ReferralsPage() {
+  const sidebarOffset = useSidebarOffset();
   const [codes, setCodes] = useState<ReferralCode[]>([]);
   const [referredUsers, setReferredUsers] = useState<ReferredUser[]>([]);
   const [stats, setStats] = useState<ReferralStats>({
@@ -336,7 +338,7 @@ export default function ReferralsPage() {
     return (
       <div className="min-h-screen bg-slate-50/50">
         <Sidebar />
-        <main className="ml-[260px] p-6">
+        <main style={{ marginLeft: sidebarOffset }} className="p-4 transition-[margin] duration-200 sm:p-6">
           <TopBar title="Referrals" />
           <div className="max-w-2xl mx-auto mt-20 text-center">
             <div className="w-20 h-20 mx-auto mb-6 rounded-2xl bg-slate-100 flex items-center justify-center">
@@ -356,7 +358,7 @@ export default function ReferralsPage() {
   return (
     <div className="min-h-screen bg-slate-50/50">
       <Sidebar />
-      <main className="ml-[260px] p-6">
+      <main style={{ marginLeft: sidebarOffset }} className="p-4 transition-[margin] duration-200 sm:p-6">
         <TopBar title="Referrals" />
 
         <div className="max-w-6xl mx-auto mt-6">

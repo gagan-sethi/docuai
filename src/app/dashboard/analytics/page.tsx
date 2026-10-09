@@ -34,6 +34,7 @@ import {
 } from "lucide-react";
 import Sidebar from "@/components/dashboard/Sidebar";
 import TopBar from "@/components/dashboard/TopBar";
+import { useSidebarOffset } from "@/lib/useSidebarOffset";
 import { apiFetch, apiUrl, handleUnauthorized } from "@/lib/api";
 import { formatMoney } from "@/lib/finance";
 
@@ -104,6 +105,7 @@ interface AnalyticsResult {
 
 // ─── Page ───────────────────────────────────────────────────────
 export default function AnalyticsPage() {
+  const sidebarOffset = useSidebarOffset();
   const [analytics, setAnalytics] = useState<AnalyticsResult | null>(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -151,7 +153,7 @@ export default function AnalyticsPage() {
   return (
     <div className="min-h-screen bg-slate-50/50">
       <Sidebar />
-      <main className="ml-[260px] p-6">
+      <main style={{ marginLeft: sidebarOffset }} className="p-4 transition-[margin] duration-200 sm:p-6">
         <TopBar title="Analytics" />
 
         {/* ─── Header ────────────────────────────────────────── */}
@@ -254,10 +256,13 @@ export default function AnalyticsPage() {
                         ? "warn"
                         : "danger"
                   }
-                  hint="OCR + AI extraction"
+                  hint="Mean confidence, not measured accuracy"
                 />
                 <KpiCard
-                  label="Total Invoiced"
+                  // F-05: this totals every document type, including receipts,
+                  // and the figure is net of VAT — "Total Invoiced … from 1
+                  // invoice" was wrong on both counts.
+                  label="Total Value (net)"
                   value={
                     analytics.kpis.amountCount > 0
                       ? fmtMoney(analytics.kpis.totalAmount, analytics.primaryCurrency)
@@ -267,7 +272,7 @@ export default function AnalyticsPage() {
                   tone="indigo"
                   hint={
                     analytics.kpis.amountCount > 0
-                      ? `from ${fmtNumber(analytics.kpis.amountCount)} invoice${analytics.kpis.amountCount === 1 ? "" : "s"}`
+                      ? `excl. VAT, across ${fmtNumber(analytics.kpis.amountCount)} document${analytics.kpis.amountCount === 1 ? "" : "s"}`
                       : "no totals extracted"
                   }
                 />
@@ -282,7 +287,7 @@ export default function AnalyticsPage() {
                   tone="emerald"
                   hint={
                     analytics.kpis.vatCount > 0
-                      ? `from ${fmtNumber(analytics.kpis.vatCount)} invoice${analytics.kpis.vatCount === 1 ? "" : "s"}`
+                      ? `across ${fmtNumber(analytics.kpis.vatCount)} document${analytics.kpis.vatCount === 1 ? "" : "s"}`
                       : "no VAT extracted"
                   }
                 />
@@ -546,7 +551,7 @@ function MonthlyVatChart({
           <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
             <span className="text-2xl font-extrabold text-slate-900">{fmtMoney(totalVat, currency)}</span>
             <span className="text-xs text-slate-500">
-              total VAT across {fmtNumber(invoiceCount)} invoice{invoiceCount === 1 ? "" : "s"}
+              total VAT across {fmtNumber(invoiceCount)} document{invoiceCount === 1 ? "" : "s"}
             </span>
           </div>
           <p className="text-[11px] text-slate-400 mt-1">Scroll horizontally to view additional months.</p>
@@ -587,7 +592,7 @@ function MonthlyVatChart({
                   rx={4}
                   className="fill-emerald-500/85 hover:fill-emerald-600 transition"
                 >
-                  <title>{`${label}: ${fmtMoney(item.total, currency)} VAT from ${item.count} invoice${item.count === 1 ? "" : "s"}`}</title>
+                  <title>{`${label}: ${fmtMoney(item.total, currency)} VAT from ${item.count} document${item.count === 1 ? "" : "s"}`}</title>
                 </rect>
                 {barW >= 58 && (
                   <text x={x + rectW / 2} y={y - 8} textAnchor="middle" className="fill-slate-600 text-[9px] font-bold">

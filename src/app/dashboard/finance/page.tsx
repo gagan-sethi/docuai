@@ -236,7 +236,7 @@ export default function FinanceDashboardPage() {
     <div className="min-h-screen bg-slate-50">
       <Sidebar />
       <div
-        className="flex flex-col min-h-screen transition-all duration-200"
+        className="flex min-h-screen min-w-0 flex-col transition-all duration-200"
         style={{ marginLeft: sidebarWidth }}
       >
         <TopBar title="Financial Dashboard" />
@@ -404,12 +404,17 @@ export default function FinanceDashboardPage() {
                   trend={profitTrend}
                 />
                 <KpiCard
-                  label="VAT Payable"
-                  // value={formatMoney(totals.vatPayable, totals.currency)}
-                  value={formatCompactMoney(totals.vatPayable, totals.currency)}
+                  // HB-08: below zero the balance is refundable, not payable.
+                  // The VAT report already used that wording; match it here.
+                  label={totals.vatPayable >= 0 ? "VAT Payable" : "VAT Refundable"}
+                  value={formatCompactMoney(Math.abs(totals.vatPayable), totals.currency)}
                   Icon={Percent}
                   tone="indigo"
-                  helper={`Collected − Paid`}
+                  helper={
+                    totals.vatPayable >= 0
+                      ? "Collected − Paid"
+                      : "Paid − Collected (reclaimable)"
+                  }
                   trend={vatTrend}
                 />
                 <KpiCard
@@ -438,8 +443,12 @@ export default function FinanceDashboardPage() {
                       <span className="font-semibold tabular-nums">{formatMoney(totals.vatPaid, totals.currency)}</span>
                     </div>
                     <div className="border-t border-white/20 mt-3 pt-3 flex items-center justify-between">
-                      <span className="font-medium">Total VAT Payable</span>
-                      <span className="text-lg font-bold tabular-nums">{formatMoney(totals.vatPayable, totals.currency)}</span>
+                      <span className="font-medium">
+                        {totals.vatPayable >= 0 ? "Total VAT Payable" : "Total VAT Refundable"}
+                      </span>
+                      <span className="text-lg font-bold tabular-nums">
+                        {formatMoney(Math.abs(totals.vatPayable), totals.currency)}
+                      </span>
                     </div>
                   </div>
                   <Link
