@@ -127,14 +127,20 @@ export default function DemoSection() {
             invoice: document type, supplier, VAT and line items, each with a
             confidence score.
           </p>
-          <p className="mx-auto mt-5 inline-flex max-w-xl items-start gap-2 rounded-xl border border-amber-200 bg-amber-50 px-4 py-2.5 text-left text-sm font-medium text-amber-800">
-            <Info className="mt-0.5 h-4 w-4 shrink-0" />
-            This is a fixed sample, not a live extraction. Nothing you drop here
-            is uploaded or processed.{" "}
-            <Link href="/signup" className="underline">
+          <p className="mx-auto mt-4 max-w-xl text-sm leading-relaxed text-slate-500">
+            <Info
+              className="mr-1.5 inline-block h-4 w-4 -translate-y-px text-slate-400"
+              aria-hidden
+            />
+            Nothing you drop here is uploaded — the result below is always the
+            same sample invoice.{" "}
+            <Link
+              href="/signup"
+              className="font-medium text-primary underline-offset-2 hover:underline"
+            >
               Create a free account
             </Link>{" "}
-            to run your own documents.
+            to process your own documents.
           </p>
         </motion.div>
 
@@ -210,8 +216,7 @@ export default function DemoSection() {
                         Preview the extraction walkthrough
                       </p>
                       <p className="text-sm text-muted mt-2">
-                        Your file stays on your device — the walkthrough always
-                        shows the same sample invoice
+                        Drop a file or use the sample below
                       </p>
                       <button
                         onClick={(e) => {
@@ -316,7 +321,7 @@ export default function DemoSection() {
                           Sample extraction result
                         </h3>
                         <p className="text-sm text-muted">
-                          Fixed sample output • not a live extraction
+                          Sample invoice • fields Invonix returns
                         </p>
                       </div>
                     </div>
