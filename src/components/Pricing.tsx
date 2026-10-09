@@ -7,396 +7,20 @@ import {
   CheckCircle2,
   Database,
   FileText,
+  Layers,
   Loader2,
   Sparkles,
   Tag,
   Users,
 } from "lucide-react";
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
-import { API_BASE_URL, apiFetch, apiUrl } from "@/lib/api";
-
-type CampaignDiscount = {
-  type?: "fixed" | "percentage";
-  value?: number;
-  name?: string;
-  label?: string;
-  startDate?: string;
-  endDate?: string;
-};
-
-type PlanOption = {
-  _id?: string;
-  id?: string;
-  name?: string;
-  label?: string;
-  description?: string;
-  price?: number | string;
-  discountedPrice?: number | string;
-  currency?: string;
-  discountApplied?: boolean;
-  appliedDiscountPercent?: number;
-  discountPercent?: number;
-  interval?: string;
-  documentsPerMonth?: number | string;
-  pagesPerMonth?: number | string;
-  usersLimit?: number | string;
-  companyLimit?: number | string;
-  storageLimitBytes?: number;
-  features?: string[] | string;
-  visibility?: "public" | "hidden";
-  isActive?: boolean;
-  isTrial?: boolean;
-  trialDays?: number;
-  isTrialEligible?: boolean;
-  hasUsedTrial?: boolean;
-  campaignDiscount?: CampaignDiscount | null;
-};
-
-type PlanListResponse = {
-  success?: boolean;
-  data?: unknown;
-  error?: string;
-};
-
-type DisplayPlan = PlanOption & {
-  key: string;
-  displayName: string;
-  displayPrice: string;
-  originalPrice?: string;
-  period: string;
-  billingNote: string;
-  positioning: string;
-  description: string;
-  features: string[];
-  cta: string;
-  popular: boolean;
-  badge?: string;
-  docsDisplay: string;
-  userDisplay?: string;
-  companyDisplay?: string;
-  storageDisplay?: string;
-  isEnterprise: boolean;
-  isFree: boolean;
-  hasDiscount: boolean;
-  monthlyEquivalent: number;
-};
-
-const fallbackPlans: PlanOption[] = [
-  {
-    name: "Starter",
-    label: "Starter",
-    price: 49,
-    interval: "month",
-    features: [
-      "100 documents/month",
-      "AI document extraction",
-      "Expense tracking",
-      "Excel & CSV export",
-      "Basic financial dashboard",
-      "1 user account",
-    ],
-  },
-  {
-    name: "Professional",
-    label: "Professional",
-    price: 149,
-    interval: "month",
-    features: [
-      "1,000 documents/month",
-      "Everything in Starter",
-      "WhatsApp processing",
-      "Batch processing",
-      "VAT reporting",
-      "Financial analytics",
-      "5 user accounts",
-      "Priority support",
-    ],
-  },
-  {
-    name: "Accounting Firm",
-    label: "Accounting Firm",
-    price: 299,
-    interval: "month",
-    features: [
-      "Multi-company management",
-      "Client workspaces",
-      "Partner dashboard",
-      "Referral tracking",
-      "Bulk document review",
-      "Recurring commission support",
-      "Team permissions",
-    ],
-  },
-  {
-    name: "Enterprise",
-    label: "Enterprise",
-    price: 0,
-    interval: "",
-    features: [
-      "Unlimited document volume",
-      "Everything in Professional",
-      "ERP and accounting integrations",
-      "Custom approval workflows",
-      "Role-based access",
-      "Audit logs",
-      "Dedicated account manager",
-      "SLA support",
-    ],
-  },
-];
-
-const defaultFeatures = [
-  "AI document extraction",
-  "Excel and CSV export",
-  "Financial dashboard",
-];
-
-const quotaFeaturePattern =
-  /\b(documents?\s+per\s+month|users?\s+limit|company\s+limit|storage\s+limit)\b/i;
-
-function toNumber(value: number | string | undefined): number | undefined {
-  if (typeof value === "number" && Number.isFinite(value)) return value;
-  if (typeof value === "string") {
-    const parsed = Number(value.replace(/,/g, ""));
-    return Number.isFinite(parsed) ? parsed : undefined;
-  }
-  return undefined;
-}
-
-function currencyCode(plan: PlanOption): string {
-  const code = (plan.currency || "USD").toUpperCase();
-  return /^[A-Z]{3}$/.test(code) ? code : "USD";
-}
-
-function isMinorUnitAmount(plan: PlanOption, amount: number): boolean {
-  const interval = plan.interval?.toLowerCase();
-  if (!Number.isInteger(amount) || amount <= 0) return false;
-
-  if (amount >= 10000) return true;
-  if (interval === "year" && amount >= 1000) return true;
-
-  return false;
-}
-
-function moneyAmount(plan: PlanOption, value: number | string | undefined): number {
-  const amount = toNumber(value) ?? 0;
-  return isMinorUnitAmount(plan, amount) ? amount / 100 : amount;
-}
-
-function formatMoney(amount: number, currency: string): string {
-  try {
-    return new Intl.NumberFormat("en-US", {
-      style: "currency",
-      currency,
-      maximumFractionDigits: Number.isInteger(amount) ? 0 : 2,
-    }).format(amount);
-  } catch {
-    return new Intl.NumberFormat("en-US", {
-      style: "currency",
-      currency: "USD",
-      maximumFractionDigits: Number.isInteger(amount) ? 0 : 2,
-    }).format(amount);
-  }
-}
-
-function formatPeriod(interval?: string): string {
-  switch (interval?.toLowerCase()) {
-    case "month":
-      return "/mo";
-    case "year":
-      return "/yr";
-    case "week":
-      return "/wk";
-    default:
-      return interval ? `/${interval}` : "";
-  }
-}
-
-function formatNumber(value: number): string {
-  return new Intl.NumberFormat("en-US").format(value);
-}
-
-function formatLimit(
-  value: number | string | undefined,
-  singular: string,
-  plural: string
-): string | undefined {
-  if (value === undefined || value === null || value === "") return undefined;
-
-  if (typeof value === "string") {
-    return value.toLowerCase() === "unlimited"
-      ? `Unlimited ${plural}`
-      : `${value} ${plural}`;
-  }
-
-  return `${formatNumber(value)} ${value === 1 ? singular : plural}`;
-}
-
-function formatStorage(bytes?: number): string | undefined {
-  if (!bytes || bytes <= 0) return undefined;
-
-  const gigabytes = bytes / 1024 / 1024 / 1024;
-  const formatted =
-    gigabytes >= 10 ? Math.round(gigabytes).toString() : gigabytes.toFixed(1);
-
-  return `${formatted.replace(/\.0$/, "")} GB storage`;
-}
-
-function cleanFeature(feature: string): string {
-  return feature
-    .trim()
-    .replace(/\bapi\b/gi, "API")
-    .replace(/\bvat\b/gi, "VAT")
-    .replace(/\bwhatsapp\b/gi, "WhatsApp")
-    .replace(/\s+/g, " ");
-}
-
-function getFeatures(plan: PlanOption): string[] {
-  const rawFeatures = Array.isArray(plan.features)
-    ? plan.features
-    : typeof plan.features === "string"
-    ? plan.features.split(",")
-    : defaultFeatures;
-
-  const cleaned = rawFeatures
-    .map((feature) => cleanFeature(String(feature)))
-    .filter(Boolean)
-    .filter((feature) => !quotaFeaturePattern.test(feature));
-
-  return Array.from(new Set(cleaned)).slice(0, 7);
-}
-
-function isPublicPlan(plan: PlanOption): boolean {
-  return plan.visibility !== "hidden" && plan.isActive !== false;
-}
-
-function getPlanPositioning(plan: PlanOption, isFree: boolean): string {
-  const name = `${plan.name || ""} ${plan.label || ""}`.toLowerCase();
-
-  if (isFree) return "Start automating";
-  if (name.includes("professional") || name.includes("pro")) {
-    return "Growing finance teams";
-  }
-  if (name.includes("accounting") || name.includes("firm")) {
-    return "Accounting firms";
-  }
-  if (name.includes("enterprise")) return "Large operations";
-  if (plan.interval?.toLowerCase() === "year") return "Annual billing";
-
-  return "Small businesses";
-}
-
-function getPlanDescription(
-  plan: PlanOption,
-  displayName: string,
-  isFree: boolean
-): string {
-  if (plan.description?.trim()) return plan.description.trim();
-
-  if (isFree) {
-    return "For testing document automation before your finance volume grows.";
-  }
-
-  return `${displayName} for document capture, finance reporting, and team workflows.`;
-}
-
-function getDiscountLabel(plan: PlanOption): string | undefined {
-  if (plan.campaignDiscount?.label) return plan.campaignDiscount.label;
-
-  const percent = plan.appliedDiscountPercent || plan.discountPercent;
-  if (plan.discountApplied && percent && percent > 0) {
-    return `${percent}% off`;
-  }
-
-  return undefined;
-}
-
-function mapPlan(plan: PlanOption, index: number): DisplayPlan {
-  const displayName = plan.label || plan.name || "Plan";
-  const currency = currencyCode(plan);
-  const basePrice = moneyAmount(plan, plan.price);
-  const discountedPrice = moneyAmount(plan, plan.discountedPrice);
-  const hasDiscount =
-    plan.discountApplied === true &&
-    discountedPrice > 0 &&
-    discountedPrice < basePrice;
-  const payablePrice = hasDiscount ? discountedPrice : basePrice;
-  const nameForChecks = `${plan.name || ""} ${plan.label || ""}`.toLowerCase();
-  const isEnterprise = nameForChecks.includes("enterprise");
-  const isFree = !isEnterprise && basePrice === 0;
-  const isAnnual = plan.interval?.toLowerCase() === "year";
-  const monthlyEquivalent = isAnnual ? payablePrice / 12 : payablePrice;
-  const isPopular =
-    nameForChecks.includes("professional") ||
-    nameForChecks.includes("popular") ||
-    (isAnnual && payablePrice > 0);
-  const discountLabel = getDiscountLabel(plan);
-  const docsDisplay =
-    formatLimit(plan.documentsPerMonth, "doc/mo", "docs/mo") ||
-    "Unlimited docs";
-  const userDisplay = formatLimit(plan.usersLimit, "user", "users");
-  const companyDisplay = formatLimit(plan.companyLimit, "company", "companies");
-  const storageDisplay = formatStorage(plan.storageLimitBytes);
-
-  let displayPrice = isFree ? "Free" : formatMoney(payablePrice, currency);
-  if (isEnterprise) displayPrice = "Custom";
-
-  let billingNote = isFree ? "No credit card required" : "Monthly billing";
-  if (isEnterprise) {
-    billingNote = "Tailored pricing and onboarding";
-  } else if (isAnnual && payablePrice > 0) {
-    billingNote = `${formatMoney(monthlyEquivalent, currency)}/mo billed yearly`;
-  } else if (hasDiscount) {
-    billingNote = "Discount applied at checkout";
-  }
-
-  let cta = "Choose Plan";
-  if (isFree) cta = "Get Started";
-  if (isEnterprise) cta = "Contact Sales";
-  if (!isFree && !isEnterprise && plan.isTrial && (plan.trialDays ?? 0) > 0) {
-    cta = `Start ${plan.trialDays}-Day Trial`;
-  }
-
-  return {
-    ...plan,
-    key: String(plan._id || plan.id || `${displayName}-${index}`),
-    displayName,
-    displayPrice,
-    originalPrice: hasDiscount ? formatMoney(basePrice, currency) : undefined,
-    period: isFree || isEnterprise ? "" : formatPeriod(plan.interval),
-    billingNote,
-    positioning: getPlanPositioning(plan, isFree),
-    description: getPlanDescription(plan, displayName, isFree),
-    features: getFeatures(plan),
-    cta,
-    popular: isPopular,
-    badge: discountLabel || (isAnnual && payablePrice > 0 ? "Best value" : undefined),
-    docsDisplay,
-    userDisplay,
-    companyDisplay,
-    storageDisplay,
-    isEnterprise,
-    isFree,
-    hasDiscount,
-    monthlyEquivalent,
-  };
-}
-
-function sortPlans(plans: DisplayPlan[]): DisplayPlan[] {
-  return [...plans].sort((a, b) => {
-    if (a.isEnterprise !== b.isEnterprise) return a.isEnterprise ? 1 : -1;
-    if (a.isFree !== b.isFree) return a.isFree ? -1 : 1;
-    return a.monthlyEquivalent - b.monthlyEquivalent;
-  });
-}
-
-function gridClass(planCount: number): string {
-  if (planCount <= 1) return "max-w-md";
-  if (planCount === 2) return "max-w-4xl md:grid-cols-2";
-  if (planCount === 3) return "max-w-6xl md:grid-cols-2 lg:grid-cols-3";
-  return "max-w-7xl md:grid-cols-2 xl:grid-cols-4";
-}
+import { useEffect, useState } from "react";
+import {
+  loadPublicPlans,
+  planSignupHref,
+  type DisplayPlan,
+} from "@/lib/plans";
+import { TRIAL_ENABLED, TRIAL_DAYS } from "@/lib/siteConfig";
 
 function PricingHeader({ loading }: { loading?: boolean }) {
   return (
@@ -405,19 +29,24 @@ function PricingHeader({ loading }: { loading?: boolean }) {
       whileInView={{ opacity: 1, y: 0 }}
       viewport={{ once: true, margin: "-100px" }}
       transition={{ duration: 0.6 }}
-      className="text-center max-w-3xl mx-auto mb-14"
+      className="mx-auto mb-14 max-w-3xl text-center"
     >
-      <span className="inline-flex items-center gap-2 text-sm font-semibold text-primary tracking-wide uppercase mb-3">
-        {loading && <Loader2 className="w-4 h-4 animate-spin" />}
+      <span className="mb-3 inline-flex items-center gap-2 text-sm font-semibold uppercase tracking-wide text-primary">
+        {loading && <Loader2 className="h-4 w-4 animate-spin" />}
         Pricing
       </span>
-      <h2 className="text-3xl sm:text-4xl lg:text-5xl font-bold tracking-tight">
+      <h2 className="text-3xl font-bold tracking-tight sm:text-4xl lg:text-5xl">
         Plans for every{" "}
         <span className="gradient-text">finance automation stage</span>
       </h2>
-      <p className="mt-5 text-lg text-muted leading-relaxed">
-        Start with document automation, add WhatsApp, VAT reporting, client
-        management, and enterprise controls as your finance operations grow.
+      <p className="mt-5 text-lg leading-relaxed text-muted">
+        Start with document automation, then add VAT reporting, multi-company
+        and team controls as your finance operations grow.
+      </p>
+      <p className="mt-4 text-sm font-medium text-slate-500">
+        {TRIAL_ENABLED
+          ? `All paid plans include a ${TRIAL_DAYS}-day free trial. No credit card required to start.`
+          : "Start on the free plan — no credit card required. Upgrade when your volume grows."}
       </p>
     </motion.div>
   );
@@ -427,9 +56,9 @@ function PricingSkeleton() {
   return (
     <section id="pricing" className="relative py-24 lg:py-32">
       <div className="absolute inset-0 bg-gradient-to-b from-white via-surface to-white" />
-      <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+      <div className="relative mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
         <PricingHeader loading />
-        <div className="grid grid-cols-1 gap-6 max-w-6xl mx-auto md:grid-cols-2 lg:grid-cols-3">
+        <div className="mx-auto grid max-w-6xl grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-3">
           {[0, 1, 2].map((item) => (
             <div
               key={item}
@@ -452,13 +81,7 @@ function PricingSkeleton() {
   );
 }
 
-function PlanMeta({
-  icon: Icon,
-  text,
-}: {
-  icon: typeof FileText;
-  text?: string;
-}) {
+function PlanMeta({ icon: Icon, text }: { icon: typeof FileText; text?: string }) {
   if (!text) return null;
 
   return (
@@ -477,9 +100,7 @@ function PricingCard({ plan, index }: { plan: DisplayPlan; index: number }) {
       viewport={{ once: true }}
       transition={{ duration: 0.5, delay: index * 0.08 }}
       className={`relative flex h-full min-h-[560px] flex-col rounded-2xl border bg-white p-6 shadow-sm transition-all duration-300 hover:-translate-y-1 hover:shadow-xl hover:shadow-slate-200/60 ${
-        plan.popular
-          ? "border-primary/35 ring-1 ring-primary/15"
-          : "border-slate-100"
+        plan.popular ? "border-primary/35 ring-1 ring-primary/15" : "border-slate-100"
       }`}
     >
       <div className="flex min-h-[42px] items-start justify-between gap-3">
@@ -500,9 +121,7 @@ function PricingCard({ plan, index }: { plan: DisplayPlan; index: number }) {
       </div>
 
       <div className="mt-5">
-        <h3 className="text-xl font-bold text-slate-950">
-          {plan.displayName}
-        </h3>
+        <h3 className="text-xl font-bold text-slate-950">{plan.displayName}</h3>
         <p className="mt-3 min-h-[66px] text-sm leading-relaxed text-muted">
           {plan.description}
         </p>
@@ -519,36 +138,31 @@ function PricingCard({ plan, index }: { plan: DisplayPlan; index: number }) {
             {plan.displayPrice}
           </span>
           {plan.period && (
-            <span className="pb-1 text-sm font-semibold text-muted">
-              {plan.period}
-            </span>
+            <span className="pb-1 text-sm font-semibold text-muted">{plan.period}</span>
           )}
         </div>
-        <p className="mt-2 min-h-[20px] text-sm text-slate-500">
-          {plan.billingNote}
-        </p>
+        <p className="mt-2 min-h-[20px] text-sm text-slate-500">{plan.billingNote}</p>
       </div>
 
       <div className="grid gap-2 pb-5">
         <PlanMeta icon={FileText} text={plan.docsDisplay} />
+        <PlanMeta icon={Layers} text={plan.pagesDisplay} />
         <PlanMeta icon={Users} text={plan.userDisplay} />
         <PlanMeta icon={Building2} text={plan.companyDisplay} />
         <PlanMeta icon={Database} text={plan.storageDisplay} />
       </div>
 
-      <ul className="space-y-3 border-t border-slate-100 pt-5 flex-1">
-        {plan.features.map((feature) => (
+      <ul className="flex-1 space-y-3 border-t border-slate-100 pt-5">
+        {plan.features.slice(0, 7).map((feature) => (
           <li key={feature} className="flex items-start gap-3">
             <CheckCircle2 className="mt-0.5 h-5 w-5 flex-shrink-0 text-success" />
-            <span className="text-sm leading-relaxed text-slate-600">
-              {feature}
-            </span>
+            <span className="text-sm leading-relaxed text-slate-600">{feature}</span>
           </li>
         ))}
       </ul>
 
       <Link
-        href={plan.isEnterprise ? "#demo" : "/signup"}
+        href={planSignupHref(plan)}
         className={`btn-shine group mt-7 inline-flex w-full items-center justify-center gap-2 rounded-2xl px-5 py-3.5 text-sm font-semibold transition-all duration-200 ${
           plan.popular
             ? "bg-gradient-to-r from-primary to-primary-dark text-white shadow-lg shadow-primary/25 hover:shadow-primary/40"
@@ -562,70 +176,32 @@ function PricingCard({ plan, index }: { plan: DisplayPlan; index: number }) {
   );
 }
 
+function gridClass(planCount: number): string {
+  if (planCount <= 1) return "max-w-md";
+  if (planCount === 2) return "max-w-4xl md:grid-cols-2";
+  if (planCount === 3) return "max-w-6xl md:grid-cols-2 lg:grid-cols-3";
+  return "max-w-7xl md:grid-cols-2 xl:grid-cols-4";
+}
+
 export default function Pricing() {
-  const [plans, setPlans] = useState<PlanOption[]>([]);
+  const [plans, setPlans] = useState<DisplayPlan[]>([]);
   const [loading, setLoading] = useState(true);
   const [source, setSource] = useState<"backend" | "fallback">("fallback");
 
   useEffect(() => {
     let cancelled = false;
 
-    async function fetchPlans() {
-      try {
-        setLoading(true);
-
-        if (!API_BASE_URL) {
-          if (!cancelled) {
-            setPlans(fallbackPlans);
-            setSource("fallback");
-          }
-          return;
-        }
-
-        const res = await apiFetch(apiUrl("/api/plan/list"), {
-          credentials: "include",
-        });
-
-        if (!res.ok) {
-          throw new Error(`Plan list request failed with ${res.status}`);
-        }
-
-        const json = (await res.json()) as PlanListResponse;
-        const apiPlans = Array.isArray(json.data)
-          ? (json.data as PlanOption[])
-          : [];
-        const publicPlans = apiPlans.filter(isPublicPlan);
-
-        if (!json.success || publicPlans.length === 0) {
-          throw new Error(json.error || "No public plans returned");
-        }
-
-        if (!cancelled) {
-          setPlans(publicPlans);
-          setSource("backend");
-        }
-      } catch (err) {
-        console.warn("Falling back to local pricing plans", err);
-        if (!cancelled) {
-          setPlans(fallbackPlans);
-          setSource("fallback");
-        }
-      } finally {
-        if (!cancelled) setLoading(false);
-      }
-    }
-
-    fetchPlans();
+    loadPublicPlans().then((result) => {
+      if (cancelled) return;
+      setPlans(result.plans);
+      setSource(result.source);
+      setLoading(false);
+    });
 
     return () => {
       cancelled = true;
     };
   }, []);
-
-  const sortedPlans = useMemo(
-    () => sortPlans(plans.map((plan, index) => mapPlan(plan, index))),
-    [plans]
-  );
 
   if (loading) {
     return <PricingSkeleton />;
@@ -635,20 +211,18 @@ export default function Pricing() {
     <section
       id="pricing"
       data-pricing-source={source}
-      data-plan-count={sortedPlans.length}
+      data-plan-count={plans.length}
       className="relative py-24 lg:py-32"
     >
       <div className="absolute inset-0 bg-gradient-to-b from-white via-surface to-white" />
 
-      <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+      <div className="relative mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
         <PricingHeader />
 
         <div
-          className={`grid grid-cols-1 gap-6 mx-auto items-stretch ${gridClass(
-            sortedPlans.length
-          )}`}
+          className={`mx-auto grid grid-cols-1 items-stretch gap-6 ${gridClass(plans.length)}`}
         >
-          {sortedPlans.map((plan, i) => (
+          {plans.map((plan, i) => (
             <PricingCard key={plan.key} plan={plan} index={i} />
           ))}
         </div>
