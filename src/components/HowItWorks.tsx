@@ -52,7 +52,7 @@ const steps = [
     step: "05",
     title: "Export & Integrate",
     description:
-      "Export to Excel, CSV, or accounting systems and use the same data for dashboards, VAT, and reports.",
+      "Export to Excel or CSV, ready to import into QuickBooks, Xero or Zoho Books, and use the same data for dashboards, VAT, and reports.",
     color: "#f97316",
     detail: "Excel, CSV, integrations",
   },

@@ -24,11 +24,12 @@ const intelligenceFeatures = [
   { title: "Business Performance Monitoring", icon: Briefcase, color: "#475569" },
 ];
 
+/** Illustrative figures for the product mock-up, in AED to match the VAT framing. */
 const dashboardRows = [
-  { label: "Sales invoices", value: "$126,480", delta: "+18%" },
-  { label: "Expense invoices", value: "$47,920", delta: "-6%" },
-  { label: "VAT payable", value: "$8,140", delta: "Due" },
-  { label: "Net profit", value: "$78,560", delta: "+24%" },
+  { label: "Sales invoices", value: "AED 126,480", delta: "+18%" },
+  { label: "Expense invoices", value: "AED 47,920", delta: "-6%" },
+  { label: "VAT payable", value: "AED 8,140", delta: "Due" },
+  { label: "Net profit", value: "AED 78,560", delta: "+24%" },
 ];
 
 export default function FinancialIntelligence() {
@@ -91,7 +92,7 @@ export default function FinancialIntelligence() {
             whileInView={{ opacity: 1, x: 0 }}
             viewport={{ once: true, margin: "-100px" }}
             transition={{ duration: 0.7, delay: 0.2 }}
-            className="rounded-3xl border border-white/10 bg-white/[0.06] p-5 sm:p-6 shadow-2xl shadow-black/20"
+            className="w-full max-w-full min-w-0 rounded-3xl border border-white/10 bg-white/[0.06] p-4 shadow-2xl shadow-black/20 sm:p-6"
           >
             <div className="rounded-2xl bg-white text-slate-900 overflow-hidden">
               <div className="flex items-center justify-between px-5 py-4 border-b border-slate-100">

@@ -24,11 +24,23 @@ import {
   TrendingUp,
 } from "lucide-react";
 import Link from "next/link";
+import {
+  PRIMARY_CTA_LABEL,
+  TRIAL_DAYS,
+  TRIAL_ENABLED,
+  WHATSAPP_LIVE,
+} from "@/lib/siteConfig";
 
-const proofStats = [
-  { value: "500+", label: "Businesses" },
-  { value: "50,000+", label: "Documents processed" },
-  { value: "90%+", label: "OCR accuracy" },
+/**
+ * Capability facts only. The previous "500+ businesses / 50,000+ documents /
+ * 90%+ accuracy" figures could not be substantiated against the platform's
+ * own data and were a launch blocker (CB-01, Oct 2026 QA review). Anything
+ * added here must be verifiable from the product itself.
+ */
+const capabilityProof = [
+  { title: "4 document types", detail: "Invoices, receipts, POs, VAT records" },
+  { title: "AED + multi-currency", detail: "TRN, tax rate and VAT captured" },
+  { title: "Excel & CSV export", detail: "Ready for QuickBooks, Xero, Zoho" },
 ];
 
 const typingPhrases = [
@@ -40,7 +52,9 @@ const typingPhrases = [
 
 const heroHighlights = [
   { text: "AI OCR + validation", icon: Sparkles },
-  { text: "WhatsApp document intake", icon: MessageCircle },
+  ...(WHATSAPP_LIVE
+    ? [{ text: "WhatsApp document intake", icon: MessageCircle }]
+    : []),
   { text: "VAT-ready exports", icon: FileSpreadsheet },
 ];
 
@@ -63,7 +77,7 @@ const workspaceMetrics = [
   },
   {
     label: "VAT payable",
-    value: "$4,620",
+    value: "AED 4,620",
     detail: "current period",
     icon: Table2,
     tone: "text-amber-600",
@@ -75,7 +89,7 @@ const documentRows = [
   {
     name: "Invoice_4821.pdf",
     source: "Trading supplier",
-    amount: "$3,240",
+    amount: "AED 3,240",
     status: "Validated",
     icon: FileText,
     color: "text-primary",
@@ -83,7 +97,7 @@ const documentRows = [
   {
     name: "Receipt_DXB.jpg",
     source: "Retail expense",
-    amount: "$186",
+    amount: "AED 186",
     status: "Review",
     icon: Receipt,
     color: "text-rose-500",
@@ -91,7 +105,7 @@ const documentRows = [
   {
     name: "VAT_Report.csv",
     source: "Tax summary",
-    amount: "$4,620",
+    amount: "AED 4,620",
     status: "Ready",
     icon: Table2,
     color: "text-emerald-600",
@@ -101,7 +115,7 @@ const documentRows = [
 const extractedFields = [
   { label: "Supplier", value: "Acme Supplies LLC", confidence: "98%" },
   { label: "Document type", value: "Expense invoice", confidence: "99%" },
-  { label: "VAT amount", value: "$620.00", confidence: "97%" },
+  { label: "VAT amount", value: "AED 602.00", confidence: "97%" },
   { label: "Category", value: "Office supplies", confidence: "96%" },
 ];
 
@@ -230,7 +244,7 @@ export default function Hero() {
               className="inline-flex items-center gap-2 rounded-full border border-primary/15 bg-white/90 px-4 py-2 text-sm font-semibold text-primary shadow-sm shadow-primary/10"
             >
               <BadgeCheck className="h-4 w-4" />
-              <span>Trusted across the UAE, GCC & Africa</span>
+              <span>Built for finance teams in the UAE, GCC &amp; Africa</span>
             </motion.div>
 
             <h1 className="mt-7 max-w-3xl text-4xl font-extrabold leading-[1.03] tracking-tight text-slate-950 sm:text-5xl lg:text-6xl">
@@ -240,8 +254,8 @@ export default function Hero() {
 
             <p className="mx-auto mt-6 max-w-2xl text-lg leading-relaxed text-slate-600 sm:text-xl lg:mx-0">
               Capture, verify, and export invoices, receipts, purchase orders,
-              and VAT records from upload or WhatsApp. Invonix turns every file
-              into accounting-ready data with human review built in.
+              and VAT records. Invonix turns every file into accounting-ready
+              data, with human review built in.
             </p>
 
             <div className="mt-8 flex flex-col items-center gap-4 sm:flex-row lg:justify-start">
@@ -250,21 +264,21 @@ export default function Hero() {
                 className="btn-shine group inline-flex w-full items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-primary-dark via-primary to-secondary px-7 py-4 text-base font-semibold text-white shadow-xl shadow-primary/25 transition-all duration-200 hover:scale-[1.03] hover:shadow-primary/40 sm:w-auto"
               >
                 <Upload className="h-5 w-5" />
-                Start Free Trial
+                {PRIMARY_CTA_LABEL}
                 <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-1" />
               </Link>
               <Link
-                href="#demo"
+                href="/contact"
                 className="inline-flex w-full items-center justify-center rounded-xl border border-slate-200 bg-white px-7 py-4 text-base font-semibold text-slate-800 shadow-sm transition-all duration-200 hover:border-primary/30 hover:bg-primary/5 hover:text-primary sm:w-auto"
               >
-                Book Demo
+                Talk to Sales
               </Link>
             </div>
 
             <div className="mt-6 flex flex-wrap items-center justify-center gap-x-4 gap-y-2 text-sm font-medium text-slate-500 lg:justify-start">
               <span className="inline-flex items-center gap-1.5">
                 <CheckCircle2 className="h-4 w-4 text-emerald-600" />
-                Free 14-day trial
+                {TRIAL_ENABLED ? `Free ${TRIAL_DAYS}-day trial` : "Free plan to start"}
               </span>
               <span className="inline-flex items-center gap-1.5">
                 <ShieldCheck className="h-4 w-4 text-primary" />
@@ -273,17 +287,17 @@ export default function Hero() {
             </div>
 
             <div className="mx-auto mt-8 max-w-2xl overflow-hidden rounded-2xl border border-slate-200 bg-white/85 shadow-sm shadow-slate-200/70 lg:mx-0">
-              <div className="grid grid-cols-3 divide-x divide-slate-200">
-                {proofStats.map((stat) => (
+              <div className="grid divide-y divide-slate-200 sm:grid-cols-3 sm:divide-x sm:divide-y-0">
+                {capabilityProof.map((item) => (
                   <div
-                    key={stat.label}
-                    className="px-3 py-4 text-left sm:px-5 sm:py-5"
+                    key={item.title}
+                    className="px-4 py-3.5 text-left sm:px-5 sm:py-4"
                   >
-                    <p className="text-2xl font-extrabold tracking-tight text-slate-950 sm:text-3xl">
-                      {stat.value}
+                    <p className="text-sm font-extrabold tracking-tight text-slate-950">
+                      {item.title}
                     </p>
-                    <p className="mt-1 text-xs font-medium leading-snug text-slate-500 sm:text-sm">
-                      {stat.label}
+                    <p className="mt-1 text-xs font-medium leading-snug text-slate-500">
+                      {item.detail}
                     </p>
                   </div>
                 ))}
@@ -484,22 +498,22 @@ export default function Hero() {
           <div className="grid gap-8 lg:grid-cols-[0.76fr_1.24fr] lg:items-center">
             <div>
               <p className="text-sm font-bold uppercase tracking-widest text-primary">
-                Trusted By
+                Built For
               </p>
               <h2 className="mt-3 text-2xl font-extrabold tracking-tight text-slate-950 sm:text-3xl">
-                Trusted by Businesses Across the UAE, GCC & Africa
+                Finance teams across the UAE, GCC &amp; Africa
               </h2>
               <p className="mt-4 max-w-2xl text-base leading-relaxed text-slate-600">
                 Built for teams that manage invoices, receipts, purchase
                 documents, VAT records, and client exports at regional scale.
               </p>
               <div className="mt-5 flex flex-wrap gap-2">
-                {proofStats.map((stat) => (
+                {capabilityProof.map((item) => (
                   <span
-                    key={stat.label}
+                    key={item.title}
                     className="rounded-full border border-slate-200 bg-white px-3 py-1.5 text-xs font-bold text-slate-700 shadow-sm shadow-slate-200/50"
                   >
-                    {stat.value} {stat.label}
+                    {item.title}
                   </span>
                 ))}
               </div>

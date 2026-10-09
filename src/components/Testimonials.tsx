@@ -3,66 +3,55 @@
 import { motion } from "framer-motion";
 import { Star, Quote } from "lucide-react";
 
-const testimonials = [
-  {
-    name: "Sarah Al-Mansoori",
-    role: "Finance Director",
-    company: "Trading Company, UAE",
-    content:
-      "Invonix transformed our month-end invoice and VAT workflow. What used to take hours now takes minutes, and our finance team has clearer visibility.",
-    rating: 5,
-    avatar: "SA",
-  },
-  {
-    name: "Ahmed Khalil",
-    role: "Operations Manager",
-    company: "Logistics Company, GCC",
-    content:
-      "The WhatsApp processing is a game-changer. Receipts and supplier invoices arrive from the field and become structured finance data automatically.",
-    rating: 5,
-    avatar: "AK",
-  },
-  {
-    name: "Maria Chen",
-    role: "Head of Accounting",
-    company: "Manufacturing Company, Africa",
-    content:
-      "We process over 500 financial documents monthly. Invonix handles different formats, categories, and exports in a way that fits our accounting workflow.",
-    rating: 5,
-    avatar: "MC",
-  },
-];
+interface Testimonial {
+  name: string;
+  role: string;
+  company: string;
+  content: string;
+  rating: number;
+  avatar: string;
+}
+
+/**
+ * EMPTY BY DESIGN.
+ *
+ * This section previously carried three quotes attributed to named people
+ * ("Sarah Al-Mansoori", "Ahmed Khalil", "Maria Chen") who are not customers
+ * of the platform. Publishing invented testimonials was a launch blocker
+ * (CB-02, Oct 2026 QA review), so the data has been removed and the section
+ * renders nothing while the list is empty.
+ *
+ * Only add an entry here once the named customer has given written consent to
+ * be quoted, and keep that consent on file.
+ */
+const testimonials: Testimonial[] = [];
 
 export default function Testimonials() {
+  if (testimonials.length === 0) return null;
+
   return (
     <section className="relative py-24 lg:py-32">
       <div className="absolute inset-0 bg-gradient-to-b from-surface via-white to-surface" />
 
-      <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+      <div className="relative mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
         {/* Section Header */}
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           whileInView={{ opacity: 1, y: 0 }}
           viewport={{ once: true, margin: "-100px" }}
           transition={{ duration: 0.6 }}
-          className="text-center max-w-3xl mx-auto mb-16"
+          className="mx-auto mb-16 max-w-3xl text-center"
         >
-          <span className="inline-block text-sm font-semibold text-primary tracking-wide uppercase mb-3">
+          <span className="mb-3 inline-block text-sm font-semibold uppercase tracking-wide text-primary">
             Testimonials
           </span>
-          <h2 className="text-3xl sm:text-4xl lg:text-5xl font-bold tracking-tight">
-            Trusted across{" "}
-            <span className="gradient-text">industries and regions</span>
+          <h2 className="text-3xl font-bold tracking-tight sm:text-4xl lg:text-5xl">
+            What customers say about <span className="gradient-text">Invonix</span>
           </h2>
-          <p className="mt-5 text-lg text-muted leading-relaxed">
-            Trading, logistics, accounting, construction, retail, and
-            manufacturing teams across the UAE, GCC, and Africa use Invonix to
-            reduce bookkeeping work and improve financial visibility.
-          </p>
         </motion.div>
 
         {/* Testimonial Cards */}
-        <div className="grid md:grid-cols-3 gap-8">
+        <div className="grid gap-8 md:grid-cols-3">
           {testimonials.map((testimonial, i) => (
             <motion.div
               key={testimonial.name}
@@ -70,29 +59,22 @@ export default function Testimonials() {
               whileInView={{ opacity: 1, y: 0 }}
               viewport={{ once: true }}
               transition={{ duration: 0.5, delay: i * 0.1 }}
-              className="relative bg-white rounded-2xl p-8 shadow-lg shadow-slate-100 border border-slate-100 hover:shadow-xl hover:-translate-y-1 transition-all duration-300"
+              className="relative rounded-2xl border border-slate-100 bg-white p-8 shadow-lg shadow-slate-100 transition-all duration-300 hover:-translate-y-1 hover:shadow-xl"
             >
-              {/* Quote icon */}
-              <Quote className="w-8 h-8 text-primary/10 mb-4" />
+              <Quote className="mb-4 h-8 w-8 text-primary/10" />
 
-              {/* Rating */}
-              <div className="flex items-center gap-1 mb-4">
+              <div className="mb-4 flex items-center gap-1">
                 {Array.from({ length: testimonial.rating }).map((_, j) => (
-                  <Star
-                    key={j}
-                    className="w-4 h-4 text-yellow-400 fill-yellow-400"
-                  />
+                  <Star key={j} className="h-4 w-4 fill-yellow-400 text-yellow-400" />
                 ))}
               </div>
 
-              {/* Content */}
-              <p className="text-sm text-slate-600 leading-relaxed mb-6">
+              <p className="mb-6 text-sm leading-relaxed text-slate-600">
                 &ldquo;{testimonial.content}&rdquo;
               </p>
 
-              {/* Author */}
-              <div className="flex items-center gap-3 pt-4 border-t border-slate-100">
-                <div className="w-10 h-10 rounded-full bg-gradient-to-br from-primary to-secondary flex items-center justify-center text-white text-sm font-bold">
+              <div className="flex items-center gap-3 border-t border-slate-100 pt-4">
+                <div className="flex h-10 w-10 items-center justify-center rounded-full bg-gradient-to-br from-primary to-secondary text-sm font-bold text-white">
                   {testimonial.avatar}
                 </div>
                 <div>

@@ -14,6 +14,7 @@ import {
   ShieldCheck,
 } from "lucide-react";
 import Link from "next/link";
+import { WHATSAPP_LIVE } from "@/lib/siteConfig";
 
 const steps = [
   {
@@ -50,7 +51,7 @@ const previewRows = [
   ["Acme Trading LLC", "INV-2042", "12 Apr 2026", "100123456700003", "1,250.00", "62.50", "1,312.50"],
   ["Gulf Logistics", "GL/2026/881", "13 Apr 2026", "100987654300003", "4,800.00", "240.00", "5,040.00"],
   ["Emirates Supply Co", "ESC-7741", "14 Apr 2026", "100456789900003", "920.50", "46.03", "966.53"],
-  ["Al-Rajhi Wholesale", "AR-23 / 8821", "15 Apr 2026", "100222111100003", "12,400.00", "620.00", "13,020.00"],
+  ["Northline Wholesale", "NW-23 / 8821", "15 Apr 2026", "100222111100003", "12,400.00", "620.00", "13,020.00"],
 ];
 
 export default function BatchMergeSection() {
@@ -137,7 +138,8 @@ export default function BatchMergeSection() {
               </motion.div>
             ))}
 
-            {/* WhatsApp callout */}
+            {/* WhatsApp callout — hidden until the number is live (CB-09) */}
+            {WHATSAPP_LIVE && (
             <motion.div
               initial={{ opacity: 0, y: 20 }}
               whileInView={{ opacity: 1, y: 0 }}
@@ -159,6 +161,7 @@ export default function BatchMergeSection() {
                 </p>
               </div>
             </motion.div>
+            )}
 
             {/* CTA */}
             <motion.div
@@ -190,7 +193,7 @@ export default function BatchMergeSection() {
             whileInView={{ opacity: 1, x: 0 }}
             viewport={{ once: true, margin: "-100px" }}
             transition={{ duration: 0.7 }}
-            className="relative"
+            className="relative min-w-0 max-w-full"
           >
             {/* Stack of "selected" doc tiles */}
             <div className="relative mb-6 flex justify-center">

@@ -6,6 +6,7 @@ import { CalendarDays, Clock, Tag, ArrowLeft, Share2, User, MessageCircle } from
 import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
 import { getPostBySlug, getRelatedPosts } from "@/lib/wordpress";
+import { BLOG_LIVE } from "@/lib/siteConfig";
 
 interface BlogPostPageProps {
     params: Promise<{ slug: string }>;
@@ -37,6 +38,9 @@ export async function generateMetadata({ params }: BlogPostPageProps): Promise<M
 }
 
 export default async function BlogPostPage({ params }: BlogPostPageProps) {
+    // Gated with the blog index — see CB-05.
+    if (!BLOG_LIVE) notFound();
+
     const { slug } = await params;
     const post = await getPostBySlug(slug, true); // true = include comments
     if (!post) notFound();

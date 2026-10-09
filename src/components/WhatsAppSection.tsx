@@ -13,6 +13,7 @@ import {
   ShieldCheck,
 } from "lucide-react";
 import Link from "next/link";
+import { WHATSAPP_LIVE } from "@/lib/siteConfig";
 
 const chatMessages = [
   {
@@ -36,8 +37,8 @@ const chatMessages = [
 const whatsappFeatures = [
   {
     icon: ShieldCheck,
-    title: "No Login Required",
-    desc: "Forward documents from mobile and let Invonix route them into the right finance workspace.",
+    title: "Link your number once",
+    desc: "Link your mobile from Settings once, then just forward documents — no login needed each time.",
   },
   {
     icon: Clock,
@@ -57,11 +58,16 @@ const whatsappFeatures = [
   {
     icon: FileText,
     title: "Accounting Ready Output",
-    desc: "Reviewed data appears in the dashboard and can be exported to Excel, CSV, or accounting systems.",
+    desc: "Reviewed data appears in the dashboard and exports to Excel or CSV, ready to import into your accounting system.",
   },
 ];
 
 export default function WhatsAppSection() {
+  // Hidden until a verified WhatsApp Business number is configured. Shipping
+  // this section next to a fictional "+1 (555) …" number while the inbox said
+  // "Coming soon" was a launch blocker (CB-09, Oct 2026 QA review).
+  if (!WHATSAPP_LIVE) return null;
+
   return (
     <section id="whatsapp" className="relative py-24 lg:py-32 overflow-hidden">
       <div className="absolute inset-0 bg-[linear-gradient(135deg,#f0fdf4_0%,#ffffff_46%,#ecfeff_100%)]" />

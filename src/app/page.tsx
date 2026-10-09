@@ -12,6 +12,7 @@ import Pricing from "@/components/Pricing";
 import Partners from "@/components/Partners";
 import CTA from "@/components/CTA";
 import Footer from "@/components/Footer";
+import { PARTNER_PROGRAM_LIVE } from "@/lib/siteConfig";
 
 export default function Home() {
   return (
@@ -28,7 +29,10 @@ export default function Home() {
         <DemoSection />
         <Testimonials />
         <Pricing />
-        <Partners />
+        {/* UX-03: the partner programme has no application page or published
+            commission terms yet, so the section is gated rather than sending
+            applicants to the ordinary signup form. */}
+        {PARTNER_PROGRAM_LIVE && <Partners />}
         <CTA />
       </main>
       <Footer />

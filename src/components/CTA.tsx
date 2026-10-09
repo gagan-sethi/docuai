@@ -3,6 +3,11 @@
 import { motion } from "framer-motion";
 import { ArrowRight, Upload, Sparkles, MessageCircle } from "lucide-react";
 import Link from "next/link";
+import {
+  PRIMARY_CTA_LABEL,
+  TRIAL_STRIP,
+  WHATSAPP_LIVE,
+} from "@/lib/siteConfig";
 
 export default function CTA() {
   return (
@@ -37,24 +42,29 @@ export default function CTA() {
               className="btn-shine group w-full sm:w-auto inline-flex items-center justify-center gap-2 px-10 py-4 text-base font-semibold text-white bg-gradient-to-r from-primary to-primary-dark rounded-2xl shadow-xl shadow-primary/25 hover:shadow-primary/40 hover:scale-105 transition-all duration-200"
             >
               <Upload className="w-5 h-5" />
-              Start Free Trial
+              {PRIMARY_CTA_LABEL}
               <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
             </Link>
-            <a
-              href="#whatsapp"
-              className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-10 py-4 text-base font-semibold text-green-700 bg-green-50 border-2 border-green-200 rounded-2xl hover:bg-green-100 hover:border-green-300 transition-all duration-200"
-            >
-              <MessageCircle className="w-5 h-5" />
-              Try WhatsApp Processing
-            </a>
+            {WHATSAPP_LIVE ? (
+              <a
+                href="#whatsapp"
+                className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-10 py-4 text-base font-semibold text-green-700 bg-green-50 border-2 border-green-200 rounded-2xl hover:bg-green-100 hover:border-green-300 transition-all duration-200"
+              >
+                <MessageCircle className="w-5 h-5" />
+                Try WhatsApp Processing
+              </a>
+            ) : (
+              <Link
+                href="/contact"
+                className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-10 py-4 text-base font-semibold text-slate-800 bg-white border-2 border-slate-200 rounded-2xl hover:border-primary/30 hover:bg-primary/5 hover:text-primary transition-all duration-200"
+              >
+                Talk to Sales
+              </Link>
+            )}
           </div>
 
           <p className="mt-6 text-sm font-semibold text-slate-600">
-            Trusted by 500+ businesses across the UAE, GCC & Africa • 50,000+
-            documents processed • 90%+ OCR accuracy
-          </p>
-          <p className="mt-2 text-sm text-muted">
-            Free 14-day trial • No credit card required • Cancel anytime
+            {TRIAL_STRIP}
           </p>
         </motion.div>
       </div>

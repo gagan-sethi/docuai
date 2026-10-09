@@ -58,7 +58,7 @@ const features = [
     icon: FileSpreadsheet,
     title: "Excel & CSV Export",
     description:
-      "Download accounting-ready reports in a structured format for spreadsheets, ERP tools, and finance teams.",
+      "Download accounting-ready reports as Excel or CSV, with columns shaped for spreadsheets and accounting imports.",
     color: "#10b981",
     bgColor: "bg-success/5",
   },

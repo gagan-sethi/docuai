@@ -4,7 +4,9 @@ import Image from "next/image";
 import { CalendarDays, Clock, Tag, ArrowRight, Rss, MessageCircle } from "lucide-react";
 import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
+import { notFound } from "next/navigation";
 import { getPosts, getCategories } from "@/lib/wordpress";
+import { BLOG_LIVE } from "@/lib/siteConfig";
 
 export const metadata: Metadata = {
   title: "Blog – Invonix | Finance Automation Insights",
@@ -38,6 +40,11 @@ function PlaceholderImage({ title }: { title: string }) {
 }
 
 export default async function BlogPage({ searchParams }: BlogPageProps) {
+  // The WordPress source still holds template/lorem-ipsum posts, so the blog
+  // stays unreachable until NEXT_PUBLIC_ENABLE_BLOG=true is set alongside
+  // real published articles (CB-05, Oct 2026 QA review).
+  if (!BLOG_LIVE) notFound();
+
   const params = await searchParams;
   const currentPage = Math.max(1, parseInt(params.page ?? "1", 10));
   const activeCategory = params.category ?? "";

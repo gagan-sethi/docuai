@@ -5,19 +5,32 @@ import { motion, AnimatePresence } from "framer-motion";
 import { ArrowRight, Menu, X, MessageCircle } from "lucide-react";
 import Link from "next/link";
 import BrandLogo from "@/components/BrandLogo";
+import {
+  BLOG_LIVE,
+  PARTNER_PROGRAM_LIVE,
+  PRIMARY_CTA_LABEL,
+  WHATSAPP_LIVE,
+} from "@/lib/siteConfig";
 
-const navLinks = [
+type NavLink = { name: string; href: string; highlight?: boolean };
+
+/**
+ * Sections that are not live yet stay out of the nav entirely. Linking to a
+ * WhatsApp section that says "Coming soon", or to a blog of template posts,
+ * was flagged as a launch blocker in the Oct 2026 QA review.
+ */
+const navLinks: NavLink[] = [
   { name: "Features", href: "/#features" },
   { name: "Insights", href: "/#financial-intelligence" },
   { name: "How It Works", href: "/#how-it-works" },
-  { name: "WhatsApp", href: "/#whatsapp", highlight: true },
-  { name: "Demo", href: "/#demo" },
+  ...(WHATSAPP_LIVE
+    ? [{ name: "WhatsApp", href: "/#whatsapp", highlight: true } as NavLink]
+    : []),
   { name: "Pricing", href: "/pricing" },
-  { name: "Faq", href: "/faq" },
-  { name: "Partners", href: "/#partners" },
-  // Find navLinks array, add Blog between Pricing and Faq:
-{ name: "Blog", href: "/blog" },
-
+  { name: "FAQ", href: "/faq" },
+  ...(PARTNER_PROGRAM_LIVE ? [{ name: "Partners", href: "/#partners" }] : []),
+  ...(BLOG_LIVE ? [{ name: "Blog", href: "/blog" }] : []),
+  { name: "Contact", href: "/contact" },
 ];
 
 export default function Navbar() {
@@ -82,7 +95,7 @@ export default function Navbar() {
                 href="/signup"
                 className="btn-shine group inline-flex h-10 shrink-0 items-center justify-center gap-2 whitespace-nowrap rounded-xl border border-primary/20 bg-gradient-to-r from-primary-dark via-primary to-secondary px-4 text-sm font-bold text-white shadow-lg shadow-primary/20 transition-all duration-200 hover:-translate-y-0.5 hover:shadow-primary/30 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
               >
-                <span>Start Free Trial</span>
+                <span>{PRIMARY_CTA_LABEL}</span>
                 <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-0.5" />
               </Link>
             </div>
@@ -131,7 +144,7 @@ export default function Navbar() {
                     href="/signup"
                     className="btn-shine group flex w-full items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-primary-dark via-primary to-secondary px-4 py-3 text-base font-bold text-white shadow-lg shadow-primary/20 transition-all duration-200 hover:shadow-primary/30"
                   >
-                    <span>Start Free Trial</span>
+                    <span>{PRIMARY_CTA_LABEL}</span>
                     <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-0.5" />
                   </Link>
                 </div>

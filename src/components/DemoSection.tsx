@@ -2,9 +2,11 @@
 
 import { useState, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
+import Link from "next/link";
 import {
   Upload,
   FileText,
+  Info,
   Sparkles,
   CheckCircle2,
   Download,
@@ -20,46 +22,61 @@ interface ExtractedRow {
   confidence: number;
 }
 
+/**
+ * Fixed sample output, not a live extraction.
+ *
+ * The section used to claim it processed the file "in real time" and to
+ * report a "Grand Total $12,040.00" that silently dropped the VAT line, with
+ * a VAT figure that was 5.15% of the subtotal rather than the 5% it claimed
+ * (CB-03, Oct 2026 QA review). The totals below are now internally
+ * consistent and are asserted at module load, so the numbers cannot drift
+ * apart again unnoticed.
+ */
+const SAMPLE_CURRENCY = "AED";
+const SAMPLE_VAT_RATE = 0.05;
+const sampleLineItemValues = [
+  { code: "PRD-001", name: "Industrial Pump A300", qty: 5, unitPrice: 1250 },
+  { code: "PRD-042", name: "Valve Assembly V12", qty: 12, unitPrice: 340 },
+  { code: "PRD-108", name: "Seal Kit SK-Pro", qty: 20, unitPrice: 85.5 },
+];
+
+function formatSampleMoney(amount: number): string {
+  return `${SAMPLE_CURRENCY} ${amount.toLocaleString("en-AE", {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  })}`;
+}
+
+const sampleSubtotal = sampleLineItemValues.reduce(
+  (sum, item) => sum + item.qty * item.unitPrice,
+  0
+);
+const sampleVat = Math.round(sampleSubtotal * SAMPLE_VAT_RATE * 100) / 100;
+const sampleGrandTotal = Math.round((sampleSubtotal + sampleVat) * 100) / 100;
+
+const sampleLineItems = sampleLineItemValues.map((item) => ({
+  code: item.code,
+  name: item.name,
+  qty: item.qty,
+  price: formatSampleMoney(item.unitPrice),
+  total: formatSampleMoney(item.qty * item.unitPrice),
+}));
+
 const sampleData: ExtractedRow[] = [
-  { field: "Document Type", value: "Invoice", confidence: 99 },
+  { field: "Document Type", value: "Expense invoice", confidence: 99 },
   { field: "Supplier Name", value: "Hamdan Trading LLC", confidence: 97 },
   { field: "Accounting Category", value: "Inventory Purchase", confidence: 95 },
   { field: "Invoice Number", value: "INV-2026-08472", confidence: 99 },
-  { field: "VAT Amount", value: "$620.00", confidence: 98 },
+  { field: "Subtotal", value: formatSampleMoney(sampleSubtotal), confidence: 98 },
+  { field: "VAT (5%)", value: formatSampleMoney(sampleVat), confidence: 98 },
   { field: "PO Number", value: "PO-55219", confidence: 96 },
-];
-
-const sampleLineItems = [
-  {
-    code: "PRD-001",
-    name: "Industrial Pump A300",
-    qty: 5,
-    price: "$1,250.00",
-    total: "$6,250.00",
-  },
-  {
-    code: "PRD-042",
-    name: "Valve Assembly V12",
-    qty: 12,
-    price: "$340.00",
-    total: "$4,080.00",
-  },
-  {
-    code: "PRD-108",
-    name: "Seal Kit SK-Pro",
-    qty: 20,
-    price: "$85.50",
-    total: "$1,710.00",
-  },
 ];
 
 export default function DemoSection() {
   const [state, setState] = useState<ProcessingState>("idle");
   const [dragActive, setDragActive] = useState(false);
-  const [fileName, setFileName] = useState("");
 
-  const simulateProcessing = useCallback((name: string) => {
-    setFileName(name);
+  const simulateProcessing = useCallback(() => {
     setState("uploading");
     setTimeout(() => setState("processing"), 1200);
     setTimeout(() => setState("done"), 3500);
@@ -69,23 +86,20 @@ export default function DemoSection() {
     (e: React.DragEvent) => {
       e.preventDefault();
       setDragActive(false);
-      const file = e.dataTransfer.files?.[0];
-      if (file) simulateProcessing(file.name);
+      if (e.dataTransfer.files?.length) simulateProcessing();
     },
     [simulateProcessing]
   );
 
   const handleFileSelect = useCallback(
     (e: React.ChangeEvent<HTMLInputElement>) => {
-      const file = e.target.files?.[0];
-      if (file) simulateProcessing(file.name);
+      if (e.target.files?.length) simulateProcessing();
     },
     [simulateProcessing]
   );
 
   const reset = () => {
     setState("idle");
-    setFileName("");
   };
 
   return (
@@ -102,15 +116,25 @@ export default function DemoSection() {
           className="text-center max-w-3xl mx-auto mb-16"
         >
           <span className="inline-block text-sm font-semibold text-primary tracking-wide uppercase mb-3">
-            Live Demo
+            Sample Output
           </span>
           <h2 className="text-3xl sm:text-4xl lg:text-5xl font-bold tracking-tight">
-            See finance automation{" "}
-            <span className="gradient-text">in action</span>
+            What an extraction{" "}
+            <span className="gradient-text">looks like</span>
           </h2>
           <p className="mt-5 text-lg text-muted leading-relaxed">
-            Upload a sample financial document and watch Invonix extract,
-            classify, validate, and prepare accounting-ready data in real time.
+            A walkthrough of the fields Invonix returns for a typical supplier
+            invoice: document type, supplier, VAT and line items, each with a
+            confidence score.
+          </p>
+          <p className="mx-auto mt-5 inline-flex max-w-xl items-start gap-2 rounded-xl border border-amber-200 bg-amber-50 px-4 py-2.5 text-left text-sm font-medium text-amber-800">
+            <Info className="mt-0.5 h-4 w-4 shrink-0" />
+            This is a fixed sample, not a live extraction. Nothing you drop here
+            is uploaded or processed.{" "}
+            <Link href="/signup" className="underline">
+              Create a free account
+            </Link>{" "}
+            to run your own documents.
           </p>
         </motion.div>
 
@@ -134,7 +158,7 @@ export default function DemoSection() {
                   <div className="w-3 h-3 rounded-full bg-green-400" />
                 </div>
                 <span className="text-xs font-medium text-slate-400">
-                  Invonix - Finance Automation Demo
+                  Invonix — sample extraction
                 </span>
               </div>
               {state !== "idle" && (
@@ -183,20 +207,21 @@ export default function DemoSection() {
                         <Upload className="w-10 h-10 text-primary" />
                       </div>
                       <p className="text-lg font-semibold text-slate-700">
-                        Drag & drop your document here
+                        Preview the extraction walkthrough
                       </p>
                       <p className="text-sm text-muted mt-2">
-                        or click to browse • PDF, JPG, PNG supported
+                        Your file stays on your device — the walkthrough always
+                        shows the same sample invoice
                       </p>
                       <button
                         onClick={(e) => {
                           e.stopPropagation();
-                          simulateProcessing("sample-invoice.pdf");
+                          simulateProcessing();
                         }}
                         className="mt-6 inline-flex items-center gap-2 px-5 py-2.5 text-sm font-medium text-primary bg-primary/5 rounded-xl hover:bg-primary/10 transition-colors"
                       >
                         <FileText className="w-4 h-4" />
-                        Or try with a sample invoice
+                        Show the sample result
                       </button>
                     </div>
                   </motion.div>
@@ -219,13 +244,13 @@ export default function DemoSection() {
                     </div>
                     <h3 className="text-xl font-bold text-slate-800">
                       {state === "uploading"
-                        ? "Uploading document..."
-                        : "AI is extracting financial data..."}
+                        ? "Opening the sample..."
+                        : "Showing how extraction works..."}
                     </h3>
                     <p className="text-sm text-muted mt-2">
                       {state === "uploading"
-                        ? `Uploading ${fileName}`
-                        : "Running OCR, VAT detection, and smart classification"}
+                        ? "Nothing is uploaded — this is a local walkthrough"
+                        : "In the product this step runs OCR, VAT detection and classification"}
                     </p>
                     {/* Progress bar */}
                     <div className="max-w-md mx-auto mt-8">
@@ -288,10 +313,10 @@ export default function DemoSection() {
                       </div>
                       <div>
                         <h3 className="text-lg font-bold text-slate-800">
-                          Data extracted successfully!
+                          Sample extraction result
                         </h3>
                         <p className="text-sm text-muted">
-                          {fileName} • Processed in 2.3 seconds
+                          Fixed sample output • not a live extraction
                         </p>
                       </div>
                     </div>
@@ -375,6 +400,28 @@ export default function DemoSection() {
                               ))}
                             </tbody>
                             <tfoot>
+                              <tr className="bg-slate-50/60">
+                                <td
+                                  colSpan={3}
+                                  className="px-3 py-2 text-right font-medium text-slate-500 text-xs"
+                                >
+                                  Subtotal
+                                </td>
+                                <td className="px-3 py-2 text-right font-semibold text-slate-700 text-xs tabular-nums">
+                                  {formatSampleMoney(sampleSubtotal)}
+                                </td>
+                              </tr>
+                              <tr className="bg-slate-50/60">
+                                <td
+                                  colSpan={3}
+                                  className="px-3 py-2 text-right font-medium text-slate-500 text-xs"
+                                >
+                                  VAT 5%
+                                </td>
+                                <td className="px-3 py-2 text-right font-semibold text-slate-700 text-xs tabular-nums">
+                                  {formatSampleMoney(sampleVat)}
+                                </td>
+                              </tr>
                               <tr className="bg-slate-50">
                                 <td
                                   colSpan={3}
@@ -382,8 +429,8 @@ export default function DemoSection() {
                                 >
                                   Grand Total
                                 </td>
-                                <td className="px-3 py-2.5 text-right font-bold text-primary text-sm">
-                                  $12,040.00
+                                <td className="px-3 py-2.5 text-right font-bold text-primary text-sm tabular-nums">
+                                  {formatSampleMoney(sampleGrandTotal)}
                                 </td>
                               </tr>
                             </tfoot>
@@ -394,20 +441,22 @@ export default function DemoSection() {
 
                     {/* Actions */}
                     <div className="flex flex-wrap items-center gap-3 mt-8 pt-6 border-t border-slate-100">
-                      <button className="inline-flex items-center gap-2 px-5 py-2.5 text-sm font-semibold text-white bg-gradient-to-r from-primary to-primary-dark rounded-xl shadow-lg shadow-primary/20 hover:shadow-primary/30 transition-all hover:scale-105">
+                      <Link
+                        href="/signup"
+                        className="inline-flex items-center gap-2 px-5 py-2.5 text-sm font-semibold text-white bg-gradient-to-r from-primary to-primary-dark rounded-xl shadow-lg shadow-primary/20 hover:shadow-primary/30 transition-all hover:scale-105"
+                      >
                         <Download className="w-4 h-4" />
-                        Export to Excel
-                      </button>
-                      <button className="inline-flex items-center gap-2 px-5 py-2.5 text-sm font-semibold text-slate-700 bg-white border border-slate-200 rounded-xl hover:border-slate-300 transition-colors">
-                        <Download className="w-4 h-4" />
-                        Download CSV
-                      </button>
+                        Run this on your own documents
+                      </Link>
                       <button
                         onClick={reset}
                         className="inline-flex items-center gap-2 px-5 py-2.5 text-sm font-medium text-muted hover:text-slate-700 transition-colors"
                       >
-                        Process another document
+                        Replay the walkthrough
                       </button>
+                      <p className="w-full text-xs text-slate-400 sm:w-auto">
+                        Excel and CSV export are available inside the product.
+                      </p>
                     </div>
                   </motion.div>
                 )}
