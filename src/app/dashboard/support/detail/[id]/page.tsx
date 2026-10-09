@@ -99,13 +99,13 @@ export default function TicketDetailPage() {
     return () => observer.disconnect();
   }, []);
 
-  useEffect(() => {
-    scrollToBottom();
-  }, [ticket?.messages]);
-
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   };
+
+  useEffect(() => {
+    scrollToBottom();
+  }, [ticket?.messages]);
 
   const handleReply = async () => {
     if (!reply.trim() || sendingReply) return;
