@@ -646,7 +646,7 @@ export default function UploadPage() {
     <div className="flex h-screen bg-[#f8f9fb]">
       <Sidebar />
       <motion.div
-        className="flex-1 flex flex-col overflow-hidden"
+        className="flex min-w-0 flex-1 flex-col overflow-hidden"
         initial={{ opacity: 0 }}
         animate={{ opacity: 1, marginLeft: sidebarWidth }}
         transition={{ duration: 0.2, ease: "easeInOut" }}
@@ -1152,7 +1152,7 @@ export default function UploadPage() {
             <div className="text-xs text-slate-600 leading-relaxed">
               <span className="font-semibold text-slate-800">How it works:</span>{" "}
               Upload your documents &rarr; AI auto-detects if handwritten or typed &rarr; Review detected types &rarr;
-              Click <span className="font-semibold text-primary">&quot;Start Processing&quot;</span> &rarr; Documents are
+              Click <span className="font-semibold text-primary">&quot;Start Processing&quot;</span> &rarr; documents are
               processed through OCR + GPT-4o &rarr; Results appear in your{" "}
               <Link href="/dashboard/review" className="text-primary font-semibold hover:underline">Review Queue</Link>{" "}
               for final validation.

@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import { apiFetch, apiUrl, clearAuthToken } from "@/lib/api";
+import { toggleSidebar } from "@/lib/sidebarBus";
 import {
   Bell,
   Search,
@@ -23,6 +24,7 @@ import {
   Shield,
   Building2,
   Plus,
+  Menu,
 } from "lucide-react";
 
 interface Notification {
@@ -261,7 +263,7 @@ export default function TopBar({ title }: { title: string }) {
     <header className="sticky top-0 z-30 bg-white/80 backdrop-blur-xl border-b border-slate-100">
       {/* ⚠️ Admin Impersonation Persistent Warning Banner */}
       {user?.isImpersonation && (
-        <div className="bg-gradient-to-r from-amber-500 via-amber-600 to-amber-500 text-white px-6 py-2.5 flex items-center justify-between text-xs sm:text-sm font-medium shadow-md">
+        <div className="flex flex-col gap-2 bg-gradient-to-r from-amber-500 via-amber-600 to-amber-500 px-4 py-2.5 text-xs font-medium text-white shadow-md sm:flex-row sm:items-center sm:justify-between sm:px-6 sm:text-sm">
           <div className="flex items-center gap-2">
             <Shield className="w-4 h-4 text-amber-100 shrink-0 animate-pulse" />
             <span>
@@ -272,7 +274,7 @@ export default function TopBar({ title }: { title: string }) {
           </div>
           <button
             onClick={handleExitImpersonation}
-            className="ml-4 px-3 py-1 bg-white text-amber-900 rounded-lg text-xs font-bold hover:bg-amber-50 transition-colors shadow-sm shrink-0 flex items-center gap-1.5"
+            className="flex shrink-0 items-center gap-1.5 self-start rounded-lg bg-white px-3 py-1 text-xs font-bold text-amber-900 shadow-sm transition-colors hover:bg-amber-50 sm:ml-4 sm:self-auto"
           >
             <LogOut className="w-3.5 h-3.5 text-amber-700" />
             Exit Impersonation
@@ -280,10 +282,19 @@ export default function TopBar({ title }: { title: string }) {
         </div>
       )}
 
-      <div className="flex items-center justify-between h-16 px-6">
-        {/* Page Title */}
-        <div>
-          <h1 className="text-xl font-bold text-slate-900">{title}</h1>
+      <div className="flex h-16 items-center justify-between gap-2 px-4 sm:px-6">
+        {/* Drawer trigger (below 1024px) + page title */}
+        <div className="flex min-w-0 items-center gap-2">
+          <button
+            onClick={toggleSidebar}
+            aria-label="Open navigation menu"
+            className="-ml-1 rounded-xl p-2 text-slate-600 transition-colors hover:bg-slate-100 hover:text-primary lg:hidden"
+          >
+            <Menu className="h-5 w-5" />
+          </button>
+          <h1 className="truncate text-lg font-bold text-slate-900 sm:text-xl">
+            {title}
+          </h1>
         </div>
 
         {/* Right side actions */}
@@ -296,9 +307,9 @@ export default function TopBar({ title }: { title: string }) {
                   initial={{ width: 0, opacity: 0 }}
                   animate={{ width: 280, opacity: 1 }}
                   exit={{ width: 0, opacity: 0 }}
-                  className="absolute right-12 top-1/2 -translate-y-1/2 overflow-visible z-50"
+                  className="absolute right-12 top-1/2 z-50 max-w-[calc(100vw-5rem)] -translate-y-1/2 overflow-visible"
                 >
-                  <div className="relative w-[280px]">
+                  <div className="relative w-[280px] max-w-full">
                     <input
                       autoFocus
                       value={searchText}
@@ -364,7 +375,7 @@ export default function TopBar({ title }: { title: string }) {
           </div>
 
           {/* Upload button */}
-          <Link href="/dashboard/review" className="hidden sm:flex items-center gap-2 px-4 py-2 text-sm font-semibold text-white bg-gradient-to-r from-primary to-primary-dark rounded-xl shadow-md shadow-primary/20 hover:shadow-primary/40 hover:scale-105 transition-all">
+          <Link href="/dashboard/upload" className="hidden sm:flex items-center gap-2 px-4 py-2 text-sm font-semibold text-white bg-gradient-to-r from-primary to-primary-dark rounded-xl shadow-md shadow-primary/20 hover:shadow-primary/40 hover:scale-105 transition-all">
             <Upload className="w-4 h-4" />
             Upload
           </Link>
@@ -392,7 +403,7 @@ export default function TopBar({ title }: { title: string }) {
                     initial={{ opacity: 0, y: 10, scale: 0.95 }}
                     animate={{ opacity: 1, y: 0, scale: 1 }}
                     exit={{ opacity: 0, y: 10, scale: 0.95 }}
-                    className="absolute right-0 top-full mt-2 w-96 bg-white rounded-2xl shadow-2xl shadow-black/10 border border-slate-100 overflow-hidden z-50"
+                    className="absolute right-0 top-full z-50 mt-2 w-[calc(100vw-2rem)] max-w-sm overflow-hidden rounded-2xl border border-slate-100 bg-white shadow-2xl shadow-black/10 sm:w-96"
                   >
                     <div className="flex items-center justify-between px-5 py-4 border-b border-slate-100">
                       <h3 className="text-sm font-bold text-slate-900">
@@ -478,7 +489,7 @@ export default function TopBar({ title }: { title: string }) {
                     initial={{ opacity: 0, y: 10, scale: 0.95 }}
                     animate={{ opacity: 1, y: 0, scale: 1 }}
                     exit={{ opacity: 0, y: 10, scale: 0.95 }}
-                    className="absolute right-0 top-full mt-2 w-72 bg-white rounded-2xl shadow-xl border border-slate-100 overflow-hidden z-50"
+                    className="absolute right-0 top-full z-50 mt-2 w-[calc(100vw-2rem)] max-w-xs overflow-hidden rounded-2xl border border-slate-100 bg-white shadow-xl sm:w-72"
                   >
                     <div className="border-b border-slate-100 bg-slate-50 px-4 py-3">
                       <p className="text-xs font-bold uppercase tracking-wide text-slate-400">Company</p>
@@ -597,7 +608,7 @@ export default function TopBar({ title }: { title: string }) {
                     initial={{ opacity: 0, y: 10, scale: 0.95 }}
                     animate={{ opacity: 1, y: 0, scale: 1 }}
                     exit={{ opacity: 0, y: 10, scale: 0.95 }}
-                    className="absolute right-0 top-full mt-2 w-64 bg-white rounded-2xl shadow-2xl shadow-black/10 border border-slate-100 overflow-hidden z-50"
+                    className="absolute right-0 top-full z-50 mt-2 w-[calc(100vw-2rem)] max-w-xs overflow-hidden rounded-2xl border border-slate-100 bg-white shadow-2xl shadow-black/10 sm:w-64"
                   >
                     {/* User info header */}
                     <div className="px-4 py-4 bg-gradient-to-br from-primary/5 to-accent/5 border-b border-slate-100">

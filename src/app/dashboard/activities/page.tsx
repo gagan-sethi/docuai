@@ -319,12 +319,12 @@ export default function ActivitiesPage() {
     <div className="min-h-screen bg-slate-50">
       <Sidebar />
       <div
-        className="flex flex-col min-h-screen transition-all duration-200"
+        className="flex min-h-screen min-w-0 flex-col transition-all duration-200"
         style={{ marginLeft: sidebarWidth }}
       >
         <TopBar title="Activity Log" />
 
-        <main className="flex-1 p-6">
+        <main className="min-w-0 flex-1 p-4 sm:p-6">
           <div className="space-y-6">
             {/* Header */}
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
@@ -463,12 +463,10 @@ export default function ActivitiesPage() {
             </AnimatePresence>
 
             {/* Stats Summary */}
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+            <div className="grid grid-cols-2 gap-4">
               {[
                 { label: "Total Activities", value: pagination.total, icon: Activity, color: "text-primary" },
-                { label: "Documents", value: activities.filter(a => a.action.startsWith("doc_")).length, icon: FileText, color: "text-indigo-500" },
-                { label: "Page", value: `${pagination.page} of ${pagination.pages}`, icon: ChevronRight, color: "text-amber-500" },
-                { label: "Per Page", value: pagination.limit, icon: Eye, color: "text-accent" },
+                { label: "Document Activities", value: activities.filter(a => a.action.startsWith("doc_")).length, icon: FileText, color: "text-indigo-500" },
               ].map((s) => (
                 <div key={s.label} className="bg-white rounded-xl border border-slate-100 p-4 flex items-center gap-3">
                   <div className="w-10 h-10 rounded-lg bg-slate-50 flex items-center justify-center">

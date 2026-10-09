@@ -32,6 +32,7 @@ import { DocTypeBadge } from "@/components/dashboard/DocTypeBadge";
 import { apiFetch, apiUrl, downloadApiFile } from "@/lib/api";
 import type { ProcessedDocument, DocumentStatus } from "@/lib/types";
 import { getClassificationConfidence, resolveDocTypeCode } from "@/lib/finance";
+import { formatDayMonth } from "@/lib/dates";
 
 // ─── Helpers ────────────────────────────────────────────────────
 function timeAgo(dateStr: string): string {
@@ -43,7 +44,7 @@ function timeAgo(dateStr: string): string {
   if (hrs < 24) return `${hrs}h ago`;
   const days = Math.floor(hrs / 24);
   if (days < 7) return `${days}d ago`;
-  return new Date(dateStr).toLocaleDateString("en-GB", { day: "2-digit", month: "short" });
+  return formatDayMonth(dateStr);
 }
 
 function formatFileSize(bytes: number): string {
@@ -381,12 +382,12 @@ export default function WhatsAppInboxPage() {
     <div className="min-h-screen bg-slate-50">
       <Sidebar />
       <div
-        className="flex flex-col min-h-screen transition-all duration-200"
+        className="flex min-h-screen min-w-0 flex-col transition-all duration-200"
         style={{ marginLeft: sidebarWidth }}
       >
         <TopBar title="WhatsApp Inbox" />
 
-        <main className="flex-1 p-6">
+        <main className="min-w-0 flex-1 p-4 sm:p-6">
           {/* Header row */}
           <div className="flex items-center justify-between mb-6">
             <div className="flex items-center gap-3">
@@ -596,8 +597,8 @@ export default function WhatsAppInboxPage() {
                   </button>
                 )}
               </div>
-              <div className="overflow-y-auto max-h-[calc(100vh-24rem)]">
-                <table className="w-full text-sm">
+              <div className="max-h-[calc(100vh-24rem)] overflow-auto">
+                <table className="w-full min-w-[760px] text-sm">
                   <thead className="sticky top-0 bg-slate-50 border-b border-slate-100">
                     <tr>
                       <th className="px-3 py-3 w-10">

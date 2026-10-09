@@ -271,7 +271,7 @@ export default function TicketDetailPage() {
       >
         <TopBar title="Support Ticket" />
 
-        <main className="flex-1 overflow-y-auto">
+        <main className="min-w-0 flex-1 overflow-y-auto">
           <div className="mx-auto max-w-6xl px-6 py-6">
             {/* Header Section */}
             <div className="mb-6 rounded-xl border border-slate-200 bg-white p-5 shadow-sm">

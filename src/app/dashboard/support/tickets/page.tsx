@@ -106,14 +106,14 @@ export default function TicketsListPage() {
     <div className="flex h-screen bg-[#f8f9fb]">
       <Sidebar />
       <motion.div
-        className="flex-1 flex flex-col overflow-hidden"
+        className="flex min-w-0 flex-1 flex-col overflow-hidden"
         initial={{ opacity: 0 }}
         animate={{ opacity: 1, marginLeft: mounted ? sidebarWidth : 260 }}
         transition={{ duration: 0.2, ease: "easeInOut" }}
       >
         <TopBar title="Support Tickets" />
         
-        <main className="flex-1 overflow-y-auto">
+        <main className="min-w-0 flex-1 overflow-y-auto">
           <div className="max-w-5xl mx-auto px-6 py-8">
             {/* Header */}
             <div className="flex items-center justify-between mb-6 flex-wrap gap-4">

@@ -476,12 +476,12 @@ export default function CompaniesPage() {
     <div className="min-h-screen bg-slate-50">
       <Sidebar />
       <div
-        className="flex flex-col min-h-screen transition-all duration-200"
+        className="flex min-h-screen min-w-0 flex-col transition-all duration-200"
         style={{ marginLeft: sidebarWidth }}
       >
         <TopBar title="Companies" />
 
-        <main className="flex-1 p-6">
+        <main className="min-w-0 flex-1 p-4 sm:p-6">
           <div className="space-y-6">
             {/* Header */}
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">

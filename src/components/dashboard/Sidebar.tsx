@@ -5,6 +5,10 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import { apiFetch, apiUrl, clearAuthToken } from "@/lib/api";
+import {
+  MOBILE_SIDEBAR_QUERY,
+  onSidebarToggle,
+} from "@/lib/sidebarBus";
 import BrandLogo from "@/components/BrandLogo";
 import {
   LayoutDashboard,
@@ -18,6 +22,7 @@ import {
   LogOut,
   ChevronLeft,
   ChevronRight,
+  X,
   MessageSquare,
   BarChart3,
   Bell,
@@ -130,9 +135,45 @@ export default function Sidebar() {
   const pathname = usePathname();
   const router = useRouter();
   const [collapsed, setCollapsed] = useState(false);
+  /**
+   * Below 1024px the sidebar becomes an off-canvas drawer. The <aside> itself
+   * measures 0px wide in that mode, which is what every dashboard page reads
+   * to set its own left margin — so the content goes full-width on a phone
+   * instead of being pushed 260px off-screen (CB-08 / M-01).
+   */
+  const [isMobile, setIsMobile] = useState(false);
+  const [drawerOpen, setDrawerOpen] = useState(false);
   const [user, setUser] = useState<{ fullName: string; email: string; role?: string, teamRole?:string; } | null>(null);
   const [reviewCount, setReviewCount] = useState(0);
   const [waUnprocessed, setWaUnprocessed] = useState(0);
+
+  useEffect(() => {
+    const media = window.matchMedia(MOBILE_SIDEBAR_QUERY);
+    const apply = () => {
+      setIsMobile(media.matches);
+      if (!media.matches) setDrawerOpen(false);
+    };
+    apply();
+    media.addEventListener("change", apply);
+    return () => media.removeEventListener("change", apply);
+  }, []);
+
+  useEffect(() => onSidebarToggle(() => setDrawerOpen((open) => !open)), []);
+
+  // Lock background scroll and allow Escape to dismiss while the drawer is up.
+  useEffect(() => {
+    if (!drawerOpen) return;
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setDrawerOpen(false);
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => {
+      document.body.style.overflow = previousOverflow;
+      window.removeEventListener("keydown", onKeyDown);
+    };
+  }, [drawerOpen]);
 
   useEffect(() => {
     apiFetch(apiUrl("/api/auth/me"), { credentials: "include" })
@@ -167,6 +208,12 @@ export default function Sidebar() {
     router.push("/login");
   }, [router]);
 
+  const railCollapsed = collapsed && !isMobile;
+  // Tapping a destination inside the drawer should dismiss it.
+  const closeDrawerOnNavigate = () => {
+    if (isMobile) setDrawerOpen(false);
+  };
+
   const initials = user?.fullName
     ? user.fullName
         .split(" ")
@@ -177,16 +224,54 @@ export default function Sidebar() {
     : "U";
 
   return (
-    <motion.aside
-      animate={{ width: collapsed ? 72 : 260 }}
-      transition={{ duration: 0.2, ease: "easeInOut" }}
-      className="fixed left-0 top-0 bottom-0 z-40 bg-slate-900 flex flex-col border-r border-slate-800"
-    >
+    <>
+      {/* Backdrop behind the mobile drawer */}
+      <AnimatePresence>
+        {isMobile && drawerOpen && (
+          <motion.div
+            key="sidebar-backdrop"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.18 }}
+            onClick={() => setDrawerOpen(false)}
+            className="fixed inset-0 z-40 bg-slate-950/60 lg:hidden"
+            aria-hidden
+          />
+        )}
+      </AnimatePresence>
+
+      {/*
+        The <aside> is what every dashboard page measures to decide its left
+        margin, so on mobile it animates to 0 and the drawer panel inside it
+        is positioned independently.
+      */}
+      <motion.aside
+        animate={{ width: isMobile ? 0 : railCollapsed ? 72 : 260 }}
+        transition={{ duration: 0.2, ease: "easeInOut" }}
+        className={`fixed left-0 top-0 bottom-0 z-40 ${
+          isMobile
+            ? "w-0 overflow-visible border-r-0 bg-transparent"
+            : "flex flex-col border-r border-slate-800 bg-slate-900"
+        }`}
+      >
+      <div
+        className={
+          isMobile
+            ? `fixed left-0 top-0 bottom-0 z-50 flex w-[280px] max-w-[85vw] flex-col border-r border-slate-800 bg-slate-900 shadow-2xl shadow-black/40 transition-transform duration-200 ease-in-out ${
+                drawerOpen ? "translate-x-0" : "-translate-x-full"
+              }`
+            : "flex h-full flex-col"
+        }
+        role={isMobile ? "dialog" : undefined}
+        aria-modal={isMobile && drawerOpen ? true : undefined}
+        aria-label={isMobile ? "Dashboard navigation" : undefined}
+      >
       {/* Logo */}
       <div className="flex items-center justify-between h-16 px-4 border-b border-slate-800">
-        <Link href="/dashboard" className="flex items-center gap-2.5">
+        <Link href="/dashboard" onClick={closeDrawerOnNavigate} className="flex items-center gap-2.5">
           <AnimatePresence>
-            {collapsed ? (
+            {railCollapsed ? (
               <motion.span
                 key="mark"
                 initial={{ opacity: 0, scale: 0.9 }}
@@ -216,10 +301,13 @@ export default function Sidebar() {
           </AnimatePresence>
         </Link>
         <button
-          onClick={() => setCollapsed(!collapsed)}
+          onClick={() => (isMobile ? setDrawerOpen(false) : setCollapsed(!collapsed))}
+          aria-label={isMobile ? "Close navigation" : collapsed ? "Expand sidebar" : "Collapse sidebar"}
           className="p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 transition-colors"
         >
-          {collapsed ? (
+          {isMobile ? (
+            <X className="w-5 h-5" />
+          ) : collapsed ? (
             <ChevronRight className="w-4 h-4" />
           ) : (
             <ChevronLeft className="w-4 h-4" />
@@ -230,7 +318,7 @@ export default function Sidebar() {
       {/* Main Navigation */}
       <nav className="flex-1 px-3 py-4 space-y-1 overflow-y-auto">
         <div className="mb-3">
-          {!collapsed && (
+          {!railCollapsed && (
             <p className="px-3 mb-2 text-[10px] font-bold uppercase tracking-widest text-slate-500">
               Main
             </p>
@@ -252,6 +340,7 @@ export default function Sidebar() {
               <Link
                 key={item.name}
                 href={item.href}
+                onClick={closeDrawerOnNavigate}
                 className={`group relative flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all duration-150 ${
                   isActive
                     ? "bg-primary/10 text-primary"
@@ -267,7 +356,7 @@ export default function Sidebar() {
                 )}
                 <item.icon className="w-5 h-5 flex-shrink-0" />
                 <AnimatePresence>
-                  {!collapsed && (
+                  {!railCollapsed && (
                     <motion.span
                       initial={{ opacity: 0 }}
                       animate={{ opacity: 1 }}
@@ -278,7 +367,7 @@ export default function Sidebar() {
                     </motion.span>
                   )}
                 </AnimatePresence>
-                {badgeCount > 0 && !collapsed && (
+                {badgeCount > 0 && !railCollapsed && (
                   <span className={`ml-auto px-2 py-0.5 text-[10px] font-bold rounded-full ${
                     "badgeKey" in item && item.badgeKey === "whatsapp"
                       ? "bg-green-500/20 text-green-400"
@@ -287,7 +376,7 @@ export default function Sidebar() {
                     {badgeCount}
                   </span>
                 )}
-                {badgeCount > 0 && collapsed && (
+                {badgeCount > 0 && railCollapsed && (
                   <span className={`absolute top-1 right-1 w-2 h-2 rounded-full ${
                     "badgeKey" in item && item.badgeKey === "whatsapp" ? "bg-green-500" : "bg-primary"
                   }`} />
@@ -298,7 +387,7 @@ export default function Sidebar() {
         </div>
 
         <div className="pt-4 border-t border-slate-800">
-          {!collapsed && (
+          {!railCollapsed && (
             <p className="px-3 mb-2 text-[10px] font-bold uppercase tracking-widest text-slate-500">
               Settings
             </p>
@@ -309,6 +398,7 @@ export default function Sidebar() {
               <Link
                 key={item.name}
                 href={item.href}
+                onClick={closeDrawerOnNavigate}
                 className={`group flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all duration-150 ${
                   isActive
                     ? "bg-primary/10 text-primary"
@@ -317,7 +407,7 @@ export default function Sidebar() {
               >
                 <item.icon className="w-5 h-5 flex-shrink-0" />
                 <AnimatePresence>
-                  {!collapsed && (
+                  {!railCollapsed && (
                     <motion.span
                       initial={{ opacity: 0 }}
                       animate={{ opacity: 1 }}
@@ -338,14 +428,14 @@ export default function Sidebar() {
       <div className="border-t border-slate-800 p-3">
         <div
           className={`flex items-center gap-3 p-2 rounded-xl hover:bg-slate-800 transition-colors cursor-pointer ${
-            collapsed ? "justify-center" : ""
+            railCollapsed ? "justify-center" : ""
           }`}
         >
           <div className="w-9 h-9 rounded-full bg-gradient-to-br from-primary to-accent flex items-center justify-center flex-shrink-0 text-white text-sm font-bold">
             {initials}
           </div>
           <AnimatePresence>
-            {!collapsed && (
+            {!railCollapsed && (
               <motion.div
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
@@ -361,13 +451,15 @@ export default function Sidebar() {
               </motion.div>
             )}
           </AnimatePresence>
-          {!collapsed && (
+          {!railCollapsed && (
             <button onClick={handleLogout} className="p-1 text-slate-500 hover:text-red-400 transition-colors">
               <LogOut className="w-4 h-4" />
             </button>
           )}
         </div>
       </div>
-    </motion.aside>
+      </div>
+      </motion.aside>
+    </>
   );
 }
