@@ -61,7 +61,7 @@ const builtFor = [
   "Retail businesses capturing daily expenses",
   "Manufacturers tracking purchasing and spend",
 ];
-
+ 
 export default function AboutPage() {
   return (
     <>
