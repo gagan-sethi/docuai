@@ -24,461 +24,59 @@ import {
 import Link from "next/link";
 import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
+import FaqAnswer from "@/components/FaqAnswer";
+import {
+  faqAnswerToText,
+  faqCategories,
+  faqQuestionCount,
+  type FaqCategory,
+  type FaqCategoryId,
+  type FaqEntry,
+} from "@/lib/faqContent";
+import { SUPPORT_EMAIL, WHATSAPP_LIVE, whatsAppLink } from "@/lib/siteConfig";
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 
-type FAQItem = {
-  q: string;
-  a: React.ReactNode;
-};
+type FAQItem = FaqEntry;
 
-type FAQCategory = {
-  id: string;
-  label: string;
+type FAQCategory = FaqCategory & {
   icon: React.ElementType;
   color: string;
   bg: string;
-  items: FAQItem[];
+  dot: string;
 };
 
 // ─── FAQ Data ────────────────────────────────────────────────────────────────
+//
+// Questions and answers come from src/lib/faqContent.ts, which the in-app
+// Help Center reads too. Only the per-category presentation (icon, colours)
+// lives here — previously both pages carried their own copy of the content
+// and they drifted apart (UX-06, Oct 2026 QA review).
 
-const categories: FAQCategory[] = [
-  {
-    id: "general",
-    label: "General",
-    icon: HelpCircle,
-    color: "text-primary",
-    bg: "bg-primary/8",
-    items: [
-      {
-        q: "What is Invonix?",
-        a: "Invonix is an AI-powered document processing platform that automatically extracts data from invoices, receipts, purchase orders, and financial documents, helping businesses reduce manual data entry and improve operational efficiency.",
-      },
-      {
-        q: "Who is Invonix designed for?",
-        a: (
-          <div className="space-y-2">
-            <p>Invonix is ideal for:</p>
-            <ul className="mt-2 grid grid-cols-1 gap-1.5 sm:grid-cols-2">
-              {[
-                "Accounting Firms",
-                "Bookkeepers",
-                "SMEs",
-                "Trading Companies",
-                "Logistics Companies",
-                "Construction Companies",
-                "Manufacturing Companies",
-                "Retail Businesses",
-                "Corporate Finance Teams",
-              ].map((item) => (
-                <li key={item} className="flex items-center gap-2 text-slate-700">
-                  <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-primary" />
-                  {item}
-                </li>
-              ))}
-            </ul>
-          </div>
-        ),
-      },
-      {
-        q: "Which countries does Invonix serve?",
-        a: "Invonix serves businesses across the UAE, GCC, and Africa.",
-      },
-    ],
-  },
-  {
-    id: "documents",
-    label: "Document Processing",
-    icon: FileText,
-    color: "text-cyan-600",
-    bg: "bg-cyan-50",
-    items: [
-      {
-        q: "What document types can Invonix process?",
-        a: (
-          <ul className="grid grid-cols-1 gap-1.5 sm:grid-cols-2">
-            {["Sales Invoices", "Purchase Invoices", "Receipts", "Purchase Orders", "Credit Notes", "Expense Documents"].map((t) => (
-              <li key={t} className="flex items-center gap-2 text-slate-700">
-                <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-cyan-500" />
-                {t}
-              </li>
-            ))}
-          </ul>
-        ),
-      },
-      {
-        q: "What file formats are supported?",
-        a: (
-          <div className="flex flex-wrap gap-2">
-            {["PDF", "JPG", "JPEG", "PNG", "TIFF"].map((f) => (
-              <span key={f} className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-sm font-semibold text-slate-700">
-                {f}
-              </span>
-            ))}
-          </div>
-        ),
-      },
-      {
-        q: "Can I upload multiple documents at once?",
-        a: "Yes. Invonix supports bulk uploads and batch processing.",
-      },
-      {
-        q: "Does Invonix support Arabic documents?",
-        a: "Yes. Both Arabic and English documents are fully supported.",
-      },
-    ],
-  },
-  {
-    id: "ai",
-    label: "AI & OCR",
-    icon: Brain,
-    color: "text-violet-600",
-    bg: "bg-violet-50",
-    items: [
-      {
-        q: "How accurate is Invonix?",
-        a: "Document extraction accuracy typically exceeds 90%, depending on document quality.",
-      },
-      {
-        q: "Does Invonix automatically identify document types?",
-        a: "Yes. Invonix automatically classifies invoices, receipts, purchase orders, and other supported document types.",
-      },
-      {
-        q: "Can Invonix extract VAT information?",
-        a: "Yes. VAT amounts and tax-related fields are automatically extracted where available.",
-      },
-    ],
-  },
-  {
-    id: "batches",
-    label: "Upload Batch Management",
-    icon: BarChart3,
-    color: "text-orange-600",
-    bg: "bg-orange-50",
-    items: [
-      {
-        q: "What is Upload Batch Management?",
-        a: (
-          <div>
-            <p>Every upload session automatically receives a unique Batch ID.</p>
-            <div className="mt-3 flex flex-wrap gap-2">
-              {["Batch #001", "Batch #002", "Batch #003"].map((b) => (
-                <span key={b} className="rounded-lg border border-orange-200 bg-orange-50 px-3 py-1.5 text-sm font-bold text-orange-700">
-                  {b}
-                </span>
-              ))}
-            </div>
-          </div>
-        ),
-      },
-      {
-        q: "Why is Batch Management useful?",
-        a: (
-          <ul className="space-y-1.5">
-            {[
-              "Process documents by upload session",
-              "Export only recent uploads",
-              "Organize documents by period",
-              "Improve audit and reconciliation workflows",
-            ].map((item) => (
-              <li key={item} className="flex items-start gap-2 text-slate-700">
-                <span className="mt-2 h-1.5 w-1.5 shrink-0 rounded-full bg-orange-500" />
-                {item}
-              </li>
-            ))}
-          </ul>
-        ),
-      },
-    ],
-  },
-  {
-    id: "dashboard",
-    label: "Financial Dashboard",
-    icon: BarChart3,
-    color: "text-emerald-600",
-    bg: "bg-emerald-50",
-    items: [
-      {
-        q: "What information is available in the Financial Dashboard?",
-        a: (
-          <ul className="grid grid-cols-1 gap-1.5 sm:grid-cols-2">
-            {["Revenue", "Expenses", "Net Profit", "VAT Payable", "Financial Trends", "Processing Statistics"].map((item) => (
-              <li key={item} className="flex items-center gap-2 text-slate-700">
-                <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-emerald-500" />
-                {item}
-              </li>
-            ))}
-          </ul>
-        ),
-      },
-      {
-        q: "Can I export reports?",
-        a: (
-          <div>
-            <p className="mb-3">Yes. Available export formats:</p>
-            <div className="flex gap-2">
-              {["Excel (XLSX)", "CSV", "PDF"].map((f) => (
-                <span key={f} className="rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-1.5 text-sm font-bold text-emerald-700">
-                  {f}
-                </span>
-              ))}
-            </div>
-          </div>
-        ),
-      },
-    ],
-  },
-  {
-    id: "users",
-    label: "Multi-Company & Users",
-    icon: Users,
-    color: "text-primary",
-    bg: "bg-primary/8",
-    items: [
-      {
-        q: "Can I manage multiple companies?",
-        a: "Yes, depending on your subscription plan.",
-      },
-      {
-        q: "Can multiple users access the same company?",
-        a: (
-          <div>
-            <p className="mb-3">Yes, depending on the subscription plan:</p>
-            <div className="space-y-2">
-              {[
-                { plan: "Starter Plan", detail: "Single User" },
-                { plan: "Professional Plan", detail: "Multiple Users" },
-                { plan: "Enterprise Plan", detail: "Custom User Limits" },
-              ].map(({ plan, detail }) => (
-                <div key={plan} className="flex items-center justify-between rounded-xl border border-slate-200 bg-slate-50 px-4 py-2.5">
-                  <span className="text-sm font-semibold text-slate-800">{plan}</span>
-                  <span className="text-sm font-medium text-slate-500">{detail}</span>
-                </div>
-              ))}
-            </div>
-          </div>
-        ),
-      },
-    ],
-  },
-  {
-    id: "exports",
-    label: "Exports",
-    icon: Download,
-    color: "text-teal-600",
-    bg: "bg-teal-50",
-    items: [
-      {
-        q: "Can I export only today's uploaded documents?",
-        a: (
-          <div>
-            <p className="mb-3">Yes. Users can export:</p>
-            <ul className="grid grid-cols-1 gap-1.5 sm:grid-cols-2">
-              {["Latest Upload Batch", "Selected Batch", "Selected Documents", "Date Range", "Current Month", "Current Quarter", "Current Year"].map((opt) => (
-                <li key={opt} className="flex items-center gap-2 text-slate-700">
-                  <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-teal-500" />
-                  {opt}
-                </li>
-              ))}
-            </ul>
-          </div>
-        ),
-      },
-      {
-        q: "Can I export approved documents only?",
-        a: (
-          <div>
-            <p className="mb-3">Yes. Filters are available for:</p>
-            <div className="flex flex-wrap gap-2">
-              {["Approved Documents", "Pending Review", "All Documents"].map((f) => (
-                <span key={f} className="rounded-full border border-teal-200 bg-teal-50 px-3 py-1 text-sm font-semibold text-teal-700">
-                  {f}
-                </span>
-              ))}
-            </div>
-          </div>
-        ),
-      },
-    ],
-  },
-  {
-    id: "integrations",
-    label: "Accounting Software",
-    icon: Link2,
-    color: "text-indigo-600",
-    bg: "bg-indigo-50",
-    items: [
-      {
-        q: "Does Invonix integrate with accounting software?",
-        a: "Not directly. Invonix exports structured financial data in Excel and CSV formats that can be imported into most accounting systems like QuickBooks, Xero, Wafeq, or Zoho Books.",
-      },
-      {
-        q: "Can I use Invonix alongside my existing accounting software?",
-        a: "Yes. Invonix is designed to complement existing accounting workflows by providing clean, structured data for finance teams and accountants.",
-      },
-    ],
-  },
-  {
-    id: "security",
-    label: "Security & Privacy",
-    icon: ShieldCheck,
-    color: "text-slate-600",
-    bg: "bg-slate-100",
-    items: [
-      {
-        q: "Is my data secure?",
-        a: "Yes. Invonix uses secure cloud infrastructure and access controls to protect customer data.",
-      },
-      {
-        q: "Do you share customer data?",
-        a: "No. Customer data is never sold or shared with third parties without authorization.",
-      },
-    ],
-  },
-  {
-    id: "billing",
-    label: "Pricing & Billing",
-    icon: CreditCard,
-    color: "text-rose-600",
-    bg: "bg-rose-50",
-    items: [
-      {
-        q: "Is there a free trial?",
-        a: "Yes. New customers can request a free trial before subscribing.",
-      },
-      {
-        q: "Can I upgrade my plan later?",
-        a: "Yes. Plans can be upgraded at any time.",
-      },
-      {
-        q: "Can I cancel my subscription?",
-        a: "Yes. Subscriptions can be cancelled according to the terms of your plan.",
-      },
-    ],
-  },
-  {
-    id: "referral",
-    label: "Referral Program",
-    icon: Gift,
-    color: "text-pink-600",
-    bg: "bg-pink-50",
-    items: [
-      {
-        q: "How does the referral program work?",
-        a: "Share your referral code with friends, colleagues, or clients. When they subscribe using your code, the configured referral discount is automatically applied.",
-      },
-    ],
-  },
-  {
-    id: "support",
-    label: "Training & Support",
-    icon: GraduationCap,
-    color: "text-amber-600",
-    bg: "bg-amber-50",
-    items: [
-      {
-        q: "Do you provide training?",
-        a: (
-          <div>
-            <p className="mb-3">Yes. All customers receive access to:</p>
-            <ul className="space-y-1.5">
-              {["Video Tutorials", "User Guides", "Knowledge Base", "FAQ Center"].map((item) => (
-                <li key={item} className="flex items-center gap-2 text-slate-700">
-                  <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-amber-500" />
-                  {item}
-                </li>
-              ))}
-            </ul>
-          </div>
-        ),
-      },
-      {
-        q: "Do you provide customer support?",
-        a: (
-          <div>
-            <p className="mb-3">Yes. Support is available through:</p>
-            <div className="flex flex-wrap gap-2">
-              {["Email Support", "WhatsApp Support", "Help Center"].map((s) => (
-                <span key={s} className="rounded-full border border-amber-200 bg-amber-50 px-3 py-1 text-sm font-semibold text-amber-700">
-                  {s}
-                </span>
-              ))}
-            </div>
-          </div>
-        ),
-      },
-    ],
-  },
-  {
-    id: "enterprise",
-    label: "Enterprise Onboarding",
-    icon: Building2,
-    color: "text-primary-dark",
-    bg: "bg-primary/8",
-    items: [
-      {
-        q: "Do you offer enterprise onboarding?",
-        a: (
-          <div>
-            <p className="mb-3">Yes. Enterprise customers receive:</p>
-            <ul className="space-y-1.5">
-              {[
-                "Dedicated onboarding sessions",
-                "Team training workshops",
-                "Multi-user setup assistance",
-                "Workflow configuration support",
-                "Priority support",
-                "Dedicated account management",
-              ].map((item) => (
-                <li key={item} className="flex items-start gap-2 text-slate-700">
-                  <span className="mt-2 h-1.5 w-1.5 shrink-0 rounded-full bg-primary" />
-                  {item}
-                </li>
-              ))}
-            </ul>
-          </div>
-        ),
-      },
-    ],
-  },
-  {
-    id: "getting-started",
-    label: "Getting Started",
-    icon: Rocket,
-    color: "text-secondary",
-    bg: "bg-secondary/8",
-    items: [
-      {
-        q: "How do I start using Invonix?",
-        a: (
-          <ol className="space-y-2.5">
-            {[
-              "Create an account",
-              "Create your company",
-              "Upload documents",
-              "Review AI-extracted data",
-              "Approve documents",
-              "Analyze financial insights",
-              "Export reports and structured data",
-            ].map((step, i) => (
-              <li key={step} className="flex items-start gap-3">
-                <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-primary/10 text-xs font-extrabold text-primary">
-                  {i + 1}
-                </span>
-                <span className="pt-0.5 text-slate-700">{step}</span>
-              </li>
-            ))}
-          </ol>
-        ),
-      },
-      {
-        q: "How long does setup take?",
-        a: "Most businesses can start processing documents on the same day.",
-      },
-    ],
-  },
-];
+const categoryStyles: Record<
+  FaqCategoryId,
+  { icon: React.ElementType; color: string; bg: string; dot: string }
+> = {
+  general: { icon: HelpCircle, color: "text-primary", bg: "bg-primary/8", dot: "bg-primary" },
+  documents: { icon: FileText, color: "text-cyan-600", bg: "bg-cyan-50", dot: "bg-cyan-500" },
+  ai: { icon: Brain, color: "text-violet-600", bg: "bg-violet-50", dot: "bg-violet-500" },
+  batches: { icon: BarChart3, color: "text-orange-600", bg: "bg-orange-50", dot: "bg-orange-500" },
+  dashboard: { icon: BarChart3, color: "text-emerald-600", bg: "bg-emerald-50", dot: "bg-emerald-500" },
+  users: { icon: Users, color: "text-primary", bg: "bg-primary/8", dot: "bg-primary" },
+  exports: { icon: Download, color: "text-teal-600", bg: "bg-teal-50", dot: "bg-teal-500" },
+  integrations: { icon: Link2, color: "text-indigo-600", bg: "bg-indigo-50", dot: "bg-indigo-500" },
+  security: { icon: ShieldCheck, color: "text-slate-600", bg: "bg-slate-100", dot: "bg-slate-500" },
+  billing: { icon: CreditCard, color: "text-rose-600", bg: "bg-rose-50", dot: "bg-rose-500" },
+  referral: { icon: Gift, color: "text-pink-600", bg: "bg-pink-50", dot: "bg-pink-500" },
+  support: { icon: GraduationCap, color: "text-amber-600", bg: "bg-amber-50", dot: "bg-amber-500" },
+  enterprise: { icon: Building2, color: "text-primary-dark", bg: "bg-primary/8", dot: "bg-primary-dark" },
+  "getting-started": { icon: Rocket, color: "text-secondary", bg: "bg-secondary/8", dot: "bg-secondary" },
+};
+
+const categories: FAQCategory[] = faqCategories.map((category) => ({
+  ...category,
+  ...categoryStyles[category.id],
+}));
 
 // ─── Accordion Item ───────────────────────────────────────────────────────────
 
@@ -487,11 +85,15 @@ function AccordionItem({
   isOpen,
   onToggle,
   index,
+  accent,
+  dot,
 }: {
   item: FAQItem;
   isOpen: boolean;
   onToggle: () => void;
   index: number;
+  accent: string;
+  dot: string;
 }) {
   return (
     <motion.div
@@ -534,7 +136,7 @@ function AccordionItem({
             transition={{ duration: 0.25, ease: "easeInOut" }}
           >
             <div className="border-t border-slate-100 px-5 py-4 text-sm leading-relaxed text-slate-600 sm:px-6 sm:py-5">
-              {item.a}
+              <FaqAnswer answer={item.a} accent={accent} accentBg={dot} />
             </div>
           </motion.div>
         )}
@@ -558,8 +160,10 @@ export default function FAQPage() {
     return categories
       .map((cat) => ({
         ...cat,
-        items: cat.items.filter((item) =>
-          item.q.toLowerCase().includes(q)
+        items: cat.items.filter(
+          (item) =>
+            item.q.toLowerCase().includes(q) ||
+            faqAnswerToText(item.a).toLowerCase().includes(q)
         ),
       }))
       .filter((cat) => cat.items.length > 0);
@@ -605,16 +209,18 @@ export default function FAQPage() {
               <span className="gradient-text">Invonix</span>
             </motion.h1>
 
-            {/* <motion.p
+            <motion.p
               initial={{ opacity: 0, y: 14 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.5, delay: 0.15 }}
               className="mx-auto mt-5 max-w-xl text-lg leading-relaxed text-slate-600"
             >
               Browse{" "}
-              <span className="font-semibold text-slate-800">{totalFAQs} answers</span>{" "}
+              <span className="font-semibold text-slate-800">
+                {faqQuestionCount} answers
+              </span>{" "}
               across {categories.length} categories, or search for what you need.
-            </motion.p> */}
+            </motion.p>
 
             {/* Search */}
             <motion.div
@@ -680,6 +286,8 @@ export default function FAQPage() {
                           isOpen={openItems.has(`${cat.id}-${i}`)}
                           onToggle={() => toggleItem(`${cat.id}-${i}`)}
                           index={i}
+                          accent={cat.color}
+                          dot={cat.dot}
                         />
                       ))}
                     </div>
@@ -754,6 +362,8 @@ export default function FAQPage() {
                         isOpen={openItems.has(`${activeCategory}-${i}`)}
                         onToggle={() => toggleItem(`${activeCategory}-${i}`)}
                         index={i}
+                        accent={currentCategory.color}
+                        dot={currentCategory.dot}
                       />
                     ))}
                   </div>
@@ -780,25 +390,36 @@ export default function FAQPage() {
                 Can&apos;t find what you&apos;re looking for?
               </h2>
               <p className="mx-auto mt-4 max-w-lg text-base leading-relaxed text-slate-600">
-                Our support team is ready to help. Reach out via email or WhatsApp and we&apos;ll get back to you quickly.
+                Our support team is ready to help. Email us or send a message
+                and we&apos;ll get back to you within one business day.
               </p>
               <div className="mt-8 flex flex-col items-center justify-center gap-4 sm:flex-row">
-                <Link
-                  href="mailto:support@invonix.com"
+                <a
+                  href={`mailto:${SUPPORT_EMAIL}`}
                   className="inline-flex items-center gap-2 rounded-xl bg-gradient-to-r from-primary-dark via-primary to-secondary px-7 py-3.5 text-sm font-semibold text-white shadow-lg shadow-primary/25 transition-all hover:scale-[1.03] hover:shadow-primary/40"
                 >
                   <Mail className="h-4 w-4" />
                   Email Support
-                </Link>
-                <Link
-                  href="https://wa.me/contact"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-7 py-3.5 text-sm font-semibold text-slate-800 shadow-sm transition-all hover:border-primary/30 hover:bg-primary/5 hover:text-primary"
-                >
-                  <MessageCircle className="h-4 w-4" />
-                  WhatsApp Support
-                </Link>
+                </a>
+                {WHATSAPP_LIVE ? (
+                  <a
+                    href={whatsAppLink("Hi, I have a question about Invonix")}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-7 py-3.5 text-sm font-semibold text-slate-800 shadow-sm transition-all hover:border-primary/30 hover:bg-primary/5 hover:text-primary"
+                  >
+                    <MessageCircle className="h-4 w-4" />
+                    WhatsApp Support
+                  </a>
+                ) : (
+                  <Link
+                    href="/contact"
+                    className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-7 py-3.5 text-sm font-semibold text-slate-800 shadow-sm transition-all hover:border-primary/30 hover:bg-primary/5 hover:text-primary"
+                  >
+                    <MessageCircle className="h-4 w-4" />
+                    Contact form
+                  </Link>
+                )}
               </div>
             </motion.div>
           </div>
