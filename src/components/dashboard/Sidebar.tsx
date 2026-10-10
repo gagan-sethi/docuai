@@ -316,7 +316,7 @@ export default function Sidebar() {
         <button
           onClick={() => (isMobile ? setDrawerOpen(false) : setCollapsed(!collapsed))}
           aria-label={isMobile ? "Close navigation" : collapsed ? "Expand sidebar" : "Collapse sidebar"}
-          className="p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 transition-colors"
+          className="flex h-10 w-10 items-center justify-center rounded-lg text-slate-400 transition-colors hover:bg-slate-800 hover:text-white lg:h-8 lg:w-8"
         >
           {isMobile ? (
             <X className="w-5 h-5" />

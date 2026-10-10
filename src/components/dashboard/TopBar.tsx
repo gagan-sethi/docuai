@@ -288,7 +288,7 @@ export default function TopBar({ title }: { title: string }) {
           <button
             onClick={toggleSidebar}
             aria-label="Open navigation menu"
-            className="-ml-1 rounded-xl p-2 text-slate-600 transition-colors hover:bg-slate-100 hover:text-primary lg:hidden"
+            className="-ml-1 flex h-10 w-10 items-center justify-center rounded-xl text-slate-600 transition-colors hover:bg-slate-100 hover:text-primary lg:hidden"
           >
             <Menu className="h-5 w-5" />
           </button>

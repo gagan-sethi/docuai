@@ -186,7 +186,7 @@ export default function PlanComparison() {
                     <tr>
                       <td
                         colSpan={plans.length + 1}
-                        className="bg-slate-50 px-5 py-3 text-xs font-bold uppercase tracking-wider text-slate-500"
+                        className="bg-slate-50 px-5 py-3 text-xs font-bold uppercase tracking-wider text-slate-700"
                       >
                         {section.category}
                       </td>

@@ -291,7 +291,8 @@ function LoginPageContent() {
               <button
                 type="button"
                 onClick={() => setShowPassword(!showPassword)}
-                className="absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 transition-colors"
+                aria-label={showPassword ? "Hide password" : "Show password"}
+                className="absolute right-2 top-1/2 -translate-y-1/2 flex h-10 w-10 items-center justify-center rounded-lg text-slate-400 transition-colors hover:text-slate-600"
               >
                 {showPassword ? (
                   <EyeOff className="w-4.5 h-4.5" />
@@ -306,28 +307,34 @@ function LoginPageContent() {
           <div className="flex items-center gap-2">
             <button
               type="button"
+              role="checkbox"
+              aria-checked={rememberMe}
               onClick={() => setRememberMe(!rememberMe)}
-              className={`w-4.5 h-4.5 rounded border-2 flex items-center justify-center transition-all ${
-                rememberMe
-                  ? "bg-primary border-primary"
-                  : "border-slate-300 hover:border-primary/50"
-              }`}
+              className="-m-2.5 flex h-10 w-10 items-center justify-center rounded-lg transition-colors hover:bg-slate-50"
             >
-              {rememberMe && (
-                <svg
-                  className="w-3 h-3 text-white"
-                  fill="none"
-                  viewBox="0 0 24 24"
-                  stroke="currentColor"
-                  strokeWidth={3}
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    d="M5 13l4 4L19 7"
-                  />
-                </svg>
-              )}
+              <span
+                className={`flex h-4.5 w-4.5 items-center justify-center rounded border-2 transition-all ${
+                  rememberMe
+                    ? "bg-primary border-primary"
+                    : "border-slate-300 hover:border-primary/50"
+                }`}
+              >
+                {rememberMe && (
+                  <svg
+                    className="h-3 w-3 text-white"
+                    fill="none"
+                    viewBox="0 0 24 24"
+                    stroke="currentColor"
+                    strokeWidth={3}
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      d="M5 13l4 4L19 7"
+                    />
+                  </svg>
+                )}
+              </span>
             </button>
             <label
               className="text-sm text-slate-600 cursor-pointer select-none"
