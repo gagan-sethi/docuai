@@ -25,6 +25,7 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { WHATSAPP_LIVE } from "@/lib/siteConfig";
 import Sidebar from "@/components/dashboard/Sidebar";
 import TopBar from "@/components/dashboard/TopBar";
 import MergeBar from "@/components/dashboard/MergeBar";
@@ -223,6 +224,18 @@ export default function WhatsAppInboxPage() {
   const [autoMergeSaving, setAutoMergeSaving] = useState(false);
 
   const router = useRouter();
+
+  /**
+   * The inbox is unreachable while WhatsApp intake is not live (CB-09).
+   * Removing it from the navigation is not enough on its own — a bookmark
+   * or a stale link would otherwise land on a page for a feature the
+   * product is not offering. Documents that arrived over WhatsApp are all
+   * listed under Documents, which filters by source, so nothing is lost.
+   */
+  useEffect(() => {
+    if (!WHATSAPP_LIVE) router.replace("/dashboard/documents");
+  }, [router]);
+
   /** A WhatsApp doc is mergeable once it has been processed. */
   const isMergeable = useCallback(
     (d: ProcessedDocument) =>

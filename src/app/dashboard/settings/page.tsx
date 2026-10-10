@@ -39,6 +39,7 @@ import {
 import Sidebar from "@/components/dashboard/Sidebar";
 import TopBar from "@/components/dashboard/TopBar";
 import { useSidebarOffset } from "@/lib/useSidebarOffset";
+import { WHATSAPP_LIVE } from "@/lib/siteConfig";
 import { apiFetch, apiUrl, clearAuthToken } from "@/lib/api";
 
 interface MeUser {
@@ -154,7 +155,12 @@ export default function SettingsPage() {
               <ProfileSection me={me} onSaved={(u) => { setMe(u); showToast({ type: "success", message: "Profile updated" }); }} onError={(m) => showToast({ type: "error", message: m })} />
               <EmailSection me={me} onUpdated={(email) => { setMe((prev) => prev ? { ...prev, email, isEmailVerified: false } : prev); showToast({ type: "success", message: "Verification email sent" }); }} onError={(m) => showToast({ type: "error", message: m })} />
               <PasswordSection email={me?.email} onSent={() => showToast({ type: "success", message: "Password reset link sent" })} onError={(m) => showToast({ type: "error", message: m })} />
-              <PreferencesSection prefs={prefs} onSaved={(p) => { setPrefs(p); showToast({ type: "success", message: "Preferences saved" }); }} onError={(m) => showToast({ type: "error", message: m })} />
+              {/* WhatsApp auto-merge settings — offering to configure intake
+                  the product is not accepting yet would be the same promise
+                  gap CB-09 flagged elsewhere. */}
+              {WHATSAPP_LIVE && (
+                <PreferencesSection prefs={prefs} onSaved={(p) => { setPrefs(p); showToast({ type: "success", message: "Preferences saved" }); }} onError={(m) => showToast({ type: "error", message: m })} />
+              )}
               <AccountSection me={me} workspacePlan={workspacePlan} />
             </div>
           )}
@@ -677,7 +683,14 @@ function AccountSection({
       title="Account"
       description="Plan, role, and session management."
     >
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-5">
+      {/* Two tiles when WhatsApp is hidden, three when it is live — a fixed
+          three-column grid would leave an empty cell, as it did on the
+          dashboard. */}
+      <div
+        className={`mb-5 grid grid-cols-1 gap-3 ${
+          WHATSAPP_LIVE ? "sm:grid-cols-3" : "sm:grid-cols-2"
+        }`}
+      >
         <InfoTile
           label="Current plan"
           value={
@@ -691,11 +704,13 @@ function AccountSection({
           }
         />
         <InfoTile label="Role" value={me?.role ? me.role.charAt(0).toUpperCase() + me.role.slice(1) : "—"} />
-        <InfoTile
-          label="WhatsApp"
-          value={me?.isWhatsAppLinked ? "Linked" : "Not linked"}
-          tone={me?.isWhatsAppLinked ? "success" : "muted"}
-        />
+        {WHATSAPP_LIVE && (
+          <InfoTile
+            label="WhatsApp"
+            value={me?.isWhatsAppLinked ? "Linked" : "Not linked"}
+            tone={me?.isWhatsAppLinked ? "success" : "muted"}
+          />
+        )}
       </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">

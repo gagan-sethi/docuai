@@ -10,6 +10,7 @@ import {
   onSidebarToggle,
 } from "@/lib/sidebarBus";
 import BrandLogo from "@/components/BrandLogo";
+import { WHATSAPP_LIVE } from "@/lib/siteConfig";
 import {
   LayoutDashboard,
   FileText,
@@ -32,6 +33,14 @@ import {
   Play,
 } from "lucide-react";
 
+/**
+ * Navigation. The WhatsApp inbox is listed only while WhatsApp intake is
+ * live (CB-09) — the rest of the product hides every WhatsApp surface
+ * until a verified number is configured, and the nav should match.
+ *
+ * Nothing is orphaned by this: documents that arrived over WhatsApp stay
+ * visible under Documents, which lists every source and filters by it.
+ */
 const mainNav = [
   {
     name: "Dashboard",
@@ -59,12 +68,16 @@ const mainNav = [
     href: "/dashboard/finance",
     icon: Wallet,
   },
-  {
-    name: "WhatsApp Inbox",
-    href: "/dashboard/whatsapp",
-    icon: MessageSquare,
-    badgeKey: "whatsapp" as const,
-  },
+  ...(WHATSAPP_LIVE
+    ? [
+        {
+          name: "WhatsApp Inbox",
+          href: "/dashboard/whatsapp",
+          icon: MessageSquare,
+          badgeKey: "whatsapp" as const,
+        },
+      ]
+    : []),
   {
     name: "Analytics",
     href: "/dashboard/analytics",
