@@ -1,0 +1,3 @@
+# The oversized fixture is 26 MB of random padding and compresses to nothing.
+# Regenerate it with `python3 generate.py` rather than carrying it in git.
+files/F06-oversized-25mb.pdf
