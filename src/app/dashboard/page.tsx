@@ -864,7 +864,7 @@ export default function DashboardPage() {
                 View details
               </Link>
             </div>
-            <div className="grid grid-cols-2 items-start gap-3 sm:flex sm:items-center sm:gap-2">
+            <div className="grid grid-cols-2 items-start gap-3 sm:flex sm:items-start sm:gap-2">
               {pipeline.map((stage, i) => (
                 <div key={stage.stage} className="min-w-0 sm:flex-1">
                   <div className="mb-2 flex min-w-0 items-center gap-2">

@@ -190,7 +190,7 @@ function TypingHeadlinePhrase() {
       !isDeleting && isComplete
         ? 1900
         : isDeleting && isEmpty
-          ? 320
+          ? 90
           : isDeleting
             ? 34
             : 58
