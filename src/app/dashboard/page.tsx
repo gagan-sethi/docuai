@@ -564,6 +564,16 @@ export default function DashboardPage() {
     return a;
   });
 
+  const statCards = [
+    { ...stats[0], value: apiStats ? apiStats.total : stats[0].value },
+    { ...stats[1], value: apiStats ? apiStats.review : stats[1].value },
+    // Show the real average confidence. This used to fall back to a
+    // hard-coded 94% whenever the API returned 0, which displayed a
+    // number the platform had not measured.
+    { ...stats[2], value: apiStats ? apiStats.avgConfidence : stats[2].value },
+    ...(WHATSAPP_LIVE ? [{ ...stats[3], value: stats[3].value }] : []),
+  ];
+
   // Merge API docs into recent docs for display
   const displayDocs = apiDocs.slice(0, 6).map(d => ({
     doc: d,
@@ -699,16 +709,17 @@ export default function DashboardPage() {
           </AnimatePresence>
 
           {/* Stats Grid */}
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-            {[
-              { ...stats[0], value: apiStats ? apiStats.total : stats[0].value },
-              { ...stats[1], value: apiStats ? apiStats.review : stats[1].value },
-              // Show the real average confidence. This used to fall back to a
-              // hard-coded 94% whenever the API returned 0, which displayed a
-              // number the platform had not measured.
-              { ...stats[2], value: apiStats ? apiStats.avgConfidence : stats[2].value },
-              ...(WHATSAPP_LIVE ? [{ ...stats[3], value: stats[3].value }] : []),
-            ].map((stat, i) => (
+          {/*
+            Column count follows the number of cards. The WhatsApp card is
+            hidden until a number is configured, and a fixed 4-column grid
+            left an empty column gaping on the right.
+          */}
+          <div
+            className={`grid grid-cols-1 gap-4 sm:grid-cols-2 ${
+              statCards.length === 4 ? "lg:grid-cols-4" : "lg:grid-cols-3"
+            }`}
+          >
+            {statCards.map((stat, i) => (
               <motion.div
                 key={stat.label}
                 initial={{ opacity: 0, y: 20 }}
@@ -743,7 +754,11 @@ export default function DashboardPage() {
           </div>
 
           {/* Quick Actions */}
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+          <div
+            className={`grid grid-cols-2 gap-4 ${
+              dynamicQuickActions.length === 4 ? "lg:grid-cols-4" : "lg:grid-cols-3"
+            }`}
+          >
             {dynamicQuickActions.map((action, i) => (
               <motion.div
                 key={action.name}
