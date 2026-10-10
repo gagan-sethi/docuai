@@ -3,8 +3,31 @@
  * In production, calls go to the external Express API server on AWS.
  * In development, falls back to a local API server or the same Next.js host.
  */
-export const API_BASE_URL =
-  process.env.NEXT_PUBLIC_API_URL || "";
+const CONFIGURED_API_URL = process.env.NEXT_PUBLIC_API_URL?.trim() || "";
+
+/**
+ * Fail loudly when the API host is missing from a production build.
+ *
+ * NEXT_PUBLIC_* values are inlined at build time. With this unset the base
+ * URL compiled to "", every apiUrl() produced a same-origin path, and the
+ * portal quietly 404'd against its own domain instead of reaching the API —
+ * a silent failure that looks like a broken backend.
+ *
+ * The throw is server-side only, so it surfaces during `next build` and
+ * fails the deployment rather than white-screening a visitor's browser.
+ * In the browser we log instead, which keeps an already-deployed app usable
+ * while still making the cause obvious in the console.
+ */
+if (process.env.NODE_ENV === "production" && !CONFIGURED_API_URL) {
+  const message =
+    "NEXT_PUBLIC_API_URL is not set. API calls would resolve against this " +
+    "app's own origin and return 404. Set it in the deployment environment " +
+    "and rebuild — it is read at build time, not at runtime.";
+  if (typeof window === "undefined") throw new Error(message);
+  console.error(`[api] ${message}`);
+}
+
+export const API_BASE_URL = CONFIGURED_API_URL;
 /**
  * Build a full API URL.
  * Usage: apiUrl("/api/auth/login") → "https://your-api.com/api/auth/login"
