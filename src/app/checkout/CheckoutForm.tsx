@@ -153,21 +153,11 @@ export default function CheckoutForm({ amount, interval }: { amount: number, int
           </div>
         </div>
 
-        {/* Testimonial */}
-        <div className="relative z-10">
-          <p className="text-sm text-white/50 italic mb-3">
-            &ldquo;Invonix reduced our invoice processing time by 80%. The AI accuracy is remarkable.&rdquo;
-          </p>
-          <div className="flex items-center gap-3">
-            <div className="w-8 h-8 rounded-full bg-gradient-to-br from-primary-light to-secondary flex items-center justify-center text-xs font-bold">
-              SA
-            </div>
-            <div>
-              <p className="text-sm font-semibold">Sarah Al-Mansoori</p>
-              <p className="text-xs text-white/40">Finance Director, Gulf Trading</p>
-            </div>
-          </div>
-        </div>
+        {/*
+          CB-01 / CB-02: a third copy of the invented "Sarah Al-Mansoori"
+          testimonial and an unverifiable "80%" claim stood here. Removed with
+          the ones on the marketing pages and on /login and /signup.
+        */}
       </div>
 
       {/* RIGHT PANEL */}

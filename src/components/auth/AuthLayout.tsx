@@ -73,31 +73,14 @@ export default function AuthLayout({
             </motion.div>
           </div>
 
-          {/* Bottom testimonial */}
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            transition={{ delay: 0.8 }}
-            className="pt-8 border-t border-white/10"
-          >
-            <p className="text-sm text-slate-400 italic leading-relaxed">
-              &ldquo;Invonix reduced our bookkeeping work by 80% and gave our
-              finance team clearer visibility.&rdquo;
-            </p>
-            <div className="mt-3 flex items-center gap-3">
-              <div className="w-8 h-8 rounded-full bg-gradient-to-br from-secondary to-primary flex items-center justify-center text-xs font-bold text-white">
-                SA
-              </div>
-              <div>
-                <p className="text-sm font-medium text-white">
-                  Sarah Al-Mansoori
-                </p>
-                <p className="text-xs text-slate-400">
-                  Finance Director, Gulf Trading
-                </p>
-              </div>
-            </div>
-          </motion.div>
+          {/*
+            CB-01 / CB-02: an invented testimonial ("Sarah Al-Mansoori, Finance
+            Director, Gulf Trading") and an unverifiable "80%" claim stood here.
+            Both were removed from the marketing pages in the Oct 2026 pass, but
+            this layout was missed because the verification scan covered only
+            the public pages and not /login and /signup. Removed rather than
+            replaced: there is no customer we can quote yet.
+          */}
         </div>
       </div>
 

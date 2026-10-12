@@ -31,10 +31,20 @@ export const POLICY_EFFECTIVE_DATE = "9 October 2026";
 
 /**
  * Where uploaded documents and extracted data are stored and processed.
- * Mirrors AWS_S3_REGION in the API service — keep the two in step, because
- * UAE PDPL requires the cross-border transfer to be disclosed accurately.
+ *
+ * This MUST match AWS_S3_REGION in the API service. UAE PDPL requires the
+ * cross-border transfer to be disclosed accurately, so a mismatch is a
+ * published inaccuracy in a legal document, not a cosmetic defect.
+ *
+ * The default was previously "ap-south-1 (Mumbai, India)", which was wrong:
+ * the deployed bucket is eu-central-1 and the published policy therefore
+ * named the wrong country. The Oct 2026 regression audit caught it from the
+ * document URLs. Verify against the API's configured region before changing.
  */
-export const STORAGE_REGION = env("NEXT_PUBLIC_STORAGE_REGION", "AWS ap-south-1 (Mumbai, India)");
+export const STORAGE_REGION = env(
+  "NEXT_PUBLIC_STORAGE_REGION",
+  "AWS eu-central-1 (Frankfurt, Germany)",
+);
 
 export interface SubProcessor {
   name: string;
