@@ -38,9 +38,26 @@ interface Props {
    * redirected to the public /pricing page.
    */
   onUpgrade?: () => void;
+  /**
+   * Whether the viewer owns the workspace.
+   *
+   * N-04: only the owner can change the plan, and the parent gates
+   * ManagePlanModal on that. A member who clicked "Upgrade Plan" therefore
+   * closed this dialog and nothing opened. Members are now told who can
+   * upgrade instead of being offered a button that does nothing.
+   */
+  viewerIsOwner?: boolean;
 }
 
-export default function UpgradeModal({ open, message, planInfo, title, onClose, onUpgrade }: Props) {
+export default function UpgradeModal({
+  open,
+  message,
+  planInfo,
+  title,
+  onClose,
+  onUpgrade,
+  viewerIsOwner = true,
+}: Props) {
   const heading =
     title ?? `You've hit your ${planInfo?.label || "Free"} plan limit`;
 
@@ -111,18 +128,25 @@ export default function UpgradeModal({ open, message, planInfo, title, onClose, 
             )}
 
             <div className="px-6 pt-2 pb-6 flex flex-col gap-2">
-              <button
-                type="button"
-                onClick={() => {
-                  onClose();
-                  onUpgrade?.();
-                }}
-                className="flex items-center justify-center gap-2 px-4 py-3 text-sm font-bold text-white bg-gradient-to-r from-amber-500 to-orange-500 rounded-xl shadow-md hover:shadow-lg transition-all"
-              >
-                <Crown className="w-4 h-4" />
-                Upgrade Plan
-                <ArrowRight className="w-4 h-4" />
-              </button>
+              {viewerIsOwner ? (
+                <button
+                  type="button"
+                  onClick={() => {
+                    onClose();
+                    onUpgrade?.();
+                  }}
+                  className="flex items-center justify-center gap-2 px-4 py-3 text-sm font-bold text-white bg-gradient-to-r from-amber-500 to-orange-500 rounded-xl shadow-md hover:shadow-lg transition-all"
+                >
+                  <Crown className="w-4 h-4" />
+                  Upgrade Plan
+                  <ArrowRight className="w-4 h-4" />
+                </button>
+              ) : (
+                <p className="rounded-xl bg-slate-50 px-4 py-3 text-center text-sm text-slate-600">
+                  Only the workspace owner can change the plan. Ask them to
+                  upgrade, and your uploads will resume straight away.
+                </p>
+              )}
               <button
                 onClick={onClose}
                 className="px-4 py-2.5 text-xs font-semibold text-slate-600 hover:text-slate-800 transition"

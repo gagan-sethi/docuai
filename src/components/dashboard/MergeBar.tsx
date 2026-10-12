@@ -78,6 +78,7 @@ export default function MergeBar({
   // Upgrade modal — shown when the user tries to merge more documents
   // than their plan allows (pre-flight or 403 from the backend).
   const [planInfo, setPlanInfo] = useState<UpgradeModalPlanInfo | null>(null);
+  const [viewerIsOwner, setViewerIsOwner] = useState(false);
   const [upgrade, setUpgrade] = useState<{ open: boolean; message: string }>({
     open: false,
     message: "",
@@ -93,8 +94,15 @@ export default function MergeBar({
       try {
         const res = await apiFetch(apiUrl("/api/plan"), { credentials: "include" });
         if (!res.ok) return;
-        const data = (await res.json()) as UpgradeModalPlanInfo;
-        if (!cancelled) setPlanInfo(data);
+        const data = (await res.json()) as UpgradeModalPlanInfo & {
+          viewerIsOwner?: boolean;
+        };
+        if (!cancelled) {
+          setPlanInfo(data);
+          // N-04: members cannot change the plan, so the upgrade dialog must
+          // not offer them a button that opens nothing.
+          setViewerIsOwner(data.viewerIsOwner === true);
+        }
       } catch {
         /* optional */
       }
@@ -476,6 +484,7 @@ export default function MergeBar({
         planInfo={planInfo}
         onClose={() => setUpgrade({ open: false, message: "" })}
         onUpgrade={() => setManagePlanOpen(true)}
+        viewerIsOwner={viewerIsOwner}
       />
 
       <ManagePlanModal

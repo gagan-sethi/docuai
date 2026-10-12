@@ -1174,6 +1174,7 @@ export default function UploadPage() {
         planInfo={planInfo}
         onClose={() => setUpgradeOpen(false)}
         onUpgrade={() => setManagePlanOpen(true)}
+        viewerIsOwner={planInfo?.viewerIsOwner ?? false}
       />
 
       {planInfo?.viewerIsOwner && (

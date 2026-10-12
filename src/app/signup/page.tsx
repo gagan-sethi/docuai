@@ -28,7 +28,7 @@ import {
   Calculator,
 } from "lucide-react";
 import Link from "next/link";
-import { useSearchParams } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import AuthLayout from "@/components/auth/AuthLayout";
 import BrandLogo from "@/components/BrandLogo";
 import { apiFetch, apiUrl, setAuthToken } from "@/lib/api";
@@ -179,6 +179,17 @@ function OTPInput({
 // ─── Main Signup Page ───────────────────────────────────────────
 function SignupPageContent() {
   const searchParams = useSearchParams();
+  const router = useRouter();
+  /*
+   * N-04 / SEC-4: a signed-in member who hit their plan limit was navigated
+   * to /signup and shown "Create your account" while still logged in. /login
+   * already sends a signed-in visitor to the dashboard; /signup did not, so
+   * the page invited a second account alongside the live session.
+   *
+   * Hold the form back until the session is known, so the create-account form
+   * never flashes up for someone who is already signed in.
+   */
+  const [checkingSession, setCheckingSession] = useState(true);
   const [step, setStep] = useState<Step>("details");
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
@@ -197,6 +208,26 @@ function SignupPageContent() {
   const [promoValidation, setPromoValidation] = useState<PromoValidation | null>(null);
   const [promoError, setPromoError] = useState("");
   const [promoChecking, setPromoChecking] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    apiFetch(apiUrl("/api/auth/me"), { credentials: "include" })
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data) => {
+        if (cancelled) return;
+        if (data?.user) {
+          router.replace("/dashboard");
+          return;
+        }
+        setCheckingSession(false);
+      })
+      .catch(() => {
+        if (!cancelled) setCheckingSession(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [router]);
   // B-02: the plan picked on /pricing arrives as ?plan=<planId>. Without this
   // every "Choose Plan" button silently dropped the choice and the visitor
   // landed on the Free plan.
@@ -468,6 +499,16 @@ function SignupPageContent() {
     center: { x: 0, opacity: 1 },
     exit: { x: -30, opacity: 0 },
   };
+
+  if (checkingSession) {
+    return (
+      <AuthLayout>
+        <div className="flex items-center justify-center py-20">
+          <Loader2 className="h-8 w-8 animate-spin text-primary" />
+        </div>
+      </AuthLayout>
+    );
+  }
 
   return (
     <AuthLayout>
