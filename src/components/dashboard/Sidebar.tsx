@@ -105,7 +105,7 @@ const bottomNav = [
     icon: CreditCard,
   },
   {
-    name: "Notification",
+    name: "Notifications",
     href: "/dashboard/notifications",
     icon: Bell,
   },

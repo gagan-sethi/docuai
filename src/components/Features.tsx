@@ -1,6 +1,7 @@
 "use client";
 
 import { motion } from "framer-motion";
+import { WHATSAPP_LIVE } from "@/lib/siteConfig";
 import {
   ScanText,
   BrainCircuit,
@@ -13,7 +14,7 @@ import {
   Building2,
 } from "lucide-react";
 
-const features = [
+const allFeatures = [
   {
     icon: ScanText,
     title: "AI Document Extraction",
@@ -26,7 +27,7 @@ const features = [
     icon: Smartphone,
     title: "WhatsApp Processing",
     description:
-      "Send invoices and receipts directly via WhatsApp and receive structured financial data instantly.",
+      "Send invoices and receipts directly via WhatsApp and receive structured financial data back in the portal.",
     color: "#16a34a",
     bgColor: "bg-green-50",
   },
@@ -50,7 +51,7 @@ const features = [
     icon: Layers,
     title: "Batch Processing",
     description:
-      "Process hundreds of documents at once and export unified reports for VAT, reconciliation, and month-end close.",
+      "Upload a batch in one go and export unified reports for VAT, reconciliation, and month-end close.",
     color: "#082f73",
     bgColor: "bg-accent/5",
   },
@@ -74,7 +75,7 @@ const features = [
     icon: Shield,
     title: "Enterprise Security",
     description:
-      "Role-based access, audit logs, encrypted storage, and secure cloud infrastructure for sensitive finance data.",
+      "Role-based access, encrypted storage, and secure cloud infrastructure for sensitive finance data.",
     color: "#475569",
     bgColor: "bg-slate-50",
   },
@@ -87,6 +88,16 @@ const features = [
     bgColor: "bg-pink-50",
   },
 ];
+
+/*
+ * CB-09: WhatsApp intake is not live, and the surfaces in the portal are
+ * hidden behind WHATSAPP_LIVE. This card was a static array entry, so the
+ * homepage went on advertising it. A feature the product cannot deliver is
+ * not listed until the number is configured.
+ */
+const features = WHATSAPP_LIVE
+  ? allFeatures
+  : allFeatures.filter((feature) => feature.title !== "WhatsApp Processing");
 
 const containerVariants = {
   hidden: { opacity: 0 },

@@ -1121,7 +1121,7 @@ export default function UploadPage() {
               {[
                 { icon: ScanSearch, title: "Smart Detection", desc: "AI automatically detects if your document is handwritten or typed — no manual toggling needed.", color: "from-amber-500 to-orange-600" },
                 { icon: Sparkles, title: "AI-Powered Pipeline", desc: "Amazon Textract for OCR + PaddleOCR for handwriting + GPT-4o for intelligent structuring.", color: "from-secondary to-cyan-600" },
-                { icon: FileCheck2, title: "Review & Export", desc: "Validate extracted data, edit fields inline, then export to Excel or via API.", color: "from-success to-emerald-600" },
+                { icon: FileCheck2, title: "Review & Export", desc: "Validate extracted data, edit fields inline, then export to Excel or CSV.", color: "from-success to-emerald-600" },
               ].map((tip) => (
                 <div key={tip.title} className="bg-white rounded-2xl border border-slate-100 p-5 hover:shadow-lg hover:shadow-slate-100 transition-shadow">
                   <div className={`w-10 h-10 rounded-xl bg-gradient-to-br ${tip.color} flex items-center justify-center mb-4`}>

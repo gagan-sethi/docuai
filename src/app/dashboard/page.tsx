@@ -37,6 +37,7 @@ import TopBar from "@/components/dashboard/TopBar";
 import { AiProcessingIndicators, DocTypeBadge } from "@/components/dashboard/DocTypeBadge";
 import AiInsightsWidget from "@/components/dashboard/AiInsightsWidget";
 import { apiFetch, apiUrl, downloadApiFile } from "@/lib/api";
+import { counted } from "@/lib/text";
 import type { ProcessedDocument } from "@/lib/types";
 import type { FinancialInsight } from "@/lib/financialIntelligence";
 import { getCategoryMeta, getClassificationConfidence, resolveDocTypeCode } from "@/lib/finance";
@@ -559,7 +560,7 @@ export default function DashboardPage() {
   // Compute dynamic quick actions descriptions
   const dynamicQuickActions = quickActions.map(a => {
     if (a.name === "Review Queue" && apiStats) {
-      return { ...a, desc: `${apiStats.review} documents pending` };
+      return { ...a, desc: `${counted(apiStats.review, "document")} pending` };
     }
     return a;
   });
@@ -624,7 +625,7 @@ export default function DashboardPage() {
                   <Hand className="w-6 h-6 text-amber-300" />
                 </h2>
                 <p className="text-sm text-slate-300 mt-1">
-                  You have <span className="text-amber-400 font-semibold">{apiStats ? apiStats.review : 0} documents</span> pending review and{" "}
+                  You have <span className="text-amber-400 font-semibold">{counted(apiStats ? apiStats.review : 0, "document")}</span> pending review and{" "}
                   <span className="text-success font-semibold">{apiStats ? apiStats.approved : 0} approved</span> in total.
                 </p>
               </div>
@@ -809,7 +810,7 @@ export default function DashboardPage() {
                     <span className="px-2 py-0.5 text-[10px] font-bold bg-white/20 text-green-100 rounded-full">NEW</span>
                   </h3>
                   <p className="text-sm text-green-100 mt-1 max-w-md">
-                    Skip the upload — just send your invoices, receipts, or POs to our WhatsApp number and get structured data back instantly.
+                    Skip the upload — send your invoices, receipts or POs to our WhatsApp number and get structured data back in the portal.
                   </p>
                   <div className="mt-3 flex items-center gap-3">
                     <div className="flex items-center gap-2 px-3 py-1.5 bg-white/10 rounded-lg">
@@ -1197,8 +1198,8 @@ export default function DashboardPage() {
                         </div>
                         <p className="text-xs text-muted mt-0.5">
                           {isUnlimited
-                            ? `${pagesUsed.toLocaleString()} pages used · ${docsUsed} documents`
-                            : `${pagesUsed} of ${pagesLimit} pages used · ${docsUsed} documents`}
+                            ? `${pagesUsed.toLocaleString()} pages used · ${counted(docsUsed, "document")}`
+                            : `${pagesUsed} of ${pagesLimit} pages used · ${counted(docsUsed, "document")}`}
                           {resetsAt && <span className="text-slate-400"> · Resets {resetsAt}</span>}
                         </p>
                       </div>
