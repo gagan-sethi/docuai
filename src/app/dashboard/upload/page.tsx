@@ -185,6 +185,37 @@ async function detectDocumentType(
   }
 }
 
+function sanitizeUploadErrorMessage(raw: string): string {
+  if (!raw) return "Processing failed. Please try again.";
+  if (raw.startsWith("UPGRADE_REQUIRED:")) return raw;
+
+  const lower = raw.toLowerCase();
+  if (lower.includes("rate limit") || lower.includes("429")) {
+    return "The extraction service is currently experiencing high volume. Please retry in a few moments.";
+  }
+  if (
+    lower.includes("connection error") ||
+    lower.includes("timeout") ||
+    lower.includes("aborterror") ||
+    lower.includes("could not reach")
+  ) {
+    return "Could not reach the document extraction service. Please try again shortly.";
+  }
+  if (
+    lower.includes("quota") ||
+    lower.includes("insufficient") ||
+    lower.includes("openai_api_key") ||
+    lower.includes("no ai provider") ||
+    lower.includes("temporarily unavailable")
+  ) {
+    return "Document extraction service is temporarily unavailable. Please try again later.";
+  }
+  if (/sk-[a-zA-Z0-9_-]+|org-[a-zA-Z0-9_-]+|openai\.com/i.test(raw)) {
+    return "Document processing failed. Please try again shortly.";
+  }
+  return raw;
+}
+
 // ─── Real processing pipeline ──────────────────────────────────
 async function processFile(
   file: UploadFile,
@@ -262,6 +293,18 @@ async function processFile(
 
     for (let index = 0; index < uploadedDocs.length; index++) {
       if (shouldCancel()) {
+        const remainingDocs = uploadedDocs.slice(index);
+        if (remainingDocs.length > 0) {
+          await apiFetch(apiUrl("/api/process/fail-remaining"), {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            credentials: "include",
+            body: JSON.stringify({
+              documentIds: remainingDocs.map((d) => d.documentId),
+              error: "Upload was cancelled",
+            }),
+          }).catch(() => {});
+        }
         onUpdate({ status: "queued", progress: 0 });
         return;
       }
@@ -283,7 +326,26 @@ async function processFile(
       if (!processRes.ok) {
         const err = await processRes.json().catch(() => ({}));
         const prefix = uploadedDocs.length > 1 ? `Bill ${index + 1}: ` : "";
-        throw new Error(`${prefix}${err.error || "Processing failed"}`);
+        const errorMsg = err.error || "Processing failed";
+
+        // If one bill fails in a multi-part upload, make sure remaining unprocessed bills are also
+        // marked as error and their quota refunded so they don't stay stranded in "uploaded" / "queued" state!
+        if (uploadedDocs.length > 1) {
+          const remainingDocs = uploadedDocs.slice(index + 1);
+          if (remainingDocs.length > 0) {
+            await apiFetch(apiUrl("/api/process/fail-remaining"), {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              credentials: "include",
+              body: JSON.stringify({
+                documentIds: remainingDocs.map((d) => d.documentId),
+                error: errorMsg,
+              }),
+            }).catch(() => {});
+          }
+        }
+
+        throw new Error(`${prefix}${errorMsg}`);
       }
 
       processedResults.push(await processRes.json());
@@ -319,7 +381,7 @@ async function processFile(
     });
   } catch (error) {
     const message = error instanceof Error ? error.message : "Processing failed";
-    onUpdate({ status: "error", error: message, progress: 100 });
+    onUpdate({ status: "error", error: sanitizeUploadErrorMessage(message), progress: 100 });
   }
 }
 
@@ -719,18 +781,18 @@ export default function UploadPage() {
                 <p className="text-xs text-amber-700/80 mt-0.5">{upgradeMessage}</p>
               </div>
               <Link
-                href="/pricing"
+                href="/dashboard/billing?managePlan=true"
                 className="flex items-center gap-1.5 px-3.5 py-2 text-xs font-bold text-white bg-gradient-to-r from-amber-500 to-orange-500 rounded-lg shadow-sm hover:shadow-md transition-all whitespace-nowrap"
               >
                 <Crown className="w-3.5 h-3.5" />
                 Upgrade Plan
               </Link>
-              <button
-                onClick={() => setUpgradeOpen(true)}
+              <Link
+                href="/dashboard/billing?managePlan=true"
                 className="text-xs font-medium text-amber-700 hover:text-amber-900 px-2 py-1"
               >
-                Details
-              </button>
+                Manage Plan
+              </Link>
             </motion.div>
           )}
 
@@ -975,7 +1037,11 @@ export default function UploadPage() {
                             {file.error && (
                               <>
                                 <span className="text-[11px] text-muted">&middot;</span>
-                                <span className="text-[11px] text-red-500">{file.error}</span>
+                                <span className="text-[11px] text-red-500">
+                                  {file.error.startsWith("UPGRADE_REQUIRED:")
+                                    ? file.error.replace("UPGRADE_REQUIRED:", "")
+                                    : file.error}
+                                </span>
                               </>
                             )}
                           </div>
@@ -1174,10 +1240,9 @@ export default function UploadPage() {
         planInfo={planInfo}
         onClose={() => setUpgradeOpen(false)}
         onUpgrade={() => setManagePlanOpen(true)}
-        viewerIsOwner={planInfo?.viewerIsOwner ?? false}
+        viewerIsOwner={planInfo?.viewerIsOwner ?? true}
       />
 
-      {planInfo?.viewerIsOwner && (
       <ManagePlanModal
         open={managePlanOpen}
         onClose={() => setManagePlanOpen(false)}
@@ -1191,7 +1256,7 @@ export default function UploadPage() {
               }
             : null
         }
-      />)}
+      />
     </div>
   );
 }

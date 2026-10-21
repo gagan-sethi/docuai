@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import { motion } from "framer-motion";
 import { ArrowRight } from "lucide-react";
 import Link from "next/link";
@@ -8,8 +9,14 @@ import Footer from "@/components/Footer";
 import Pricing from "@/components/Pricing";
 import PlanComparison from "@/components/PlanComparison";
 import { PRIMARY_CTA_LABEL, TRIAL_STRIP } from "@/lib/siteConfig";
+import { getAuthToken } from "@/lib/api";
 
 export default function PricingPage() {
+  const [isLoggedIn, setIsLoggedIn] = useState(false);
+  useEffect(() => {
+    setIsLoggedIn(Boolean(getAuthToken()));
+  }, []);
+
   return (
     <div className="min-h-screen bg-white">
       <Navbar />
@@ -37,7 +44,7 @@ export default function PricingPage() {
             </p>
             <div className="mt-10 flex flex-col items-center justify-center gap-4 sm:flex-row">
               <Link
-                href="/signup"
+                href={isLoggedIn ? "/dashboard/billing" : "/signup"}
                 className="btn-shine group inline-flex w-full items-center justify-center gap-2 rounded-2xl bg-white px-10 py-4 text-base font-semibold text-slate-900 shadow-xl transition-all hover:scale-105 sm:w-auto"
               >
                 {PRIMARY_CTA_LABEL}

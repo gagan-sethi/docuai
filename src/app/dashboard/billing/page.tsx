@@ -13,8 +13,9 @@
  * navigation, so we don't reimplement plan-switching logic here.
  */
 
-import { useEffect, useMemo, useState } from "react";
+import { Suspense, useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import { motion } from "framer-motion";
 import {
   CreditCard,
@@ -111,6 +112,16 @@ function formatDate(d?: string | null): string {
   });
 }
 
+function BillingSearchParamsHandler({ onOpenModal }: { onOpenModal: () => void }) {
+  const searchParams = useSearchParams();
+  useEffect(() => {
+    if (searchParams.get("managePlan") === "true" || searchParams.get("upgrade") === "true") {
+      onOpenModal();
+    }
+  }, [searchParams, onOpenModal]);
+  return null;
+}
+
 export default function BillingPage() {
   const sidebarOffset = useSidebarOffset();
   const [plan, setPlan] = useState<PlanInfo | null>(null);
@@ -121,6 +132,10 @@ export default function BillingPage() {
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [showPlanModal, setShowPlanModal] = useState(false);
+
+  const handleOpenPlanModal = useCallback(() => {
+    setShowPlanModal(true);
+  }, []);
 
   const load = async () => {
     setError(null);
@@ -567,6 +582,10 @@ export default function BillingPage() {
           )}
         </div>
       </main>
+
+      <Suspense fallback={null}>
+        <BillingSearchParamsHandler onOpenModal={handleOpenPlanModal} />
+      </Suspense>
 
       <ManagePlanModal
         open={showPlanModal}

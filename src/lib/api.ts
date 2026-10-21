@@ -73,10 +73,43 @@ export function getAuthToken(): string | null {
   }
 }
 
+/**
+ * Extract authenticated user ID or identifier from JWT payload.
+ * Used for client-side storage isolation so User B never sees User A's data.
+ */
+export function getAuthenticatedUserId(): string | null {
+  const token = getAuthToken();
+  if (!token) return null;
+  try {
+    const parts = token.split(".");
+    if (parts.length >= 2) {
+      const payload = JSON.parse(atob(parts[1]));
+      return payload.userId || payload.id || payload.sub || payload.email || null;
+    }
+  } catch {
+    // ignore decoding errors
+  }
+  return null;
+}
+
 export function clearAuthToken(): void {
   if (typeof window === "undefined") return;
   try {
     window.localStorage.removeItem(AUTH_TOKEN_KEY);
+    // Purge any upload batch keys and cached items so they do not leak across users
+    const keysToRemove: string[] = [];
+    for (let i = 0; i < window.localStorage.length; i++) {
+      const key = window.localStorage.key(i);
+      if (
+        key &&
+        (key.startsWith("docuai.uploadBatches") ||
+          key.startsWith("docuai_") ||
+          key === "docuai.uploadBatches")
+      ) {
+        keysToRemove.push(key);
+      }
+    }
+    keysToRemove.forEach((k) => window.localStorage.removeItem(k));
   } catch { /* ignore */ }
 }
 

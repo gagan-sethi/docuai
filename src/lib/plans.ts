@@ -9,7 +9,7 @@
  * review). Both surfaces now derive from this module, so they cannot drift.
  */
 
-import { API_BASE_URL, apiFetch, apiUrl } from "./api";
+import { API_BASE_URL, apiFetch, apiUrl, getAuthToken } from "./api";
 
 export type CampaignDiscount = {
   type?: "fixed" | "percentage" | "percent";
@@ -380,13 +380,19 @@ export function sortPlans(plans: DisplayPlan[]): DisplayPlan[] {
 }
 
 /**
- * B-02: a plan button must carry the chosen plan through signup, otherwise
- * every "Choose Plan" landed the visitor on the Free plan.
+ * B-02 / N-04: a plan button must carry the chosen plan through signup for visitors,
+ * but for ALREADY SIGNED-IN users, it must take them straight to checkout or billing,
+ * NEVER bouncing an authenticated user to /signup.
  */
 export function planSignupHref(plan: DisplayPlan): string {
   if (plan.isEnterprise) return "/contact";
-  if (!plan.planId) return "/signup";
-  return `/signup?plan=${encodeURIComponent(plan.planId)}`;
+  const isAuthenticated = typeof window !== "undefined" && Boolean(getAuthToken());
+  if (!plan.planId) {
+    return isAuthenticated ? "/dashboard/billing" : "/signup";
+  }
+  return isAuthenticated
+    ? `/checkout?planId=${encodeURIComponent(plan.planId)}`
+    : `/signup?plan=${encodeURIComponent(plan.planId)}`;
 }
 
 export type PlansResult = {

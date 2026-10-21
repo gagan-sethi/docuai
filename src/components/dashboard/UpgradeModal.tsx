@@ -12,7 +12,8 @@
  */
 
 import { motion, AnimatePresence } from "framer-motion";
-import { Crown, ArrowRight, X } from "lucide-react";
+import { Crown, ArrowRight, X, CreditCard } from "lucide-react";
+import Link from "next/link";
 
 export interface UpgradeModalPlanInfo {
   plan: string;
@@ -129,27 +130,32 @@ export default function UpgradeModal({
 
             <div className="px-6 pt-2 pb-6 flex flex-col gap-2">
               {viewerIsOwner ? (
-                <button
-                  type="button"
-                  onClick={() => {
-                    onClose();
-                    onUpgrade?.();
-                  }}
+                <Link
+                  href="/dashboard/billing?managePlan=true"
+                  onClick={onClose}
                   className="flex items-center justify-center gap-2 px-4 py-3 text-sm font-bold text-white bg-gradient-to-r from-amber-500 to-orange-500 rounded-xl shadow-md hover:shadow-lg transition-all"
                 >
                   <Crown className="w-4 h-4" />
                   Upgrade Plan
                   <ArrowRight className="w-4 h-4" />
-                </button>
+                </Link>
               ) : (
                 <p className="rounded-xl bg-slate-50 px-4 py-3 text-center text-sm text-slate-600">
                   Only the workspace owner can change the plan. Ask them to
                   upgrade, and your uploads will resume straight away.
                 </p>
               )}
+              <Link
+                href="/dashboard/billing"
+                onClick={onClose}
+                className="flex items-center justify-center gap-1.5 px-4 py-2 text-xs font-semibold text-amber-700 hover:text-amber-800 transition"
+              >
+                <CreditCard className="w-3.5 h-3.5" />
+                View plan & billing details
+              </Link>
               <button
                 onClick={onClose}
-                className="px-4 py-2.5 text-xs font-semibold text-slate-600 hover:text-slate-800 transition"
+                className="px-4 py-2 text-xs font-semibold text-slate-500 hover:text-slate-700 transition"
               >
                 Maybe later
               </button>

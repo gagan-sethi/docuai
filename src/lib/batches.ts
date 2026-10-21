@@ -1,5 +1,6 @@
 import type { ProcessedDocument } from "./types";
 import { formatShortDate } from "./dates";
+import { getAuthenticatedUserId } from "./api";
 
 export interface UploadBatchRecord {
   id: string;
@@ -25,7 +26,10 @@ export interface BatchSummary {
   status?: UploadBatchRecord["status"];
 }
 
-const BATCH_STORAGE_KEY = "docuai.uploadBatches";
+function getBatchStorageKey(): string | null {
+  const userId = getAuthenticatedUserId();
+  return userId ? `docuai.uploadBatches.${userId}` : null;
+}
 
 function canUseStorage(): boolean {
   return typeof window !== "undefined" && typeof window.localStorage !== "undefined";
@@ -33,8 +37,10 @@ function canUseStorage(): boolean {
 
 function readBatches(): UploadBatchRecord[] {
   if (!canUseStorage()) return [];
+  const key = getBatchStorageKey();
+  if (!key) return [];
   try {
-    const raw = window.localStorage.getItem(BATCH_STORAGE_KEY);
+    const raw = window.localStorage.getItem(key);
     if (!raw) return [];
     const parsed = JSON.parse(raw);
     return Array.isArray(parsed) ? parsed : [];
@@ -45,7 +51,9 @@ function readBatches(): UploadBatchRecord[] {
 
 function writeBatches(batches: UploadBatchRecord[]) {
   if (!canUseStorage()) return;
-  window.localStorage.setItem(BATCH_STORAGE_KEY, JSON.stringify(batches));
+  const key = getBatchStorageKey();
+  if (!key) return;
+  window.localStorage.setItem(key, JSON.stringify(batches));
 }
 
 function upsertBatch(batch: UploadBatchRecord) {
