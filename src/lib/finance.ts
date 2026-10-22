@@ -223,6 +223,10 @@ export const EXPENSE_CATEGORY_OPTIONS = EXPENSE_CATEGORY_GROUPS.flatMap((group) 
 );
 
 const LEGACY_EXPENSE_CATEGORY_MAP: Record<string, ExpenseCategory> = {
+  cogs: "inventory_purchases",
+  cost_of_goods: "inventory_purchases",
+  inventory: "inventory_purchases",
+  materials: "raw_materials",
   logistics: "freight_logistics",
   marketing: "marketing_advertising",
   office: "office_supplies",
@@ -533,6 +537,9 @@ export function deriveFinancialSummary(doc: ProcessedDocument): FinancialSummary
 
 export interface FinancialTotals {
   revenue: number;
+  cogs?: number;
+  grossProfit?: number;
+  operatingExpenses?: number;
   expenses: number;
   netProfit: number;
   vatCollected: number;
@@ -550,10 +557,15 @@ export function isFinanciallyCounted(doc: ProcessedDocument): boolean {
   return doc.status === "approved" && doc.financial?.reconciliation?.isValid !== false;
 }
 
+const roundMoney = (v: number) => Math.round((v + Number.EPSILON) * 100) / 100;
+
 export function aggregateTotals(docs: ProcessedDocument[]): FinancialTotals {
   const currencyCounts = new Map<SupportedCurrency, number>();
   const totals: FinancialTotals = {
     revenue: 0,
+    cogs: 0,
+    grossProfit: 0,
+    operatingExpenses: 0,
     expenses: 0,
     netProfit: 0,
     vatCollected: 0,
@@ -583,16 +595,35 @@ export function aggregateTotals(docs: ProcessedDocument[]): FinancialTotals {
       totals.vatCollected += fin.vatAmount;
       totals.salesCount += 1;
     } else if (code === "expense_invoice") {
-      totals.expenses += fin.subtotal || fin.grandTotal - fin.vatAmount;
+      const expAmt = fin.subtotal || fin.grandTotal - fin.vatAmount;
+      totals.expenses += expAmt;
       totals.vatPaid += fin.vatAmount;
       totals.expenseCount += 1;
+      const cat = d.expenseCategory ? normalizeExpenseCategory(d.expenseCategory) : undefined;
+      const catMeta = cat ? getCategoryMeta(cat) : undefined;
+      if (catMeta?.group === "cogs") {
+        totals.cogs = (totals.cogs || 0) + expAmt;
+      } else {
+        totals.operatingExpenses = (totals.operatingExpenses || 0) + expAmt;
+      }
     } else if (code === "receipt") {
-      totals.expenses += fin.grandTotal - fin.vatAmount;
+      const recAmt = fin.grandTotal - fin.vatAmount;
+      totals.expenses += recAmt;
       totals.vatPaid += fin.vatAmount;
       totals.receiptCount += 1;
+      const cat = d.expenseCategory ? normalizeExpenseCategory(d.expenseCategory) : undefined;
+      const catMeta = cat ? getCategoryMeta(cat) : undefined;
+      if (catMeta?.group === "cogs") {
+        totals.cogs = (totals.cogs || 0) + recAmt;
+      } else {
+        totals.operatingExpenses = (totals.operatingExpenses || 0) + recAmt;
+      }
     }
   }
 
+  totals.cogs = roundMoney(totals.cogs || 0);
+  totals.grossProfit = roundMoney(totals.revenue - (totals.cogs || 0));
+  totals.operatingExpenses = roundMoney(totals.operatingExpenses || 0);
   totals.netProfit = totals.revenue - totals.expenses;
   totals.vatPayable = totals.vatCollected - totals.vatPaid;
   totals.currency =
@@ -608,6 +639,9 @@ export interface MonthlyBucket {
   monthLabel: string;        // "Jan 2026"
   salesAmount: number;
   salesVat: number;
+  cogsAmount?: number;
+  grossProfit?: number;
+  operatingExpenses?: number;
   expenseAmount: number;
   expenseVat: number;
   netVat: number;
@@ -642,6 +676,9 @@ export function buildMonthlyBuckets(docs: ProcessedDocument[]): MonthlyBucket[] 
         monthLabel: monthLabel(key),
         salesAmount: 0,
         salesVat: 0,
+        cogsAmount: 0,
+        grossProfit: 0,
+        operatingExpenses: 0,
         expenseAmount: 0,
         expenseVat: 0,
         netVat: 0,
@@ -653,9 +690,18 @@ export function buildMonthlyBuckets(docs: ProcessedDocument[]): MonthlyBucket[] 
       bucket.salesAmount += fin.subtotal || fin.grandTotal - fin.vatAmount;
       bucket.salesVat += fin.vatAmount;
     } else {
-      bucket.expenseAmount += fin.subtotal || fin.grandTotal - fin.vatAmount;
+      const exp = fin.subtotal || fin.grandTotal - fin.vatAmount;
+      bucket.expenseAmount += exp;
       bucket.expenseVat += fin.vatAmount;
+      const cat = d.expenseCategory ? normalizeExpenseCategory(d.expenseCategory) : undefined;
+      const catMeta = cat ? getCategoryMeta(cat) : undefined;
+      if (catMeta?.group === "cogs") {
+        bucket.cogsAmount = (bucket.cogsAmount || 0) + exp;
+      } else {
+        bucket.operatingExpenses = (bucket.operatingExpenses || 0) + exp;
+      }
     }
+    bucket.grossProfit = bucket.salesAmount - (bucket.cogsAmount || 0);
     bucket.netVat = bucket.salesVat - bucket.expenseVat;
     bucket.netProfit = bucket.salesAmount - bucket.expenseAmount;
   }

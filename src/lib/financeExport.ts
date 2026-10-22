@@ -19,9 +19,20 @@ import type { ProcessedDocument } from "./types";
 
 // ─── CSV helpers ────────────────────────────────────────────────
 
+function isNumeric(val: unknown): boolean {
+  if (typeof val === "number") return !Number.isNaN(val);
+  if (typeof val !== "string") return false;
+  const trimmed = val.trim();
+  if (trimmed === "") return false;
+  return /^-?\d+(\.\d+)?$/.test(trimmed);
+}
+
 function csvEscape(v: unknown): string {
-  const s = v == null ? "" : String(v);
-  if (/[",\n]/.test(s)) return `"${s.replace(/"/g, '""')}"`;
+  if (v == null) return "";
+  if (typeof v === "number") return String(v);
+  if (isNumeric(v)) return String(v);
+  const s = String(v);
+  if (/[",\r\n]/.test(s)) return `"${s.replace(/"/g, '""')}"`;
   return s;
 }
 
@@ -117,18 +128,30 @@ export function buildPnlCsv(docs: ProcessedDocument[]): string {
   rows.push(["Currency", totals.currency]);
   rows.push([]);
 
-  rows.push(["Month", "Revenue", "Expenses", "Net Profit"]);
+  rows.push(["Month", "Revenue", "COGS", "Gross Profit", "Operating Expenses", "Total Expenses", "Net Profit"]);
   for (const m of monthly) {
+    const cogs = m.cogsAmount ?? 0;
+    const grossProfit = m.grossProfit ?? (m.salesAmount - cogs);
+    const opExp = m.operatingExpenses ?? (m.expenseAmount - cogs);
     rows.push([
       m.monthLabel,
       m.salesAmount.toFixed(2),
+      cogs.toFixed(2),
+      grossProfit.toFixed(2),
+      opExp.toFixed(2),
       m.expenseAmount.toFixed(2),
       m.netProfit.toFixed(2),
     ]);
   }
+  const totalCogs = totals.cogs ?? 0;
+  const totalGrossProfit = totals.grossProfit ?? (totals.revenue - totalCogs);
+  const totalOpExp = totals.operatingExpenses ?? (totals.expenses - totalCogs);
   rows.push([
     "TOTAL",
     totals.revenue.toFixed(2),
+    totalCogs.toFixed(2),
+    totalGrossProfit.toFixed(2),
+    totalOpExp.toFixed(2),
     totals.expenses.toFixed(2),
     totals.netProfit.toFixed(2),
   ]);
@@ -287,18 +310,20 @@ export async function downloadPnlXlsx(docs: ProcessedDocument[]) {
 
   const s = wb.addWorksheet("Profit & Loss");
   s.columns = [
-    { header: "", width: 22 },
-    { header: "", width: 24 },
-    { header: "", width: 16 },
-    { header: "", width: 16 },
-    { header: "", width: 16 },
+    { header: "", width: 20 },
+    { header: "", width: 18 },
+    { header: "", width: 18 },
+    { header: "", width: 18 },
+    { header: "", width: 18 },
+    { header: "", width: 18 },
+    { header: "", width: 18 },
   ];
   s.addRow(["PROFIT & LOSS STATEMENT"]).font = { bold: true, size: 14 };
-  s.mergeCells("A1:E1");
+  s.mergeCells("A1:G1");
   s.addRow(["Currency", totals.currency]);
   s.addRow([]);
 
-  const h = s.addRow(["Month", "Revenue", "Expenses", "Net Profit"]);
+  const h = s.addRow(["Month", "Revenue", "COGS", "Gross Profit", "Operating Expenses", "Total Expenses", "Net Profit"]);
   h.eachCell((c) => {
     c.font = { bold: true, color: { argb: "FFFFFFFF" } };
     c.fill = {
@@ -308,9 +333,15 @@ export async function downloadPnlXlsx(docs: ProcessedDocument[]) {
     };
   });
   for (const m of monthly) {
-    s.addRow([m.monthLabel, m.salesAmount, m.expenseAmount, m.netProfit]);
+    const cogs = m.cogsAmount ?? 0;
+    const grossProfit = m.grossProfit ?? (m.salesAmount - cogs);
+    const opExp = m.operatingExpenses ?? (m.expenseAmount - cogs);
+    s.addRow([m.monthLabel, m.salesAmount, cogs, grossProfit, opExp, m.expenseAmount, m.netProfit]);
   }
-  const tr = s.addRow(["TOTAL", totals.revenue, totals.expenses, totals.netProfit]);
+  const totalCogs = totals.cogs ?? 0;
+  const totalGrossProfit = totals.grossProfit ?? (totals.revenue - totalCogs);
+  const totalOpExp = totals.operatingExpenses ?? (totals.expenses - totalCogs);
+  const tr = s.addRow(["TOTAL", totals.revenue, totalCogs, totalGrossProfit, totalOpExp, totals.expenses, totals.netProfit]);
   tr.font = { bold: true };
   s.addRow([]);
 
@@ -324,7 +355,7 @@ export async function downloadPnlXlsx(docs: ProcessedDocument[]) {
     s.addRow([c.groupLabel, c.label, c.amount, c.vat, c.count]);
   }
 
-  ["B", "C", "D"].forEach((col) => {
+  ["B", "C", "D", "E", "F", "G"].forEach((col) => {
     s.getColumn(col).numFmt = currencyFormat;
   });
 

@@ -6,6 +6,9 @@ import { formatShortMonthUtc } from "./dates";
 type BackendTotals = {
   currency: SupportedCurrency;
   revenue: number;
+  cogs?: number;
+  grossProfit?: number;
+  operatingExpenses?: number;
   expenses: number;
   netProfit: number;
   grossRevenue: number;
@@ -50,11 +53,20 @@ export async function fetchFinancialReport(params: URLSearchParams = new URLSear
 
 export function selectFinancialReport(report: FinancialReport | null, currency: SupportedCurrency) {
   const totalsRow = report?.totalsByCurrency.find((row) => row.currency === currency);
+  const revenue = totalsRow?.revenue ?? 0;
+  const expenses = totalsRow?.expenses ?? 0;
+  const cogs = totalsRow?.cogs ?? 0;
+  const grossProfit = totalsRow?.grossProfit ?? (revenue - cogs);
+  const operatingExpenses = totalsRow?.operatingExpenses ?? (expenses - cogs);
+
   const totals: FinancialTotals = {
     currency,
-    revenue: totalsRow?.revenue ?? 0,
-    expenses: totalsRow?.expenses ?? 0,
-    netProfit: totalsRow?.netProfit ?? 0,
+    revenue,
+    cogs,
+    grossProfit,
+    operatingExpenses,
+    expenses,
+    netProfit: totalsRow?.netProfit ?? (revenue - expenses),
     vatCollected: totalsRow?.vatCollected ?? 0,
     vatPaid: totalsRow?.vatPaid ?? 0,
     vatPayable: totalsRow?.vatPayable ?? 0,
@@ -65,16 +77,24 @@ export function selectFinancialReport(report: FinancialReport | null, currency: 
   };
   const monthly: MonthlyBucket[] = (report?.monthly ?? [])
     .filter((row) => row.currency === currency)
-    .map((row) => ({
-      month: row.month,
-      monthLabel: formatShortMonthUtc(`${row.month}-01T00:00:00Z`),
-      salesAmount: row.revenue,
-      salesVat: row.vatCollected,
-      expenseAmount: row.expenses,
-      expenseVat: row.vatPaid,
-      netVat: row.vatPayable,
-      netProfit: row.netProfit,
-    }));
+    .map((row) => {
+      const rowRev = row.revenue;
+      const rowExp = row.expenses;
+      const rowCogs = row.cogs ?? 0;
+      return {
+        month: row.month,
+        monthLabel: formatShortMonthUtc(`${row.month}-01T00:00:00Z`),
+        salesAmount: rowRev,
+        salesVat: row.vatCollected,
+        cogsAmount: rowCogs,
+        grossProfit: row.grossProfit ?? (rowRev - rowCogs),
+        operatingExpenses: row.operatingExpenses ?? (rowExp - rowCogs),
+        expenseAmount: rowExp,
+        expenseVat: row.vatPaid,
+        netVat: row.vatPayable,
+        netProfit: row.netProfit,
+      };
+    });
   const categories: CategoryBucket[] = (report?.categories ?? [])
     .filter((row) => row.currency === currency)
     .map((row) => ({
