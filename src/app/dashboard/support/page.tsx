@@ -8,7 +8,7 @@ import TopBar from "@/components/dashboard/TopBar";
 import { useFormik } from "formik";
 import * as Yup from "yup";
 import { apiFetch, apiUrl } from "@/lib/api";
-import { toast } from "react-toastify"; // ✅ Import toast
+import { toast } from "react-toastify";
 import FaqAnswer from "@/components/FaqAnswer";
 import {
   faqAnswerToText,
@@ -118,11 +118,6 @@ interface SupportTicket {
 // ============================================================
 // FAQ Data
 // ============================================================
-// Questions and answers come from src/lib/faqContent.ts, shared with the
-// public /faq page. This file keeps only the per-category presentation —
-// previously both carried their own copy and they disagreed on question
-// counts and on the answers about integrations, security and accuracy
-// (UX-06, Oct 2026 QA review).
 const categoryStyles: Record<
   FaqCategoryId,
   { icon: React.ElementType; iconColor: string; iconBg: string; dot: string }
@@ -173,9 +168,9 @@ function AttachmentUpload({ attachments, onAdd, onRemove }: {
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const formatFileSize = (bytes: number): string => {
-    if (bytes < 1024) return bytes + ' B';
-    if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
-    return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
+    if (bytes < 1024) return bytes + " B";
+    if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + " KB";
+    return (bytes / (1024 * 1024)).toFixed(1) + " MB";
   };
 
   return (
@@ -196,7 +191,7 @@ function AttachmentUpload({ attachments, onAdd, onRemove }: {
         onChange={(e) => {
           if (e.target.files && e.target.files.length > 0) {
             onAdd(e.target.files);
-            e.target.value = '';
+            e.target.value = "";
           }
         }}
         className="hidden"
@@ -231,6 +226,25 @@ function SupportTicketForm({ onSuccess }: { onSuccess: () => void }) {
   const [attachments, setAttachments] = useState<Attachment[]>([]);
   const [issueTypes, setIssueTypes] = useState<IssueType[]>([]);
   const [loadingIssueTypes, setLoadingIssueTypes] = useState(true);
+  const [user, setUser] = useState<{ name: string; email: string } | null>(null);
+
+  // R3-23: load authenticated user so name/email cannot be forged
+  useEffect(() => {
+    let cancelled = false;
+    apiFetch(apiUrl("/api/auth/me"), { credentials: "include" })
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data) => {
+        if (cancelled || !data?.user) return;
+        setUser({
+          name: data.user.fullName || "",
+          email: data.user.email || "",
+        });
+      })
+      .catch((err) => console.error("Failed to load user", err));
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   useEffect(() => {
     const fetchIssueTypes = async () => {
@@ -243,7 +257,7 @@ function SupportTicketForm({ onSuccess }: { onSuccess: () => void }) {
         if (data.success) setIssueTypes(sortIssueTypes(data.data));
       } catch (err) {
         console.error("Failed to fetch issue types", err);
-        toast.error("Failed to load issue types"); // ✅ Error toast
+        toast.error("Failed to load issue types");
       } finally {
         setLoadingIssueTypes(false);
       }
@@ -254,7 +268,7 @@ function SupportTicketForm({ onSuccess }: { onSuccess: () => void }) {
   const handleAddAttachments = (files: FileList) => {
     const newAttachments: Attachment[] = Array.from(files).map((file) => ({
       id: Math.random().toString(36).substring(7),
-      file: file,
+      file,
       name: file.name,
       size: file.size,
     }));
@@ -267,28 +281,33 @@ function SupportTicketForm({ onSuccess }: { onSuccess: () => void }) {
 
   const formik = useFormik({
     initialValues: {
-      name: "",
-      email: "",
+      name: user?.name ?? "",
+      email: user?.email ?? "",
       issueType: "",
       message: "",
     },
+    enableReinitialize: true,
     validationSchema: Yup.object({
-      name: Yup.string().required("Name is required"),
-      email: Yup.string().email("Invalid email").required("Email is required"),
       issueType: Yup.string().required("Please select an issue"),
-      message: Yup.string().min(10, "Please provide more detail (minimum 10 characters)").required("Message is required"),
+      message: Yup.string()
+        .min(10, "Please provide more detail (minimum 10 characters)")
+        .required("Message is required"),
     }),
     onSubmit: async (values, { resetForm }) => {
       try {
         setSubmitState("loading");
-        const selectedIssueType = issueTypes.find(issue => issue.name === values.issueType);
+        const selectedIssueType = issueTypes.find(
+          (issue) => issue.name === values.issueType
+        );
         const formData = new FormData();
         formData.append("name", values.name);
         formData.append("email", values.email);
         formData.append("issueType", values.issueType);
         formData.append("priority", selectedIssueType?.priority || "medium");
         formData.append("message", values.message);
-        attachments.forEach((attachment) => formData.append("attachments", attachment.file));
+        attachments.forEach((attachment) =>
+          formData.append("attachments", attachment.file)
+        );
 
         const res = await apiFetch(apiUrl("/api/support"), {
           method: "POST",
@@ -301,13 +320,13 @@ function SupportTicketForm({ onSuccess }: { onSuccess: () => void }) {
         setSubmitState("success");
         resetForm();
         setAttachments([]);
-        toast.success("Ticket submitted successfully! We'll respond within 24 hours."); // ✅ Success toast
+        toast.success("Ticket submitted successfully! We'll respond within 24 hours.");
         onSuccess();
         setTimeout(() => setSubmitState("idle"), 3000);
       } catch (err) {
         console.error(err);
         setSubmitState("idle");
-        toast.error("Failed to submit ticket. Please try again."); // ✅ Error toast
+        toast.error("Failed to submit ticket. Please try again.");
       }
     },
   });
@@ -323,35 +342,29 @@ function SupportTicketForm({ onSuccess }: { onSuccess: () => void }) {
       </div>
 
       <form onSubmit={formik.handleSubmit} className="flex flex-col gap-5">
+        {/* R3-23: name + email locked to session */}
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <div>
-            <label className="block text-xs font-medium text-slate-500 mb-1.5">Full Name *</label>
+            <label className="block text-xs font-medium text-slate-500 mb-1.5">Full Name</label>
             <input
               name="name"
               value={formik.values.name}
-              onChange={formik.handleChange}
-              onBlur={formik.handleBlur}
               type="text"
-              placeholder="Your full name"
-              className="w-full rounded-lg border border-slate-200 text-sm px-3.5 py-2.5 text-slate-800 bg-white outline-none transition focus:ring-2 focus:ring-indigo-400/30 focus:border-indigo-300"
+              readOnly
+              disabled
+              className="w-full rounded-lg border border-slate-200 text-sm px-3.5 py-2.5 text-slate-800 bg-slate-50 cursor-not-allowed outline-none"
             />
-            {formik.touched.name && formik.errors.name && (
-              <p className="text-xs text-red-500 mt-1">{formik.errors.name}</p>
-            )}
           </div>
           <div>
-            <label className="block text-xs font-medium text-slate-500 mb-1.5">Email Address *</label>
+            <label className="block text-xs font-medium text-slate-500 mb-1.5">Email Address</label>
             <input
               name="email"
               type="email"
               value={formik.values.email}
-              onChange={formik.handleChange}
-              placeholder="you@company.com"
-              className="w-full rounded-lg border border-slate-200 text-sm px-3.5 py-2.5 text-slate-800 bg-white outline-none transition focus:ring-2 focus:ring-indigo-400/30 focus:border-indigo-300"
+              readOnly
+              disabled
+              className="w-full rounded-lg border border-slate-200 text-sm px-3.5 py-2.5 text-slate-800 bg-slate-50 cursor-not-allowed outline-none"
             />
-            {formik.touched.email && formik.errors.email && (
-              <p className="text-xs text-red-500 mt-1">{formik.errors.email}</p>
-            )}
           </div>
         </div>
 
@@ -403,10 +416,11 @@ function SupportTicketForm({ onSuccess }: { onSuccess: () => void }) {
         <button
           type="submit"
           disabled={submitState === "loading" || !formik.isValid}
-          className={`w-full py-3 rounded-lg text-sm font-semibold transition-all duration-300 ${submitState === "success"
-            ? "bg-emerald-500 text-white"
-            : "bg-indigo-600 text-white hover:bg-indigo-700"
-            } disabled:opacity-70 disabled:cursor-not-allowed`}
+          className={`w-full py-3 rounded-lg text-sm font-semibold transition-all duration-300 ${
+            submitState === "success"
+              ? "bg-emerald-500 text-white"
+              : "bg-indigo-600 text-white hover:bg-indigo-700"
+          } disabled:opacity-70 disabled:cursor-not-allowed`}
         >
           {submitState === "idle" && "Submit Ticket"}
           {submitState === "loading" && (
@@ -439,11 +453,11 @@ export default function SupportPage() {
   const [selectedCategory, setSelectedCategory] = useState("All Categories");
   const [openCategory, setOpenCategory] = useState<string | null>("General");
   const [openFaqId, setOpenFaqId] = useState<string | null>(null);
-  
+
   const [tickets, setTickets] = useState<SupportTicket[]>([]);
   const [loadingTickets, setLoadingTickets] = useState(true);
   const [ticketCount, setTicketCount] = useState(0);
-  
+
   const router = useRouter();
 
   useEffect(() => {
@@ -471,11 +485,11 @@ export default function SupportPage() {
         setTickets(data.data || []);
         setTicketCount(data.total || data.data?.length || 0);
       } else {
-        toast.error("Failed to load your tickets"); // ✅ Error toast
+        toast.error("Failed to load your tickets");
       }
     } catch (err) {
       console.error("Failed to fetch tickets", err);
-      toast.error("Failed to load tickets. Please refresh the page."); // ✅ Error toast
+      toast.error("Failed to load tickets. Please refresh the page.");
     } finally {
       setLoadingTickets(false);
     }
@@ -487,11 +501,11 @@ export default function SupportPage() {
 
   const toggleFaq = (categoryTitle: string, index: number) => {
     const faqId = `${categoryTitle}-${index}`;
-    setOpenFaqId(prev => prev === faqId ? null : faqId);
+    setOpenFaqId((prev) => (prev === faqId ? null : faqId));
   };
 
   const toggleCategory = (categoryTitle: string) => {
-    setOpenCategory(prev => prev === categoryTitle ? null : categoryTitle);
+    setOpenCategory((prev) => (prev === categoryTitle ? null : categoryTitle));
     setOpenFaqId(null);
   };
 
@@ -501,21 +515,22 @@ export default function SupportPage() {
   };
 
   const filteredCategories = helpCenterCategories
-    .filter(category => {
+    .filter((category) => {
       if (selectedCategory !== "All Categories" && category.title !== selectedCategory) {
         return false;
       }
       return true;
     })
-    .map(category => ({
+    .map((category) => ({
       ...category,
-      faqs: category.faqs.filter(faq =>
-        searchQuery === "" ||
-        faq.q.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        faqAnswerToText(faq.a).toLowerCase().includes(searchQuery.toLowerCase())
-      )
+      faqs: category.faqs.filter(
+        (faq) =>
+          searchQuery === "" ||
+          faq.q.toLowerCase().includes(searchQuery.toLowerCase()) ||
+          faqAnswerToText(faq.a).toLowerCase().includes(searchQuery.toLowerCase())
+      ),
     }))
-    .filter(category => category.faqs.length > 0);
+    .filter((category) => category.faqs.length > 0);
 
   const getStatusConfig = (status: string) => {
     switch (status) {
@@ -540,7 +555,7 @@ export default function SupportPage() {
         transition={{ duration: 0.2, ease: "easeInOut" }}
       >
         <TopBar title="Help & Support" />
-        
+
         <main className="min-w-0 flex-1 overflow-y-auto">
           <section className="relative overflow-hidden bg-gradient-to-br from-indigo-600 via-indigo-700 to-violet-800 text-white">
             <div className="max-w-4xl mx-auto px-6 py-16 text-center relative z-10">
@@ -566,7 +581,7 @@ export default function SupportPage() {
                 title="Frequently Asked Questions"
                 subtitle="Find quick answers to common questions about Invonix."
               />
-              
+
               <div className="mb-8">
                 <div className="flex flex-col sm:flex-row gap-4">
                   <div className="flex-1 relative">
@@ -579,7 +594,7 @@ export default function SupportPage() {
                       className="w-full pl-12 pr-4 py-3 rounded-xl border border-slate-200 bg-white shadow-sm focus:ring-2 focus:ring-indigo-400/30 focus:border-indigo-300 outline-none transition text-slate-800"
                     />
                   </div>
-                  
+
                   <div className="relative sm:w-64">
                     <Filter className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 w-4 h-4" />
                     <select
@@ -587,13 +602,15 @@ export default function SupportPage() {
                       onChange={(e) => setSelectedCategory(e.target.value)}
                       className="w-full appearance-none pl-11 pr-10 py-3 rounded-xl border border-slate-200 bg-white shadow-sm focus:ring-2 focus:ring-indigo-400/30 focus:border-indigo-300 outline-none transition text-slate-800 text-sm cursor-pointer"
                     >
-                      {categoryOptions.map(cat => (
-                        <option key={cat} value={cat}>{cat}</option>
+                      {categoryOptions.map((cat) => (
+                        <option key={cat} value={cat}>
+                          {cat}
+                        </option>
                       ))}
                     </select>
                     <ChevronDown className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 w-4 h-4 pointer-events-none" />
                   </div>
-                  
+
                   {(searchQuery || selectedCategory !== "All Categories") && (
                     <button
                       onClick={clearSearch}
@@ -604,16 +621,26 @@ export default function SupportPage() {
                     </button>
                   )}
                 </div>
-                
+
                 {(searchQuery || selectedCategory !== "All Categories") && (
                   <div className="mt-3 text-sm text-slate-500">
-                    Found {totalResults} result{totalResults !== 1 ? 's' : ''}
-                    {searchQuery && <span> for &quot;<span className="font-medium text-slate-700">{searchQuery}</span>&quot;</span>}
-                    {selectedCategory !== "All Categories" && <span> in <span className="font-medium text-slate-700">{selectedCategory}</span></span>}
+                    Found {totalResults} result{totalResults !== 1 ? "s" : ""}
+                    {searchQuery && (
+                      <span>
+                        {" "}
+                        for &quot;<span className="font-medium text-slate-700">{searchQuery}</span>&quot;
+                      </span>
+                    )}
+                    {selectedCategory !== "All Categories" && (
+                      <span>
+                        {" "}
+                        in <span className="font-medium text-slate-700">{selectedCategory}</span>
+                      </span>
+                    )}
                   </div>
                 )}
               </div>
-              
+
               <div className="space-y-4">
                 {filteredCategories.map((category) => (
                   <div key={category.title} className="border border-slate-200 rounded-xl overflow-hidden bg-white shadow-sm">
@@ -637,7 +664,7 @@ export default function SupportPage() {
                         <ChevronDown className="w-5 h-5 text-slate-400" />
                       )}
                     </button>
-                    
+
                     {openCategory === category.title && (
                       <div className="border-t border-slate-100 divide-y divide-slate-100">
                         {category.faqs.map((faq, idx) => {
@@ -711,7 +738,7 @@ export default function SupportPage() {
                         <div>
                           <h3 className="font-bold text-slate-800">Your Support Tickets</h3>
                           <p className="text-xs text-slate-500">
-                            You have {ticketCount} ticket{ticketCount !== 1 ? 's' : ''} in total
+                            You have {ticketCount} ticket{ticketCount !== 1 ? "s" : ""} in total
                           </p>
                         </div>
                       </div>
@@ -757,33 +784,35 @@ export default function SupportPage() {
                                       {ticket.issueType}
                                     </span>
                                   </div>
-                                  
+
                                   <p className="text-sm text-slate-600 line-clamp-2 mb-3">
                                     {ticket.message}
                                   </p>
-                                  
+
                                   <div className="flex items-center justify-between">
                                     <div className="flex items-center gap-2 text-xs text-slate-400">
                                       <Calendar className="w-3 h-3" />
-                                      {new Date(ticket.createdAt).toLocaleDateString('en-US', {
-                                        year: 'numeric',
-                                        month: 'short',
-                                        day: 'numeric'
+                                      {new Date(ticket.createdAt).toLocaleDateString("en-US", {
+                                        year: "numeric",
+                                        month: "short",
+                                        day: "numeric",
                                       })}
                                       <Clock className="w-3 h-3 ml-1" />
-                                      {new Date(ticket.createdAt).toLocaleTimeString('en-US', {
-                                        hour: '2-digit',
-                                        minute: '2-digit'
+                                      {new Date(ticket.createdAt).toLocaleTimeString("en-US", {
+                                        hour: "2-digit",
+                                        minute: "2-digit",
                                       })}
                                     </div>
-                                    
-                                    <span className={`inline-flex items-center gap-1 text-xs font-semibold px-2.5 py-1 rounded-full border ${statusConfig.color}`}>
+
+                                    <span
+                                      className={`inline-flex items-center gap-1 text-xs font-semibold px-2.5 py-1 rounded-full border ${statusConfig.color}`}
+                                    >
                                       <StatusIcon className="w-3 h-3" />
                                       {statusConfig.label}
                                     </span>
                                   </div>
                                 </div>
-                                
+
                                 <div className="ml-3 opacity-0 group-hover:opacity-100 transition-opacity duration-200">
                                   <div className="w-8 h-8 bg-indigo-100 rounded-full flex items-center justify-center">
                                     <ArrowRight className="w-4 h-4 text-indigo-600" />
@@ -795,7 +824,7 @@ export default function SupportPage() {
                         })}
                       </div>
                     )}
-                    
+
                     {tickets.length > 0 && (
                       <div className="mt-6 pt-4 border-t border-slate-100 text-center">
                         <button
