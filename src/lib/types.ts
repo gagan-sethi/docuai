@@ -92,6 +92,15 @@ export interface FinancialSummary {
   };
 }
 
+export interface EditHistoryItem {
+  field: string;
+  oldValue: string;
+  newValue: string;
+  editedBy: string;
+  editedByName?: string;
+  editedAt: string;
+}
+
 export interface ExtractedField {
   id: string;
   label: string;
@@ -142,7 +151,10 @@ export interface ProcessedDocument {
   expenseCategoryManual?: boolean;
   financial?: FinancialSummary;
   duplicateOf?: string;
+  duplicateReason?: string;
   duplicateDetectedAt?: string;
+  isManuallyEdited?: boolean;
+  editHistory?: EditHistoryItem[];
   ai_verified?: boolean;
   ocr_accuracy?: number | null;
   auto_categorized?: boolean;

@@ -637,13 +637,14 @@ function RecentList({
         <p className="text-sm text-slate-400 py-6 text-center">{empty}</p>
       ) : (
         <div className="space-y-2">
-          {docs.map((d) => {
+          {docs.map((d, index) => {
             const fin = deriveFinancialSummary(d);
             const code = resolveDocTypeCode(d);
+            const docId = d.id || (d as any).documentId || (d as any)._id || `doc-${index}`;
             return (
               <Link
-                key={d.id}
-                href={`/dashboard/review?doc=${d.id}`}
+                key={docId}
+                href={`/dashboard/review?doc=${docId}`}
                 className="flex items-center justify-between gap-2 py-2 px-2 rounded-lg hover:bg-slate-50 transition"
               >
                 <div className="min-w-0 flex-1">

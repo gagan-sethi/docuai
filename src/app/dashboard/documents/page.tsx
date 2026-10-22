@@ -1858,7 +1858,15 @@ function ListRow({
         )}
       </td>
       <td className="px-4 py-3.5">
-        <StatusBadge status={doc.status} />
+        <div className="flex flex-col gap-1 items-start">
+          <StatusBadge status={doc.status} />
+          {doc.duplicateOf && (
+            <span className="inline-flex items-center gap-1 rounded-full border border-amber-300 bg-amber-50 px-2 py-0.5 text-[10px] font-bold text-amber-700">
+              <AlertTriangle className="h-2.5 w-2.5" />
+              Duplicate
+            </span>
+          )}
+        </div>
       </td>
       <td className="px-4 py-3.5">
         <AiProcessingIndicators doc={doc} />
@@ -2007,7 +2015,15 @@ function GridCard({
       )}
       <AiProcessingIndicators doc={doc} className="mb-3" />
       <div className="flex items-center justify-between">
-        <StatusBadge status={doc.status} />
+        <div className="flex items-center gap-1.5">
+          <StatusBadge status={doc.status} />
+          {doc.duplicateOf && (
+            <span className="inline-flex items-center gap-1 rounded-full border border-amber-300 bg-amber-50 px-2 py-0.5 text-[10px] font-bold text-amber-700">
+              <AlertTriangle className="h-2.5 w-2.5" />
+              Duplicate
+            </span>
+          )}
+        </div>
         {conf !== null && (
           <span className={`text-xs font-bold ${conf >= 90 ? "text-green-600" : conf >= 70 ? "text-amber-600" : "text-red-600"}`}>
             {conf}%

@@ -10,6 +10,8 @@ import {
   TrendingUp,
   TrendingDown,
   Wallet,
+  Package,
+  Scale,
 } from "lucide-react";
 import Sidebar from "@/components/dashboard/Sidebar";
 import TopBar from "@/components/dashboard/TopBar";
@@ -113,12 +115,24 @@ export default function PnlReportPage() {
             </div>
           ) : (
             <>
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
                 <SummaryCard
                   label="Total Revenue"
                   value={formatMoney(totals.revenue, totals.currency)}
                   Icon={TrendingUp}
                   tone="emerald"
+                />
+                <SummaryCard
+                  label="Cost of Goods (COGS)"
+                  value={formatMoney(totals.cogs ?? 0, totals.currency)}
+                  Icon={Package}
+                  tone="amber"
+                />
+                <SummaryCard
+                  label="Gross Profit"
+                  value={formatMoney(totals.grossProfit ?? (totals.revenue - (totals.cogs ?? 0)), totals.currency)}
+                  Icon={Scale}
+                  tone="blue"
                 />
                 <SummaryCard
                   label="Total Expenses"
@@ -146,6 +160,8 @@ export default function PnlReportPage() {
                       <tr>
                         <Th>Month</Th>
                         <Th align="right">Revenue</Th>
+                        <Th align="right">COGS</Th>
+                        <Th align="right">Gross Profit</Th>
                         <Th align="right">Expenses</Th>
                         <Th align="right">Net Profit</Th>
                       </tr>
@@ -153,29 +169,49 @@ export default function PnlReportPage() {
                     <tbody className="divide-y divide-slate-50">
                       {monthly.length === 0 ? (
                         <tr>
-                          <td colSpan={4} className="text-center text-xs text-slate-400 py-6">
+                          <td colSpan={6} className="text-center text-xs text-slate-400 py-6">
                             No financial data yet.
                           </td>
                         </tr>
                       ) : (
-                        monthly.map((m) => (
-                          <tr key={m.month} className="hover:bg-slate-50/60">
-                            <Td>{m.monthLabel}</Td>
-                            <Td align="right" mono>{formatMoney(m.salesAmount, totals.currency)}</Td>
-                            <Td align="right" mono>{formatMoney(m.expenseAmount, totals.currency)}</Td>
-                            <Td
-                              align="right"
-                              mono
-                              className={m.netProfit >= 0 ? "text-emerald-700 font-semibold" : "text-rose-700 font-semibold"}
-                            >
-                              {formatMoney(m.netProfit, totals.currency)}
-                            </Td>
-                          </tr>
-                        ))
+                        monthly.map((m) => {
+                          const cogs = m.cogsAmount ?? 0;
+                          const grossProfit = m.grossProfit ?? (m.salesAmount - cogs);
+                          return (
+                            <tr key={m.month} className="hover:bg-slate-50/60">
+                              <Td>{m.monthLabel}</Td>
+                              <Td align="right" mono>{formatMoney(m.salesAmount, totals.currency)}</Td>
+                              <Td align="right" mono>{formatMoney(cogs, totals.currency)}</Td>
+                              <Td
+                                align="right"
+                                mono
+                                className={grossProfit >= 0 ? "text-slate-800 font-medium" : "text-rose-700 font-medium"}
+                              >
+                                {formatMoney(grossProfit, totals.currency)}
+                              </Td>
+                              <Td align="right" mono>{formatMoney(m.expenseAmount, totals.currency)}</Td>
+                              <Td
+                                align="right"
+                                mono
+                                className={m.netProfit >= 0 ? "text-emerald-700 font-semibold" : "text-rose-700 font-semibold"}
+                              >
+                                {formatMoney(m.netProfit, totals.currency)}
+                              </Td>
+                            </tr>
+                          );
+                        })
                       )}
                       <tr className="bg-slate-100 font-bold">
                         <Td>Total</Td>
                         <Td align="right" mono>{formatMoney(totals.revenue, totals.currency)}</Td>
+                        <Td align="right" mono>{formatMoney(totals.cogs ?? 0, totals.currency)}</Td>
+                        <Td
+                          align="right"
+                          mono
+                          className={(totals.grossProfit ?? (totals.revenue - (totals.cogs ?? 0))) >= 0 ? "text-slate-900" : "text-rose-700"}
+                        >
+                          {formatMoney(totals.grossProfit ?? (totals.revenue - (totals.cogs ?? 0)), totals.currency)}
+                        </Td>
                         <Td align="right" mono>{formatMoney(totals.expenses, totals.currency)}</Td>
                         <Td
                           align="right"
@@ -246,10 +282,24 @@ function SummaryCard({
   label: string;
   value: string;
   Icon: typeof Wallet;
-  tone: "emerald" | "rose";
+  tone: "emerald" | "rose" | "amber" | "blue";
   highlight?: boolean;
 }) {
-  const cls = tone === "emerald" ? "from-emerald-500 to-emerald-600" : "from-rose-500 to-rose-600";
+  const toneGradients = {
+    emerald: "from-emerald-500 to-emerald-600",
+    rose: "from-rose-500 to-rose-600",
+    amber: "from-amber-500 to-amber-600",
+    blue: "from-blue-600 to-indigo-600",
+  };
+  const toneIconColors = {
+    emerald: "text-emerald-500",
+    rose: "text-rose-500",
+    amber: "text-amber-500",
+    blue: "text-blue-600",
+  };
+  const cls = toneGradients[tone] || toneGradients.emerald;
+  const iconCls = toneIconColors[tone] || toneIconColors.emerald;
+
   return (
     <div
       className={`rounded-2xl p-5 shadow-sm ${
@@ -262,7 +312,7 @@ function SummaryCard({
         <p className={`text-xs uppercase tracking-wide font-medium ${highlight ? "opacity-80" : "text-slate-500"}`}>
           {label}
         </p>
-        <Icon className={`w-5 h-5 ${highlight ? "opacity-90" : tone === "emerald" ? "text-emerald-500" : "text-rose-500"}`} />
+        <Icon className={`w-5 h-5 ${highlight ? "opacity-90" : iconCls}`} />
       </div>
       <p className={`text-2xl font-bold tabular-nums ${highlight ? "" : "text-slate-900"}`}>{value}</p>
     </div>
