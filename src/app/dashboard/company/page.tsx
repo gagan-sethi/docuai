@@ -124,7 +124,7 @@ const initialFormData: CompanyFormData = {
     line: "",
     city: "",
     state: "",
-    country: "India",
+    country: "United Arab Emirates",
     postalCode: "",
   },
 };
@@ -199,7 +199,7 @@ export default function CompaniesPage() {
       });
 
       if (await handleUnauthorized(res)) return;
-      
+
       if (!res.ok) {
         const error = await res.json();
         throw new Error(error.error || "Failed to fetch companies");
@@ -289,7 +289,7 @@ export default function CompaniesPage() {
     }
 
     if (!formData.legalName || !formData.legalName.trim()) {
-      errors.legalName = "legal name is required";
+      errors.legalName = "Legal name is required";
     } else if (formData.legalName.length > 250) {
       errors.legalName = "Legal name must be less than 250 characters";
     }
@@ -324,7 +324,7 @@ export default function CompaniesPage() {
           line: formData.address.line || undefined,
           city: formData.address.city || undefined,
           state: formData.address.state || undefined,
-          country: formData.address.country || "India",
+          country: formData.address.country || undefined,
           postalCode: formData.address.postalCode || undefined,
         };
       }
@@ -373,6 +373,7 @@ export default function CompaniesPage() {
       setPagination(prev => ({ ...prev, page: 1 }));
       fetchCompanies();
       fetchPlan();
+      window.dispatchEvent(new Event("companies:changed")); 
     } catch (error: unknown) {
       console.error("Error creating company:", error);
       toast.error(getErrorMessage(error, "Failed to create company"));
@@ -431,7 +432,7 @@ export default function CompaniesPage() {
         line: company.address?.line || "",
         city: company.address?.city || "",
         state: company.address?.state || "",
-        country: company.address?.country || "India",
+        country: company.address?.country || "",
         postalCode: company.address?.postalCode || "",
       },
     });
@@ -740,7 +741,7 @@ export default function CompaniesPage() {
               onClick={(e) => e.stopPropagation()}
               className="bg-white rounded-2xl w-full max-w-2xl shadow-2xl max-h-[90vh] overflow-y-auto"
             >
-              <form onSubmit={handleCreateCompany}>
+              <form onSubmit={handleCreateCompany} noValidate>
                 <div className="p-6 border-b border-slate-100 flex items-center justify-between sticky top-0 bg-white z-10">
                   <div className="flex items-center gap-3">
                     <div className="p-2 rounded-xl bg-primary/10">
@@ -788,7 +789,7 @@ export default function CompaniesPage() {
 
                       <div>
                         <label className="block text-sm font-medium text-slate-700 mb-1">
-                          Legal Name
+                          Legal Name <span className="text-red-500">*</span>
                         </label>
                         <input
                           type="text"
@@ -814,7 +815,7 @@ export default function CompaniesPage() {
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                       <div>
                         <label className="block text-sm font-medium text-slate-700 mb-1">
-                          Email Address
+                          Email Address <span className="text-red-500">*</span>
                         </label>
                         <input
                           type="email"
@@ -905,7 +906,7 @@ export default function CompaniesPage() {
                           <input
                             type="text"
                             name="address.country"
-                            value={formData.address?.country || "India"}
+                            value={formData.address?.country || ""}
                             onChange={handleInputChange}
                             className="w-full px-3 py-2 rounded-lg border border-slate-200 focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all"
                             placeholder="Country"
@@ -994,7 +995,7 @@ export default function CompaniesPage() {
               onClick={(e) => e.stopPropagation()}
               className="bg-white rounded-2xl w-full max-w-2xl shadow-2xl max-h-[90vh] overflow-y-auto"
             >
-              <form onSubmit={handleUpdateCompany}>
+              <form onSubmit={handleUpdateCompany} noValidate>
                 <div className="p-6 border-b border-slate-100 flex items-center justify-between sticky top-0 bg-white z-10">
                   <div className="flex items-center gap-3">
                     <div className="p-2 rounded-xl bg-primary/10">
@@ -1030,12 +1031,16 @@ export default function CompaniesPage() {
                           name="name"
                           value={formData.name}
                           onChange={handleInputChange}
-                          className="w-full px-3 py-2 rounded-lg border border-slate-200 focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all"
+                          className={`w-full px-3 py-2 rounded-lg border ${formErrors.name ? "border-red-500" : "border-slate-200"
+                            } focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all`}
                         />
+                        {formErrors.name && (
+                          <p className="text-xs text-red-500 mt-1">{formErrors.name}</p>
+                        )}
                       </div>
                       <div>
                         <label className="block text-sm font-medium text-slate-700 mb-1">
-                          Legal Name
+                          Legal Name <span className="text-red-500">*</span>
                         </label>
                         <input
                           type="text"
@@ -1044,6 +1049,9 @@ export default function CompaniesPage() {
                           onChange={handleInputChange}
                           className="w-full px-3 py-2 rounded-lg border border-slate-200 focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all"
                         />
+                        {formErrors.legalName && (
+                          <p className="text-xs text-red-500 mt-1">{formErrors.legalName}</p>
+                        )}
                       </div>
                     </div>
                   </div>
@@ -1056,15 +1064,19 @@ export default function CompaniesPage() {
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                       <div>
                         <label className="block text-sm font-medium text-slate-700 mb-1">
-                          Email Address
+                          Email Address <span className="text-red-500">*</span>
                         </label>
                         <input
                           type="email"
                           name="email"
                           value={formData.email}
                           onChange={handleInputChange}
-                          className="w-full px-3 py-2 rounded-lg border border-slate-200 focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all"
+                          className={`w-full px-3 py-2 rounded-lg border ${formErrors.email ? "border-red-500" : "border-slate-200"
+                            } focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all`}
                         />
+                        {formErrors.email && (
+                          <p className="text-xs text-red-500 mt-1">{formErrors.email}</p>
+                        )}
                       </div>
                       <div>
                         <label className="block text-sm font-medium text-slate-700 mb-1">
@@ -1113,23 +1125,29 @@ export default function CompaniesPage() {
                           placeholder="State"
                         />
                       </div>
-                      <div className="grid grid-cols-2 gap-4">
+                      <div className="grid grid-cols-2 gap-4 items-start">
                         <input
                           type="text"
                           name="address.country"
-                          value={formData.address?.country || "India"}
+                          value={formData.address?.country || ""}
                           onChange={handleInputChange}
                           className="w-full px-3 py-2 rounded-lg border border-slate-200 focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all"
                           placeholder="Country"
                         />
-                        <input
-                          type="text"
-                          name="address.postalCode"
-                          value={formData.address?.postalCode || ""}
-                          onChange={handleInputChange}
-                          className="w-full px-3 py-2 rounded-lg border border-slate-200 focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all"
-                          placeholder="Postal Code"
-                        />
+                        <div>
+                          <input
+                            type="text"
+                            name="address.postalCode"
+                            value={formData.address?.postalCode || ""}
+                            onChange={handleInputChange}
+                            className={`w-full px-3 py-2 rounded-lg border ${formErrors["address.postalCode"] ? "border-red-500" : "border-slate-200"
+                              } focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all`}
+                            placeholder="Postal Code"
+                          />
+                          {formErrors["address.postalCode"] && (
+                            <p className="text-xs text-red-500 mt-1">{formErrors["address.postalCode"]}</p>
+                          )}
+                        </div>
                       </div>
                     </div>
                   </div>

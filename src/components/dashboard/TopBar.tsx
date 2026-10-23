@@ -134,6 +134,28 @@ export default function TopBar({ title }: { title: string }) {
       }
     } catch { }
   }, []);
+  const loadCompanies = useCallback(() => {
+  apiFetch(apiUrl("/api/company/switch"), {
+    credentials: "include",
+  })
+    .then((r) => (r.ok ? r.json() : null))
+    .then((data) => {
+      if (!data?.companies) return;
+
+      setCompanies(data.companies);
+
+      if (data.selectedCompanyId) {
+        const exists = data.companies.find(
+          (c: CompanyOption) => c._id === data.selectedCompanyId
+        );
+
+        if (exists) {
+          setSelectedCompany(exists);
+        }
+      }
+    })
+    .catch(() => { });
+}, []);
 
   useEffect(() => {
     if (!searchText.trim()) {
@@ -181,26 +203,7 @@ export default function TopBar({ title }: { title: string }) {
   };
 
   useEffect(() => {
-    apiFetch(apiUrl("/api/company/switch"), {
-      credentials: "include",
-    })
-      .then((r) => (r.ok ? r.json() : null))
-      .then((data) => {
-        if (!data?.companies) return;
-
-        setCompanies(data.companies);
-
-        if (data.selectedCompanyId) {
-          const exists = data.companies.find(
-            (c: CompanyOption) => c._id === data.selectedCompanyId
-          );
-
-          if (exists) {
-            setSelectedCompany(exists);
-          }
-        }
-      })
-      .catch(() => { });
+    loadCompanies();
 
     fetchNotifications();
     // Fetch user
@@ -214,7 +217,12 @@ export default function TopBar({ title }: { title: string }) {
     // Refresh notifications every 30s
     const interval = setInterval(fetchNotifications, 30000);
     return () => clearInterval(interval);
-  }, [fetchNotifications]);
+  }, [fetchNotifications, loadCompanies]);
+
+  useEffect(() => {                                
+    window.addEventListener("companies:changed", loadCompanies);
+    return () => window.removeEventListener("companies:changed", loadCompanies);
+  }, [loadCompanies]);
 
   const handleMarkAllRead = async () => {
     await apiFetch(apiUrl("/api/notifications"), {

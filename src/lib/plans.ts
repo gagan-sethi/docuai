@@ -100,7 +100,7 @@ export const fallbackPlans: PlanOption[] = [
     documentsPerMonth: 100,
     usersLimit: 5,
     companyLimit: 1,
-    storageLimitBytes: 25 * 1024 * 1024 * 1024,
+    storageLimitBytes: 26306674688,
     features: [
       "AI document extraction",
       "Expense tracking",
