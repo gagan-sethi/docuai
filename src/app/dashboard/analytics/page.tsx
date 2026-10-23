@@ -75,6 +75,16 @@ function monthLabel(key: string): string {
 // ─── Types (mirror backend AnalyticsResult — move to a shared
 // types package if you have one, so this can't drift) ────────────
 
+interface CurrencyTotals {
+  currency: string;
+  totalAmount: number;
+  amountCount: number;
+  totalVat: number;
+  vatCount: number;
+  grossAmount: number;
+  documentCount: number;
+}
+
 interface AnalyticsKpis {
   total: number;
   approved: number;
@@ -90,8 +100,11 @@ interface AnalyticsKpis {
 
 interface AnalyticsResult {
   primaryCurrency: string;
+  selectedCurrency: string;
+  currencies: string[];
   range: { from: string | null; to: string | null };
   kpis: AnalyticsKpis;
+  totalsByCurrency: CurrencyTotals[];
   statusBreakdown: { status: string; count: number }[];
   daily: { date: string; count: number }[];
   dailyMax: number;
@@ -111,6 +124,7 @@ export default function AnalyticsPage() {
   const [refreshing, setRefreshing] = useState(false);
   const [fromDate, setFromDate] = useState("");
   const [toDate, setToDate] = useState("");
+  const [selectedCurrency, setSelectedCurrency] = useState<string>("");
   const [error, setError] = useState<string | null>(null);
 
   const load = useCallback(async () => {
@@ -120,6 +134,7 @@ export default function AnalyticsPage() {
       const params = new URLSearchParams();
       if (fromDate) params.append("fromDate", fromDate);
       if (toDate) params.append("toDate", toDate);
+      if (selectedCurrency) params.append("currency", selectedCurrency);
 
       const res = await apiFetch(apiUrl(`/api/documents/analytics?${params.toString()}`), {
         credentials: "include",
@@ -139,7 +154,7 @@ export default function AnalyticsPage() {
       setLoading(false);
       setRefreshing(false);
     }
-  }, [fromDate, toDate]);
+  }, [fromDate, toDate, selectedCurrency]);
 
   useEffect(() => {
     void load();
@@ -149,6 +164,12 @@ export default function AnalyticsPage() {
     setRefreshing(true);
     void load();
   };
+
+  const effectiveCurrency =
+    selectedCurrency ||
+    analytics?.selectedCurrency ||
+    analytics?.primaryCurrency ||
+    "AED";
 
   return (
     <div className="min-h-screen bg-slate-50/50">
@@ -169,11 +190,32 @@ export default function AnalyticsPage() {
               <p className="text-sm text-slate-500 mt-1">
                 {fromDate || toDate ? `${fromDate || "Any"} → ${toDate || "Any"}` : "All documents"}{" "}
                 · live data from your processed documents
+                {analytics?.currencies && analytics.currencies.length > 1 && (
+                  <span className="ml-1 text-slate-400">· Totals are separated by currency</span>
+                )}
               </p>
             </div>
 
             <div className="flex items-center gap-2">
               <div className="flex items-center gap-2">
+                {analytics?.currencies && analytics.currencies.length > 0 && (
+                  <div className="flex flex-col">
+                    <label className="text-[11px] font-medium text-slate-500 mb-1">Currency</label>
+                    <select
+                      aria-label="Reporting currency"
+                      value={effectiveCurrency}
+                      onChange={(e) => setSelectedCurrency(e.target.value)}
+                      className="h-10 px-3 text-sm font-semibold text-slate-700 border border-slate-200 rounded-xl bg-white shadow-sm focus:outline-none focus:ring-2 focus:ring-primary/20"
+                    >
+                      {analytics.currencies.map((curr) => (
+                        <option key={curr} value={curr}>
+                          {curr}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                )}
+
                 <div className="flex flex-col">
                   <label className="text-[11px] font-medium text-slate-500 mb-1">From</label>
                   <input
@@ -224,6 +266,26 @@ export default function AnalyticsPage() {
             <EmptyState />
           ) : (
             <>
+              {/* ─── Multi-Currency Summary (if multi-currency exists) ─── */}
+              {analytics.totalsByCurrency && analytics.totalsByCurrency.length > 1 && (
+                <div className="flex flex-wrap items-center gap-2 mb-6 p-3 bg-white border border-slate-200 rounded-xl text-xs text-slate-600 shadow-sm">
+                  <span className="font-semibold text-slate-700">Multi-Currency Summary:</span>
+                  {analytics.totalsByCurrency.map((tb) => (
+                    <button
+                      key={tb.currency}
+                      onClick={() => setSelectedCurrency(tb.currency)}
+                      className={`px-2.5 py-1 rounded-lg border font-medium transition cursor-pointer ${
+                        tb.currency === effectiveCurrency
+                          ? "bg-primary/10 border-primary/40 text-primary font-bold shadow-xs"
+                          : "bg-slate-50 border-slate-200 text-slate-600 hover:bg-slate-100"
+                      }`}
+                    >
+                      {tb.currency}: {fmtMoney(tb.totalAmount, tb.currency)} net ({tb.documentCount} docs)
+                    </button>
+                  ))}
+                </div>
+              )}
+
               {/* ─── KPI cards ───────────────────────────────── */}
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4 mb-6">
                 <KpiCard
@@ -259,13 +321,12 @@ export default function AnalyticsPage() {
                   hint="Mean confidence, not measured accuracy"
                 />
                 <KpiCard
-                  // F-05: this totals every document type, including receipts,
-                  // and the figure is net of VAT — "Total Invoiced … from 1
-                  // invoice" was wrong on both counts.
+                  // F-05 / R3-12: this totals canonical documents in the selected currency,
+                  // and the figure is net of VAT — perfectly matching Finance reporting.
                   label="Total Value (net)"
                   value={
                     analytics.kpis.amountCount > 0
-                      ? fmtMoney(analytics.kpis.totalAmount, analytics.primaryCurrency)
+                      ? fmtMoney(analytics.kpis.totalAmount, effectiveCurrency)
                       : "—"
                   }
                   icon={<Sigma className="w-4 h-4" />}
@@ -280,7 +341,7 @@ export default function AnalyticsPage() {
                   label="Total VAT"
                   value={
                     analytics.kpis.vatCount > 0
-                      ? fmtMoney(analytics.kpis.totalVat, analytics.primaryCurrency)
+                      ? fmtMoney(analytics.kpis.totalVat, effectiveCurrency)
                       : "—"
                   }
                   icon={<Receipt className="w-4 h-4" />}
@@ -309,7 +370,7 @@ export default function AnalyticsPage() {
                   <MonthlyVatChart
                     data={analytics.monthlyVat}
                     max={analytics.monthlyVatMax}
-                    currency={analytics.primaryCurrency}
+                    currency={effectiveCurrency}
                   />
                 </Card>
               </div>
@@ -317,7 +378,7 @@ export default function AnalyticsPage() {
               {/* ─── Suppliers + Doc types ───────────────────── */}
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-6">
                 <Card title="Top Suppliers" icon={<Building2 className="w-4 h-4" />}>
-                  <SupplierList items={analytics.topSuppliers} currency={analytics.primaryCurrency} />
+                  <SupplierList items={analytics.topSuppliers} currency={effectiveCurrency} />
                 </Card>
                 <Card title="Document Types" icon={<Layers className="w-4 h-4" />}>
                   <TypeBars items={analytics.typeMix} total={analytics.kpis.total} />

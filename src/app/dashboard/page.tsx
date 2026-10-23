@@ -72,12 +72,25 @@ function AnimatedNumber({ target, suffix = "" }: { target: number; suffix?: stri
 }
 
 // ─── Stats Data ─────────────────────────────────────────────────
-const stats = [
+type StatCardItem = {
+  label: string;
+  value: number;
+  change: string;
+  trend: "up" | "down";
+  icon: typeof FileText;
+  color: string;
+  bgLight: string;
+  suffix?: string;
+  subtext?: string;
+  href?: string;
+};
+
+const stats: StatCardItem[] = [
   {
     label: "Documents Processed",
     value: 0,
     change: "",
-    trend: "up" as const,
+    trend: "up",
     icon: FileText,
     color: "from-primary to-primary-dark",
     bgLight: "bg-primary/5",
@@ -86,7 +99,7 @@ const stats = [
     label: "Pending Review",
     value: 0,
     change: "",
-    trend: "down" as const,
+    trend: "down",
     icon: Clock,
     color: "from-amber-500 to-orange-500",
     bgLight: "bg-amber-50",
@@ -98,7 +111,7 @@ const stats = [
     value: 0,
     suffix: "%",
     change: "",
-    trend: "up" as const,
+    trend: "up",
     icon: CheckCircle2,
     color: "from-success to-emerald-600",
     bgLight: "bg-success/5",
@@ -108,7 +121,7 @@ const stats = [
     label: "WhatsApp Received",
     value: 0,
     change: "",
-    trend: "up" as const,
+    trend: "up",
     icon: MessageSquare,
     color: "from-secondary to-cyan-600",
     bgLight: "bg-secondary/5",
@@ -212,8 +225,9 @@ const pipelineDefaults = [
   { stage: "Uploaded", count: 0, color: "bg-slate-400" },
   { stage: "OCR Running", count: 0, color: "bg-primary" },
   { stage: "AI Extraction", count: 0, color: "bg-secondary" },
-  { stage: "Pending Review", count: 0, color: "bg-amber-500" },
-  { stage: "Approved", count: 0, color: "bg-success" },
+  { stage: "Pending Review", count: 0, color: "bg-amber-500", href: "/dashboard/review?filter=review" },
+  { stage: "Approved", count: 0, color: "bg-success", href: "/dashboard/review?filter=approved" },
+  { stage: "Failed", count: 0, color: "bg-red-500", href: "/dashboard/review?filter=errors" },
 ];
 
 // ─── Relative Time Helper ──────────────────────────────────────
@@ -544,16 +558,17 @@ export default function DashboardPage() {
   //   }
   // };
 
-  // Compute dynamic pipeline from real data
+  // Compute dynamic pipeline from real data (R3-13: Includes dedicated Failed stage)
   const pipeline = apiStats
     ? [
       { stage: "Uploaded", count: apiStats.total - apiStats.processing - apiStats.review - apiStats.approved - apiStats.errors, color: "bg-slate-400" },
       { stage: "OCR Running", count: apiStats.processing, color: "bg-primary" },
       { stage: "AI Extraction", count: 0, color: "bg-secondary" },
-      { stage: "Pending Review", count: apiStats.review, color: "bg-amber-500" },
+      { stage: "Pending Review", count: apiStats.review, color: "bg-amber-500", href: "/dashboard/review?filter=review" },
       // HB-02: apiStats.approved is the lifetime total, not today's, so the
       // stage is labelled for what the number actually is.
-      { stage: "Approved", count: apiStats.approved, color: "bg-success" },
+      { stage: "Approved", count: apiStats.approved, color: "bg-success", href: "/dashboard/review?filter=approved" },
+      { stage: "Failed", count: apiStats.errors, color: "bg-red-500", href: "/dashboard/review?filter=errors" },
     ].map(p => ({ ...p, count: Math.max(0, p.count) }))
     : pipelineDefaults;
 
@@ -565,8 +580,17 @@ export default function DashboardPage() {
     return a;
   });
 
+  // R3-13: Documents Processed reflects documents successfully extracted and ready or approved
+  const processedDocsCount = apiStats ? (apiStats.approved + apiStats.review) : stats[0].value;
+  const failedDocsCount = apiStats ? apiStats.errors : 0;
+
   const statCards = [
-    { ...stats[0], value: apiStats ? apiStats.total : stats[0].value },
+    {
+      ...stats[0],
+      value: processedDocsCount,
+      subtext: failedDocsCount > 0 ? `${failedDocsCount} failed` : undefined,
+      href: failedDocsCount > 0 ? "/dashboard/review?filter=errors" : undefined,
+    },
     { ...stats[1], value: apiStats ? apiStats.review : stats[1].value },
     // Show the real average confidence. This used to fall back to a
     // hard-coded 94% whenever the API returned 0, which displayed a
@@ -626,7 +650,19 @@ export default function DashboardPage() {
                 </h2>
                 <p className="text-sm text-slate-300 mt-1">
                   You have <span className="text-amber-400 font-semibold">{counted(apiStats ? apiStats.review : 0, "document")}</span> pending review and{" "}
-                  <span className="text-success font-semibold">{apiStats ? apiStats.approved : 0} approved</span> in total.
+                  <span className="text-success font-semibold">{apiStats ? apiStats.approved : 0} approved</span>
+                  {apiStats && apiStats.errors > 0 ? (
+                    <>
+                      {" "}·{" "}
+                      <Link
+                        href="/dashboard/review?filter=errors"
+                        className="text-red-300 hover:text-red-200 underline font-semibold"
+                      >
+                        {apiStats.errors} failed
+                      </Link>
+                    </>
+                  ) : null}
+                  {" "}in total.
                 </p>
               </div>
               <Link
@@ -749,7 +785,18 @@ export default function DashboardPage() {
                 <p className="text-3xl font-extrabold text-slate-900">
                   <AnimatedNumber target={stat.value} suffix={stat.suffix} />
                 </p>
-                <p className="text-xs text-muted mt-1">{stat.label}</p>
+                <div className="flex items-center justify-between mt-1">
+                  <p className="text-xs text-muted">{stat.label}</p>
+                  {stat.subtext && (
+                    <Link
+                      href={stat.href || "/dashboard/review?filter=errors"}
+                      className="text-[11px] font-semibold text-red-500 hover:text-red-600 hover:underline flex items-center gap-1"
+                    >
+                      <AlertTriangle className="w-3 h-3 text-red-500" />
+                      {stat.subtext}
+                    </Link>
+                  )}
+                </div>
               </motion.div>
             ))}
           </div>
@@ -866,26 +913,61 @@ export default function DashboardPage() {
               </Link>
             </div>
             <div className="grid grid-cols-2 items-start gap-3 sm:flex sm:items-start sm:gap-2">
-              {pipeline.map((stage, i) => (
-                <div key={stage.stage} className="min-w-0 sm:flex-1">
-                  <div className="mb-2 flex min-w-0 items-center gap-2">
-                    <div className={`h-2.5 w-2.5 shrink-0 rounded-full ${stage.color}`} />
-                    <span className="min-w-0 truncate text-xs text-muted">
-                      {stage.stage}
-                    </span>
-                  </div>
-                  <div className="relative h-10 bg-slate-50 rounded-xl flex items-center justify-center">
-                    <span className="text-lg font-bold text-slate-700">
+              {pipeline.map((stage, i) => {
+                const isFailedStage = stage.stage === "Failed";
+                const isClickable = Boolean(stage.href);
+
+                const stageCard = (
+                  <div
+                    className={`relative h-10 rounded-xl flex items-center justify-center transition-all ${
+                      isFailedStage && stage.count > 0
+                        ? "bg-red-50 border border-red-200 text-red-600 group-hover:bg-red-100 group-hover:border-red-300"
+                        : isClickable
+                        ? "bg-slate-50 group-hover:bg-slate-100 group-hover:shadow-sm"
+                        : "bg-slate-50"
+                    }`}
+                  >
+                    <span
+                      className={`text-lg font-bold ${
+                        isFailedStage && stage.count > 0 ? "text-red-600" : "text-slate-700"
+                      }`}
+                    >
                       {stage.count}
                     </span>
                   </div>
-                  {i < pipeline.length - 1 && (
-                    <div className="hidden sm:flex items-center justify-end -mr-3 mt-2">
-                      <ChevronRight className="w-4 h-4 text-slate-300" />
-                    </div>
-                  )}
-                </div>
-              ))}
+                );
+
+                return (
+                  <div key={stage.stage} className="min-w-0 sm:flex-1">
+                    {stage.href ? (
+                      <Link href={stage.href} className="block group">
+                        <div className="mb-2 flex min-w-0 items-center gap-2">
+                          <div className={`h-2.5 w-2.5 shrink-0 rounded-full ${stage.color}`} />
+                          <span className="min-w-0 truncate text-xs text-muted group-hover:text-slate-900 group-hover:underline">
+                            {stage.stage}
+                          </span>
+                        </div>
+                        {stageCard}
+                      </Link>
+                    ) : (
+                      <>
+                        <div className="mb-2 flex min-w-0 items-center gap-2">
+                          <div className={`h-2.5 w-2.5 shrink-0 rounded-full ${stage.color}`} />
+                          <span className="min-w-0 truncate text-xs text-muted">
+                            {stage.stage}
+                          </span>
+                        </div>
+                        {stageCard}
+                      </>
+                    )}
+                    {i < pipeline.length - 1 && (
+                      <div className="hidden sm:flex items-center justify-end -mr-3 mt-2">
+                        <ChevronRight className="w-4 h-4 text-slate-300" />
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
             </div>
           </motion.div>
 

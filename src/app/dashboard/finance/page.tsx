@@ -19,6 +19,9 @@ import {
   FileSpreadsheet,
   Printer,
   CalendarRange,
+  AlertCircle,
+  ChevronDown,
+  ChevronUp,
 } from "lucide-react";
 import Sidebar from "@/components/dashboard/Sidebar";
 import TopBar from "@/components/dashboard/TopBar";
@@ -133,6 +136,7 @@ export default function FinanceDashboardPage() {
   const [exportOpen, setExportOpen] = useState(false);
   const [period, setPeriod] = useState<FinancialPeriodValue>("this_month");
   const [selectedCurrency, setSelectedCurrency] = useState<SupportedCurrency>("AED");
+  const [showExcluded, setShowExcluded] = useState(false);
   const [customRange, setCustomRange] = useState<CustomDateRange>(() => {
     const now = new Date();
     const from = new Date(now);
@@ -230,6 +234,8 @@ export default function FinanceDashboardPage() {
 
   const totalProcessed = currencyDocs.filter((d) => d.status === "approved").length;
   const countedDocsInPeriod = report?.totalsByCurrency.reduce((sum, row) => sum + row.documentCount, 0) ?? 0;
+  const excludedDocs = report?.excludedDocuments ?? [];
+  const excludedCount = report?.excludedCount ?? excludedDocs.length;
   const maxCategory = Math.max(...categories.map((c) => c.amount), 1);
 
   return (
@@ -419,12 +425,96 @@ export default function FinanceDashboardPage() {
                 />
                 <KpiCard
                   label="Processed Documents"
-                  value={String(totalProcessed)}
+                  value={String(countedDocsInPeriod || totalProcessed)}
                   Icon={FileText}
                   tone="slate"
                   helper={`${totals.poCount} purchase order${totals.poCount === 1 ? "" : "s"} pending`}
                 />
               </div>
+
+              {/* R3-11: Excluded from Reports Drawer */}
+              {excludedCount > 0 && (
+                <div className="rounded-2xl border border-amber-200 bg-amber-50/70 p-5 text-xs shadow-sm">
+                  <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                    <div className="flex items-start gap-3">
+                      <div className="p-2.5 rounded-xl bg-amber-100 text-amber-700 flex-shrink-0 mt-0.5">
+                        <AlertCircle className="w-5 h-5" />
+                      </div>
+                      <div>
+                        <div className="flex items-center gap-2">
+                          <h4 className="font-bold text-amber-900 text-sm">
+                            {excludedCount} Approved Document{excludedCount === 1 ? "" : "s"} Excluded from Financial Reports
+                          </h4>
+                          <span className="rounded-full bg-amber-200/80 px-2 py-0.5 text-[10px] font-bold text-amber-800">
+                            Audit Transparency
+                          </span>
+                        </div>
+                        <p className="text-amber-800/90 mt-1 leading-relaxed">
+                          Financial reports only include sales invoices, expense invoices, and receipts with valid arithmetic reconciliation. Approved documents omitted from reporting totals are listed below with specific reasons.
+                        </p>
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setShowExcluded((prev) => !prev)}
+                      className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl border border-amber-300 bg-white font-semibold text-amber-900 hover:bg-amber-100/50 shadow-sm transition-colors flex-shrink-0 self-start sm:self-auto"
+                    >
+                      {showExcluded ? (
+                        <>
+                          Hide Excluded List <ChevronUp className="w-4 h-4" />
+                        </>
+                      ) : (
+                        <>
+                          View Excluded List ({excludedCount}) <ChevronDown className="w-4 h-4" />
+                        </>
+                      )}
+                    </button>
+                  </div>
+
+                  {/* Expandable list of excluded documents */}
+                  {showExcluded && (
+                    <div className="mt-4 pt-4 border-t border-amber-200 overflow-x-auto">
+                      <table className="w-full text-left text-xs">
+                        <thead>
+                          <tr className="border-b border-amber-200/80 text-[10px] uppercase tracking-wider text-amber-900/70 font-semibold">
+                            <th className="pb-2.5">Document</th>
+                            <th className="pb-2.5">Type</th>
+                            <th className="pb-2.5 text-right">Amount</th>
+                            <th className="pb-2.5 pl-4">Reason for Exclusion</th>
+                            <th className="pb-2.5 text-right">Action</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-amber-200/50">
+                          {excludedDocs.map((doc) => (
+                            <tr key={doc.id} className="hover:bg-amber-100/30 transition-colors">
+                              <td className="py-3 font-semibold text-slate-900 max-w-[220px] truncate" title={doc.fileName}>
+                                {doc.fileName}
+                              </td>
+                              <td className="py-3">
+                                <DocTypeBadge code={resolveDocTypeCode({ docTypeCode: doc.docTypeCode, type: doc.docType } as any)} size="xs" />
+                              </td>
+                              <td className="py-3 text-right tabular-nums font-semibold text-slate-800">
+                                {formatMoney(doc.total, doc.currency || effectiveCurrency)}
+                              </td>
+                              <td className="py-3 pl-4 text-amber-950 font-medium">
+                                {doc.reason}
+                              </td>
+                              <td className="py-3 text-right whitespace-nowrap">
+                                <Link
+                                  href={`/dashboard/review?id=${doc.documentId}`}
+                                  className="inline-flex items-center gap-1 font-semibold text-indigo-600 hover:text-indigo-800 hover:underline ml-2"
+                                >
+                                  Resolve in Review <ArrowUpRight className="w-3.5 h-3.5" />
+                                </Link>
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
+                </div>
+              )}
 
               {/* VAT mini block */}
               <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">

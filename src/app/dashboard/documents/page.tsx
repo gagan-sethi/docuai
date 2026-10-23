@@ -100,7 +100,7 @@ function DocumentPreviewFrame({
   doc: ProcessedDocument;
   compact?: boolean;
 }) {
-  const previewUrl = apiUrl(`/api/documents/${doc.id}/preview`);
+  const previewUrl = `/api/documents/${doc.id}/preview`;
   const isImage = doc.fileType?.startsWith("image/");
   const isPdf = doc.fileType === "application/pdf" || doc.fileName.toLowerCase().endsWith(".pdf");
 
@@ -2070,7 +2070,7 @@ function DocDetailDrawer({ doc, onClose, onDelete }: { doc: ProcessedDocument; o
   const extractionConf = doc.overallConfidence > 1 ? Math.round(doc.overallConfidence) : Math.round(doc.overallConfidence * 100);
   const financial = deriveFinancialSummary(doc);
   const amount = getDocumentAmount(doc);
-  const previewUrl = apiUrl(`/api/documents/${doc.id}/preview`);
+  const previewUrl = `/api/documents/${doc.id}/preview`;
 
   return (
     <>
