@@ -165,6 +165,7 @@ export const EXPENSE_CATEGORY_GROUPS: Array<{
       { value: "software_saas", label: "Software & SaaS", tone: "bg-blue-50 text-blue-700 border-blue-200" },
       { value: "marketing_advertising", label: "Marketing & Advertising", tone: "bg-fuchsia-50 text-fuchsia-700 border-fuchsia-200" },
       { value: "travel", label: "Travel", tone: "bg-orange-50 text-orange-700 border-orange-200" },
+      { value: "food_beverage", label: "Food & Beverage", tone: "bg-emerald-50 text-emerald-700 border-emerald-200" },
       { value: "fuel", label: "Fuel", tone: "bg-yellow-50 text-yellow-700 border-yellow-200" },
       { value: "vehicle_expenses", label: "Vehicle Expenses", tone: "bg-lime-50 text-lime-700 border-lime-200" },
       { value: "insurance", label: "Insurance", tone: "bg-teal-50 text-teal-700 border-teal-200" },
@@ -207,7 +208,6 @@ export const EXPENSE_CATEGORY_GROUPS: Array<{
     value: "other",
     label: "Other",
     options: [
-      { value: "food_beverage", label: "Food & Beverage", tone: "bg-emerald-50 text-emerald-700 border-emerald-200" },
       { value: "miscellaneous", label: "Miscellaneous", tone: "bg-slate-50 text-slate-600 border-slate-200" },
       { value: "uncategorized", label: "Uncategorized", tone: "bg-zinc-50 text-zinc-600 border-zinc-200" },
     ],

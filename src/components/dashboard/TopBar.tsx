@@ -32,6 +32,7 @@ interface Notification {
   type: string;
   title: string;
   message: string;
+  data?: Record<string, any>;
   isRead: boolean;
   createdAt: string;
 }
@@ -433,6 +434,32 @@ export default function TopBar({ title }: { title: string }) {
                         return (
                           <div
                             key={n._id}
+                            onClick={async () => {
+                              setShowNotif(false);
+                              if (!n.isRead) {
+                                try {
+                                  await apiFetch(apiUrl("/api/notifications"), {
+                                    method: "PATCH",
+                                    headers: { "Content-Type": "application/json" },
+                                    credentials: "include",
+                                    body: JSON.stringify({ ids: [n._id] }),
+                                  });
+                                  setNotifications((prev) =>
+                                    prev.map((item) => (item._id === n._id ? { ...item, isRead: true } : item))
+                                  );
+                                } catch (e) {
+                                  // ignore
+                                }
+                              }
+                              const docId = (n.data as any)?.documentId;
+                              if (n.type === "doc_error") {
+                                router.push(docId ? `/dashboard/review?filter=errors&id=${docId}` : "/dashboard/review?filter=errors");
+                              } else if (docId) {
+                                router.push(`/dashboard/review?id=${docId}`);
+                              } else {
+                                router.push("/dashboard/notifications");
+                              }
+                            }}
                             className={`flex items-start gap-3 px-5 py-3.5 hover:bg-slate-50 cursor-pointer transition-colors ${!n.isRead ? "bg-primary/[0.02]" : ""
                               }`}
                           >

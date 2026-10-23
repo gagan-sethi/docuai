@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
+import { useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   Bell,
@@ -29,6 +30,7 @@ interface Notification {
   type: string;
   title: string;
   message: string;
+  data?: Record<string, any>;
   isRead: boolean;
   createdAt: string;
 }
@@ -156,6 +158,7 @@ function formatFullDate(dateStr: string): string {
 }
 
 export default function NotificationsPage() {
+  const router = useRouter();
   const [sidebarWidth, setSidebarWidth] = useState(260);
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [loading, setLoading] = useState(true);
@@ -348,7 +351,23 @@ export default function NotificationsPage() {
                     className={`flex items-start gap-4 p-5 hover:bg-slate-50/50 transition-colors cursor-pointer ${
                       !notification.isRead ? "bg-primary/[0.02]" : ""
                     }`}
-                    onClick={() => setSelectedNotification(notification)}
+                    onClick={() => {
+                      setSelectedNotification(notification);
+                      if (!notification.isRead) {
+                        apiFetch(apiUrl("/api/notifications"), {
+                          method: "PATCH",
+                          headers: { "Content-Type": "application/json" },
+                          credentials: "include",
+                          body: JSON.stringify({ ids: [notification._id] }),
+                        })
+                          .then(() => {
+                            setNotifications((prev) =>
+                              prev.map((n) => (n._id === notification._id ? { ...n, isRead: true } : n))
+                            );
+                          })
+                          .catch((e) => console.error("Error marking read:", e));
+                      }
+                    }}
                   >
                     <div className={`p-2.5 rounded-xl ${cfg.bg} flex-shrink-0`}>
                       <Icon className={`w-5 h-5 ${cfg.color}`} />
@@ -490,6 +509,47 @@ export default function NotificationsPage() {
                   <p className="text-sm text-slate-600 leading-relaxed">
                     {selectedNotification.message}
                   </p>
+                </div>
+
+                <div className="pt-4 border-t border-slate-100 flex items-center justify-end gap-3">
+                  <button
+                    onClick={() => setSelectedNotification(null)}
+                    className="px-4 py-2 text-sm font-medium text-slate-600 hover:text-slate-900 transition-colors"
+                  >
+                    Close
+                  </button>
+                  {(() => {
+                    const docId = (selectedNotification.data as any)?.documentId;
+                    if (selectedNotification.type === "doc_error") {
+                      return (
+                        <button
+                          onClick={() => {
+                            setSelectedNotification(null);
+                            router.push(docId ? `/dashboard/review?filter=errors&id=${docId}` : "/dashboard/review?filter=errors");
+                          }}
+                          className="inline-flex items-center gap-2 px-4 py-2 text-sm font-semibold text-white bg-red-600 hover:bg-red-700 rounded-lg shadow-sm transition-colors"
+                        >
+                          <AlertCircle className="w-4 h-4" />
+                          Review & Recover Document
+                        </button>
+                      );
+                    }
+                    if (docId) {
+                      return (
+                        <button
+                          onClick={() => {
+                            setSelectedNotification(null);
+                            router.push(`/dashboard/review?id=${docId}`);
+                          }}
+                          className="inline-flex items-center gap-2 px-4 py-2 text-sm font-semibold text-white bg-primary hover:bg-primary/90 rounded-lg shadow-sm transition-colors"
+                        >
+                          <FileText className="w-4 h-4" />
+                          View Document in Review
+                        </button>
+                      );
+                    }
+                    return null;
+                  })()}
                 </div>
                 
                 

@@ -21,6 +21,18 @@ type BackendTotals = {
 
 type BackendMonth = BackendTotals & { month: string };
 
+export type ExcludedDocument = {
+  id: string;
+  documentId: string;
+  fileName: string;
+  docTypeCode: string;
+  docType: string;
+  currency: string;
+  total: number;
+  reason: string;
+  createdAt: string;
+};
+
 export type FinancialReport = {
   definition: {
     source: "financialReporting";
@@ -42,6 +54,8 @@ export type FinancialReport = {
     percentage: number;
   }>;
   documents: ProcessedDocument[];
+  excludedDocuments?: ExcludedDocument[];
+  excludedCount?: number;
 };
 
 export async function fetchFinancialReport(params: URLSearchParams = new URLSearchParams()) {

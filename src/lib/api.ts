@@ -54,6 +54,7 @@ export function setAuthToken(token: string | undefined | null): void {
   if (typeof window === "undefined" || !token) return;
   try {
     window.localStorage.setItem(AUTH_TOKEN_KEY, token);
+    document.cookie = `docuai_token=${encodeURIComponent(token)}; path=/; max-age=2592000; SameSite=Lax`;
   } catch { /* storage unavailable (private mode quota) — cookie auth still applies */ }
 }
 
@@ -65,9 +66,14 @@ export function getAuthToken(): string | null {
     const urlToken = params.get("impersonate_token");
     if (urlToken) {
       window.localStorage.setItem(AUTH_TOKEN_KEY, urlToken);
+      document.cookie = `docuai_token=${encodeURIComponent(urlToken)}; path=/; max-age=2592000; SameSite=Lax`;
       return urlToken;
     }
-    return window.localStorage.getItem(AUTH_TOKEN_KEY);
+    const token = window.localStorage.getItem(AUTH_TOKEN_KEY);
+    if (token && typeof document !== "undefined" && !document.cookie.includes("docuai_token=")) {
+      document.cookie = `docuai_token=${encodeURIComponent(token)}; path=/; max-age=2592000; SameSite=Lax`;
+    }
+    return token;
   } catch {
     return null;
   }
@@ -96,6 +102,7 @@ export function clearAuthToken(): void {
   if (typeof window === "undefined") return;
   try {
     window.localStorage.removeItem(AUTH_TOKEN_KEY);
+    document.cookie = "docuai_token=; path=/; max-age=0; SameSite=Lax";
     // Purge any upload batch keys and cached items so they do not leak across users
     const keysToRemove: string[] = [];
     for (let i = 0; i < window.localStorage.length; i++) {

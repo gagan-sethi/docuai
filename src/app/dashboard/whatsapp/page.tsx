@@ -87,7 +87,7 @@ function FileTypeIcon({ fileType }: { fileType: string }) {
 }
 
 function DocumentPreviewFrame({ doc }: { doc: ProcessedDocument }) {
-  const previewUrl = apiUrl(`/api/documents/${doc.id}/preview`);
+  const previewUrl = `/api/documents/${doc.id}/preview`;
   const isImage = doc.fileType?.startsWith("image/");
   const isPdf = doc.fileType === "application/pdf" || doc.fileName.toLowerCase().endsWith(".pdf");
 
