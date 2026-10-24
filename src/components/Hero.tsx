@@ -61,8 +61,8 @@ const heroHighlights = [
 const workspaceMetrics = [
   {
     label: "Ready for review",
-    value: "1,284",
-    detail: "+18% this month",
+    value: "18",
+    detail: "pending approval",
     icon: FileText,
     tone: "text-primary",
     bg: "bg-primary/10",
@@ -89,7 +89,7 @@ const documentRows = [
   {
     name: "Invoice_4821.pdf",
     source: "Trading supplier",
-    amount: "AED 3,240",
+    amount: "AED 12,642",
     status: "Validated",
     icon: FileText,
     color: "text-primary",
@@ -114,9 +114,9 @@ const documentRows = [
 
 const extractedFields = [
   { label: "Supplier", value: "Acme Supplies LLC", confidence: "98%" },
-  { label: "Document type", value: "Expense invoice", confidence: "99%" },
-  { label: "VAT amount", value: "AED 602.00", confidence: "97%" },
-  { label: "Category", value: "Office supplies", confidence: "96%" },
+  { label: "Document type", value: "Tax invoice", confidence: "99%" },
+  { label: "Invoice total", value: "AED 12,642.00", confidence: "98%" },
+  { label: "VAT amount (5%)", value: "AED 602.00", confidence: "97%" },
 ];
 
 const trustedIndustries = [
@@ -340,9 +340,9 @@ export default function Hero() {
                         Finance review workspace
                       </p>
                     </div>
-                    <div className="hidden items-center gap-1.5 rounded-full bg-emerald-50 px-2.5 py-1 text-xs font-bold text-emerald-700 ring-1 ring-emerald-100 sm:inline-flex">
-                      <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
-                      Live
+                    <div className="hidden items-center gap-1.5 rounded-full bg-slate-100 px-2.5 py-1 text-xs font-semibold text-slate-600 ring-1 ring-slate-200 sm:inline-flex">
+                      <span className="h-1.5 w-1.5 rounded-full bg-primary" />
+                      Sample Preview
                     </div>
                   </div>
 
@@ -357,8 +357,8 @@ export default function Hero() {
                         </h3>
                       </div>
                       <div className="inline-flex items-center gap-2 rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1.5 text-xs font-bold text-emerald-700">
-                        <TrendingUp className="h-3.5 w-3.5" />
-                        72% faster close
+                        <CheckCircle2 className="h-3.5 w-3.5" />
+                        Automated close workflow
                       </div>
                     </div>
 
@@ -482,6 +482,12 @@ export default function Hero() {
                         </div>
                       </div>
                     </div>
+                  </div>
+
+                  <div className="border-t border-slate-100 bg-slate-50/70 px-4 py-2 text-center">
+                    <p className="text-[11px] font-medium text-slate-400">
+                      Illustrative interface preview — sample figures shown for demonstration
+                    </p>
                   </div>
                 </div>
               </div>

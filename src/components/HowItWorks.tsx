@@ -9,6 +9,7 @@ import {
   FileDown,
   ArrowRight,
 } from "lucide-react";
+import { WHATSAPP_LIVE } from "@/lib/siteConfig";
 
 const steps = [
   {
@@ -18,7 +19,7 @@ const steps = [
     description:
       "Upload invoices, receipts, purchase orders, delivery notes, and financial documents.",
     color: "#1457c9",
-    detail: "PDF, JPG, PNG, WhatsApp",
+    detail: WHATSAPP_LIVE ? "PDF, JPG, PNG, WhatsApp" : "PDF, JPG, PNG",
   },
   {
     icon: ScanSearch,

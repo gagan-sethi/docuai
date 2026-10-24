@@ -495,7 +495,7 @@ function SeatHero({
           <div>
             <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-widest text-white/70 mb-2">
               <Sparkles className="w-3.5 h-3.5" />
-              {data.plan.label} plan · seats
+              {data.plan.label.trim().toLowerCase().endsWith("plan") ? data.plan.label : `${data.plan.label} plan`} · seats
             </div>
             <h2 className="text-3xl sm:text-4xl font-extrabold leading-tight">
               {data.seats.used}

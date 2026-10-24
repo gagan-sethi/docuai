@@ -24,6 +24,7 @@ import {
   Smartphone,
   ExternalLink,
   Building2,
+  Edit3,
   X,
 } from "lucide-react";
 import Link from "next/link";
@@ -154,6 +155,11 @@ const activityActionConfig: Record<string, { label: string; color: string; Icon:
   doc_exported: { label: "Exported", color: "text-primary", Icon: Download },
   doc_deleted: { label: "Deleted", color: "text-red-500", Icon: AlertTriangle },
   doc_reviewed: { label: "Reviewed", color: "text-amber-500", Icon: Eye },
+  doc_edited: { label: "Edited", color: "text-amber-500", Icon: Edit3 },
+  doc_failed: { label: "Failed", color: "text-red-500", Icon: AlertTriangle },
+  company_created: { label: "Company created", color: "text-emerald-500", Icon: Building2 },
+  company_updated: { label: "Company updated", color: "text-blue-500", Icon: Building2 },
+  company_deleted: { label: "Company deleted", color: "text-red-500", Icon: Building2 },
   plan_changed: { label: "Plan upgraded", color: "text-primary", Icon: Zap },
   whatsapp_received: { label: "WhatsApp received", color: "text-green-600", Icon: MessageSquare },
 };

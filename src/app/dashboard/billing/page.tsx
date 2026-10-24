@@ -16,7 +16,8 @@
 import { Suspense, useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
-import { motion } from "framer-motion";
+import { motion, AnimatePresence } from "framer-motion";
+import { toast } from "react-toastify";
 import {
   CreditCard,
   Sparkles,
@@ -30,15 +31,17 @@ import {
   ArrowUpRight,
   Loader2,
   ShieldCheck,
+  ShieldAlert,
   Zap,
   Crown,
   RefreshCw,
+  X,
 } from "lucide-react";
 import Sidebar from "@/components/dashboard/Sidebar";
 import TopBar from "@/components/dashboard/TopBar";
 import { useSidebarOffset } from "@/lib/useSidebarOffset";
 import ManagePlanModal from "@/components/dashboard/ManagePlanModal";
-import { apiFetch, apiUrl, handleUnauthorized } from "@/lib/api";
+import { apiFetch, apiUrl, downloadApiFile, getAuthToken, handleUnauthorized } from "@/lib/api";
 
 interface PlanInfo {
   plan: string;
@@ -112,13 +115,54 @@ function formatDate(d?: string | null): string {
   });
 }
 
-function BillingSearchParamsHandler({ onOpenModal }: { onOpenModal: () => void }) {
+function BillingSearchParamsHandler({
+  plan,
+  loading,
+  onOpenModal,
+  onNonOwnerAttempt,
+  onTargetPlan,
+}: {
+  plan: PlanInfo | null;
+  loading: boolean;
+  onOpenModal: () => void;
+  onNonOwnerAttempt: (ownerName?: string) => void;
+  onTargetPlan: (id: string | null) => void;
+}) {
   const searchParams = useSearchParams();
+  const [handled, setHandled] = useState(false);
+
   useEffect(() => {
-    if (searchParams.get("managePlan") === "true" || searchParams.get("upgrade") === "true") {
-      onOpenModal();
+    // Wait until both loading completes and plan data is available
+    if (loading || !plan || handled) return;
+
+    const targetId = searchParams.get("planId") || searchParams.get("selectedPlan");
+    if (targetId) {
+      onTargetPlan(targetId);
     }
-  }, [searchParams, onOpenModal]);
+
+    const wantsManage =
+      searchParams.get("managePlan") === "true" ||
+      searchParams.get("manage") === "1" ||
+      searchParams.get("manage") === "true" ||
+      searchParams.get("upgrade") === "true";
+    const nonOwnerParam =
+      searchParams.get("nonOwner") === "true" ||
+      searchParams.get("teamNotice") === "1" ||
+      searchParams.get("teamNotice") === "not_owner" ||
+      searchParams.get("error") === "not_owner";
+
+    const isNonOwner = plan.viewerIsOwner === false || plan.isManagedByTeam === true;
+
+    if (wantsManage || nonOwnerParam) {
+      setHandled(true);
+      if (isNonOwner) {
+        onNonOwnerAttempt(plan.ownerName);
+      } else if (wantsManage) {
+        onOpenModal();
+      }
+    }
+  }, [searchParams, plan, loading, handled, onOpenModal, onNonOwnerAttempt, onTargetPlan]);
+
   return null;
 }
 
@@ -132,9 +176,43 @@ export default function BillingPage() {
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [showPlanModal, setShowPlanModal] = useState(false);
+  const [nonOwnerNotice, setNonOwnerNotice] = useState(false);
+  const [targetPlanId, setTargetPlanId] = useState<string | null>(null);
+  const [downloadingInvoiceId, setDownloadingInvoiceId] = useState<string | null>(null);
+
+  const handleDownloadInvoice = async (paymentId: string) => {
+    try {
+      setDownloadingInvoiceId(paymentId);
+      await downloadApiFile(
+        apiUrl(`/api/plan/invoice/${paymentId}/download`),
+        `Invoice-${Date.now()}.pdf`
+      );
+    } catch (err) {
+      console.error("Failed to download invoice:", err);
+      toast.error("Unable to download invoice PDF. Please try again.");
+    } finally {
+      setDownloadingInvoiceId(null);
+    }
+  };
 
   const handleOpenPlanModal = useCallback(() => {
+    if (plan?.viewerIsOwner === false || plan?.isManagedByTeam === true) {
+      toast.error("Only the workspace owner can change the plan.", {
+        toastId: "not-owner-billing-attempt",
+        autoClose: 5000,
+      });
+      return;
+    }
     setShowPlanModal(true);
+  }, [plan]);
+
+  const handleNonOwnerAttempt = useCallback(() => {
+    setShowPlanModal(false);
+    setNonOwnerNotice(true);
+    toast.error("Only the workspace owner can change the plan.", {
+      toastId: "not-owner-billing-attempt",
+      autoClose: 5000,
+    });
   }, []);
 
   const load = async () => {
@@ -243,6 +321,39 @@ export default function BillingPage() {
             </div>
           ) : (
             <>
+              {/* ─── Team member notice (CB-billing / R3-23) ─── */}
+              {nonOwnerNotice && (
+                <motion.div
+                  initial={{ opacity: 0, y: -8 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  className="mb-6 rounded-2xl border border-amber-200 bg-amber-50/90 p-4 text-amber-900 shadow-sm"
+                >
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="flex items-start gap-3">
+                      <div className="rounded-xl bg-amber-100 p-2 text-amber-700">
+                        <Crown className="h-5 w-5" />
+                      </div>
+                      <div>
+                        <h4 className="text-sm font-bold text-amber-950">
+                          Subscription Managed by Workspace Owner
+                        </h4>
+                        <p className="mt-1 text-xs leading-relaxed text-amber-800">
+                          Only the workspace owner ({plan?.ownerName || "the workspace owner"}) can upgrade or switch subscription plans.
+                          Your account is part of this workspace and shares its active plan quotas.
+                        </p>
+                      </div>
+                    </div>
+                    <button
+                      onClick={() => setNonOwnerNotice(false)}
+                      className="rounded-lg p-1 text-amber-600 hover:bg-amber-100 hover:text-amber-900 transition"
+                      aria-label="Dismiss notice"
+                    >
+                      <X className="h-4 w-4" />
+                    </button>
+                  </div>
+                </motion.div>
+              )}
+
               {/* ─── Current plan hero card ──────────────────── */}
               <motion.div
                 initial={{ opacity: 0, y: 10 }}
@@ -532,35 +643,34 @@ export default function BillingPage() {
                                 </span>
                               </td>
                               <td className="px-3 py-3 text-slate-600 capitalize text-xs">
-                                {p.paymentMethod || "—"}
+                                {p.paymentMethod ? p.paymentMethod : (p.amount > 0 ? "Card" : "—")}
                               </td>
                               <td className="px-5 py-3 text-right">
                                 <div className="inline-flex items-center gap-1.5">
-                                  {p.hostedInvoiceUrl && (
-                                    <a
-                                      href={p.hostedInvoiceUrl}
-                                      target="_blank"
-                                      rel="noopener noreferrer"
-                                      title="View invoice"
-                                      className="p-1.5 rounded-lg text-slate-500 hover:text-primary hover:bg-primary/10 transition"
-                                    >
-                                      <ExternalLink className="w-3.5 h-3.5" />
-                                    </a>
-                                  )}
-                                  {p.invoicePdf && (
-                                    <a
-                                      href={p.invoicePdf}
-                                      target="_blank"
-                                      rel="noopener noreferrer"
-                                      title="Download PDF"
-                                      className="p-1.5 rounded-lg text-slate-500 hover:text-primary hover:bg-primary/10 transition"
-                                    >
+                                  {/* Permanent / Dynamic View Link */}
+                                  <a
+                                    href={`${apiUrl(`/api/plan/invoice/${p.id}/view`)}${getAuthToken() ? `?token=${encodeURIComponent(getAuthToken()!)}` : ""}`}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    title="View invoice"
+                                    className="p-1.5 rounded-lg text-slate-500 hover:text-primary hover:bg-primary/10 transition"
+                                  >
+                                    <ExternalLink className="w-3.5 h-3.5" />
+                                  </a>
+
+                                  {/* Permanent PDF Download Button (never expires) */}
+                                  <button
+                                    onClick={() => handleDownloadInvoice(p.id)}
+                                    disabled={downloadingInvoiceId === p.id}
+                                    title="Download invoice PDF"
+                                    className="p-1.5 rounded-lg text-slate-500 hover:text-primary hover:bg-primary/10 transition disabled:opacity-50"
+                                  >
+                                    {downloadingInvoiceId === p.id ? (
+                                      <Loader2 className="w-3.5 h-3.5 animate-spin text-primary" />
+                                    ) : (
                                       <Download className="w-3.5 h-3.5" />
-                                    </a>
-                                  )}
-                                  {!p.hostedInvoiceUrl && !p.invoicePdf && (
-                                    <span className="text-xs text-slate-300">—</span>
-                                  )}
+                                    )}
+                                  </button>
                                 </div>
                               </td>
                             </tr>
@@ -584,13 +694,20 @@ export default function BillingPage() {
       </main>
 
       <Suspense fallback={null}>
-        <BillingSearchParamsHandler onOpenModal={handleOpenPlanModal} />
+        <BillingSearchParamsHandler
+          plan={plan}
+          loading={loading}
+          onOpenModal={handleOpenPlanModal}
+          onNonOwnerAttempt={handleNonOwnerAttempt}
+          onTargetPlan={setTargetPlanId}
+        />
       </Suspense>
 
       <ManagePlanModal
         open={showPlanModal}
         onClose={() => setShowPlanModal(false)}
         planData={plan ?? undefined}
+        targetPlanId={targetPlanId}
       />
     </div>
   );

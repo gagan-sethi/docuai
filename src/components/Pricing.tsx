@@ -21,6 +21,8 @@ import {
   type DisplayPlan,
 } from "@/lib/plans";
 import { TRIAL_ENABLED, TRIAL_DAYS } from "@/lib/siteConfig";
+import { apiFetch, apiUrl, getAuthToken } from "@/lib/api";
+import { toast } from "react-toastify";
 
 function PricingHeader({ loading }: { loading?: boolean }) {
   return (
@@ -92,7 +94,19 @@ function PlanMeta({ icon: Icon, text }: { icon: typeof FileText; text?: string }
   );
 }
 
-function PricingCard({ plan, index }: { plan: DisplayPlan; index: number }) {
+function PricingCard({
+  plan,
+  index,
+  isLoggedIn,
+  isTeamMember,
+  ownerName,
+}: {
+  plan: DisplayPlan;
+  index: number;
+  isLoggedIn?: boolean;
+  isTeamMember?: boolean;
+  ownerName?: string | null;
+}) {
   return (
     <motion.div
       initial={{ opacity: 0, y: 30 }}
@@ -162,7 +176,19 @@ function PricingCard({ plan, index }: { plan: DisplayPlan; index: number }) {
       </ul>
 
       <Link
-        href={planSignupHref(plan)}
+        href={
+          isTeamMember
+            ? `/dashboard/billing?teamNotice=1`
+            : planSignupHref(plan, isLoggedIn)
+        }
+        onClick={() => {
+          if (isTeamMember) {
+            toast.error(
+              `Only the workspace owner (${ownerName || "team owner"}) can change the plan.`,
+              { toastId: "not-owner-pricing", autoClose: 5000 }
+            );
+          }
+        }}
         className={`btn-shine group mt-7 inline-flex w-full items-center justify-center gap-2 rounded-2xl px-5 py-3.5 text-sm font-semibold transition-all duration-200 ${
           plan.popular
             ? "bg-gradient-to-r from-primary to-primary-dark text-white shadow-lg shadow-primary/25 hover:shadow-primary/40"
@@ -187,8 +213,26 @@ export default function Pricing() {
   const [plans, setPlans] = useState<DisplayPlan[]>([]);
   const [loading, setLoading] = useState(true);
   const [source, setSource] = useState<"backend" | "fallback">("fallback");
+  const [isLoggedIn, setIsLoggedIn] = useState(false);
+  const [isTeamMember, setIsTeamMember] = useState(false);
+  const [ownerName, setOwnerName] = useState<string | null>(null);
 
   useEffect(() => {
+    const token = getAuthToken();
+    setIsLoggedIn(Boolean(token));
+
+    if (token) {
+      apiFetch(apiUrl("/api/plan"), { credentials: "include" })
+        .then(async (res) => (res.ok ? res.json() : null))
+        .then((data) => {
+          if (data && (data.viewerIsOwner === false || data.isManagedByTeam === true)) {
+            setIsTeamMember(true);
+            setOwnerName(data.ownerName || "the workspace owner");
+          }
+        })
+        .catch(() => {});
+    }
+
     let cancelled = false;
 
     loadPublicPlans().then((result) => {
@@ -223,7 +267,14 @@ export default function Pricing() {
           className={`mx-auto grid grid-cols-1 items-stretch gap-6 ${gridClass(plans.length)}`}
         >
           {plans.map((plan, i) => (
-            <PricingCard key={plan.key} plan={plan} index={i} />
+            <PricingCard
+              key={plan.key}
+              plan={plan}
+              index={i}
+              isLoggedIn={isLoggedIn}
+              isTeamMember={isTeamMember}
+              ownerName={ownerName}
+            />
           ))}
         </div>
       </div>
