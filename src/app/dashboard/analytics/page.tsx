@@ -174,11 +174,15 @@ export default function AnalyticsPage() {
   return (
     <div className="min-h-screen bg-slate-50/50">
       <Sidebar />
-      <main style={{ marginLeft: sidebarOffset }} className="p-4 transition-[margin] duration-200 sm:p-6">
+      <div
+        className="flex min-h-screen min-w-0 flex-col transition-all duration-200"
+        style={{ marginLeft: sidebarOffset }}
+      >
         <TopBar title="Analytics" />
 
-        {/* ─── Header ────────────────────────────────────────── */}
-        <div className="max-w-7xl mx-auto mt-6">
+        <main className="min-w-0 flex-1 p-4 sm:p-6">
+          {/* ─── Header ────────────────────────────────────────── */}
+          <div className="max-w-7xl mx-auto">
           <div className="flex flex-wrap items-end justify-between gap-3 mb-6">
             <div>
               <h1 className="text-2xl font-bold text-slate-900 flex items-center gap-2">
@@ -415,8 +419,9 @@ export default function AnalyticsPage() {
               </div>
             </>
           )}
-        </div>
-      </main>
+          </div>
+        </main>
+      </div>
     </div>
   );
 }
