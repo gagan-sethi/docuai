@@ -77,7 +77,7 @@ export default function HowItWorks() {
           </span>
           <h2 className="text-3xl sm:text-4xl lg:text-5xl font-bold tracking-tight text-white">
             From Document to Financial Insights{" "}
-            <span className="text-secondary">in Seconds</span>
+            <span className="text-secondary">Automatically</span>
           </h2>
           <p className="mt-5 text-lg text-slate-400 leading-relaxed">
             A clear approval workflow for turning financial documents into

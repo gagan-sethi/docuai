@@ -1,7 +1,17 @@
+import {
+  filterDocumentsByCurrency,
+  resolveDocTypeCode,
+  isFinanciallyCounted,
+} from "./finance";
 import { apiFetch, apiUrl, handleUnauthorized } from "./api";
 import type { ProcessedDocument } from "./types";
 import type { CategoryBucket, FinancialTotals, MonthlyBucket, SupportedCurrency } from "./finance";
 import { formatShortMonthUtc } from "./dates";
+// import {
+//   filterDocumentsByCurrency,
+//   resolveDocTypeCode,
+//   isFinanciallyCounted,
+// } from "./finance";
 
 type BackendTotals = {
   currency: SupportedCurrency;
@@ -65,6 +75,7 @@ export async function fetchFinancialReport(params: URLSearchParams = new URLSear
   return (await res.json()) as FinancialReport;
 }
 
+
 export function selectFinancialReport(report: FinancialReport | null, currency: SupportedCurrency) {
   const totalsRow = report?.totalsByCurrency.find((row) => row.currency === currency);
   const revenue = totalsRow?.revenue ?? 0;
@@ -72,6 +83,26 @@ export function selectFinancialReport(report: FinancialReport | null, currency: 
   const cogs = totalsRow?.cogs ?? 0;
   const grossProfit = totalsRow?.grossProfit ?? (revenue - cogs);
   const operatingExpenses = totalsRow?.operatingExpenses ?? (expenses - cogs);
+
+  // R3-10: counts from documents 
+  const currencyDocs = filterDocumentsByCurrency(report?.documents ?? [], currency);
+  let salesCount = 0;
+  let expenseCount = 0;
+  let receiptCount = 0;
+  let poCount = 0;
+  for (const doc of currencyDocs) {
+  const code = resolveDocTypeCode(doc);
+
+  if (code === "purchase_order") {
+    poCount += 1;
+    continue;
+  }
+
+  // R3-10: report.documents already approved+reconciled (status often omitted)
+  if (code === "sales_invoice") salesCount += 1;
+  else if (code === "expense_invoice") expenseCount += 1;
+  else if (code === "receipt") receiptCount += 1;
+}
 
   const totals: FinancialTotals = {
     currency,
@@ -84,10 +115,10 @@ export function selectFinancialReport(report: FinancialReport | null, currency: 
     vatCollected: totalsRow?.vatCollected ?? 0,
     vatPaid: totalsRow?.vatPaid ?? 0,
     vatPayable: totalsRow?.vatPayable ?? 0,
-    salesCount: 0,
-    expenseCount: 0,
-    receiptCount: 0,
-    poCount: 0,
+    salesCount,
+    expenseCount,
+    receiptCount,
+    poCount,
   };
   const monthly: MonthlyBucket[] = (report?.monthly ?? [])
     .filter((row) => row.currency === currency)

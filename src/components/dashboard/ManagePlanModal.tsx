@@ -46,7 +46,7 @@ export type PlanOption = {
   trialDays?: number;
   isTrialEligible?: boolean;
   hasUsedTrial?: boolean;
-  
+
   // Campaign discount field
   campaignDiscount?: CampaignDiscount | null;
 };
@@ -192,6 +192,16 @@ export default function ManagePlanModal({ open, onClose, planData }: Props) {
       return `${usdFormatter.format(campaign.value)} OFF`;
     }
   };
+  // B-01: a free trial is only meant for users who are still on the Free plan.
+  const isOnFreePlan = (planData?.plan || "free") === "free";
+
+  const trialAvailable = plans.some(
+    (p) =>
+      (p.price ?? 0) > 0 &&
+      p.isTrial === true &&
+      (p.trialDays ?? 0) > 0 &&
+      p.isTrialEligible === true
+  );
 
   return (
     <AnimatePresence>
@@ -291,7 +301,7 @@ export default function ManagePlanModal({ open, onClose, planData }: Props) {
                   const price = p.price ?? 0;
                   const isPaid = price > 0;
                   const planKey = String(p._id || p.id);
-                  
+
                   // Check if campaign discount exists
                   const hasCampaignDiscount = p.campaignDiscount !== null && p.discountApplied === true;
 
@@ -302,7 +312,8 @@ export default function ManagePlanModal({ open, onClose, planData }: Props) {
                   const isNotCurrentPlan = !isCurrent;
 
                   // Only show trial if ALL conditions are met
-                  const showTrialButton = isPaid &&
+                  const showTrialButton = isOnFreePlan &&
+                    isPaid &&
                     planSupportsTrial &&
                     hasTrialDays &&
                     hasNotUsedTrial &&
@@ -348,7 +359,7 @@ export default function ManagePlanModal({ open, onClose, planData }: Props) {
                       {/* Campaign Discount Badge - Top Center */}
                       {!isCurrent && hasCampaignDiscount && p.campaignDiscount && (
                         <span className="absolute -top-2.5 left-1/2 transform -translate-x-1/2 px-3 py-0.5 text-[10px] font-bold bg-gradient-to-r from-orange-500 to-red-500 text-white rounded-full shadow-sm flex items-center gap-1 whitespace-nowrap">
-                          <Tag className="w-3 h-3" /> 
+                          <Tag className="w-3 h-3" />
                           {p.campaignDiscount.label || formatCampaignDiscount(p.campaignDiscount)}
                         </span>
                       )}
@@ -480,8 +491,8 @@ export default function ManagePlanModal({ open, onClose, planData }: Props) {
                                 : showTrialButton
                                   ? "Upgrade (Skip Trial)"
                                   : hasCampaignDiscount
-                                  ? "Claim Campaign Offer"
-                                  : "Upgrade Now"}
+                                    ? "Claim Campaign Offer"
+                                    : "Upgrade Now"}
                             </button>
 
                             {/* Message for users who already used trial */}
@@ -511,9 +522,15 @@ export default function ManagePlanModal({ open, onClose, planData }: Props) {
 
             {/* Footer */}
             <div className="flex items-center justify-between px-6 py-4 bg-slate-50 border-t border-slate-100 sticky bottom-0 z-50">
-              <p className="text-[10px] text-muted">
-                Start a free trial to test premium features. No payment required until trial ends.
-              </p>
+              {/* B-01: trial text only for Free plan users when a trial is really available.
+                  The empty <span /> keeps "Close" on the right side of the footer. */}
+              {isOnFreePlan && trialAvailable ? (
+                <p className="text-[10px] text-muted">
+                  Start a free trial to test premium features. No payment required until trial ends.
+                </p>
+              ) : (
+                <span />
+              )}
               <button
                 onClick={onClose}
                 className="text-xs font-medium text-slate-500 hover:text-slate-700 transition-colors"
