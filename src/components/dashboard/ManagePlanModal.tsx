@@ -56,6 +56,8 @@ export interface ManagePlanModalPlanData {
   label?: string;
   documentsPerMonth?: number | string;
   documentsUsed?: number;
+  viewerIsOwner?: boolean;
+  isManagedByTeam?: boolean;
 }
 
 interface Props {
@@ -63,15 +65,46 @@ interface Props {
   onClose: () => void;
   /** Current plan info (for the header). Optional — falls back to "Free". */
   planData?: ManagePlanModalPlanData | null;
+  /** Optional plan ID/name selected from /pricing to highlight. */
+  targetPlanId?: string | null;
 }
 
-export default function ManagePlanModal({ open, onClose, planData }: Props) {
+export default function ManagePlanModal({
+  open,
+  onClose,
+  planData,
+  targetPlanId,
+}: Props) {
+  // Guard: NEVER open or render for non-owner team members
+  if (planData?.viewerIsOwner === false || planData?.isManagedByTeam === true) {
+    return null;
+  }
+
   const router = useRouter();
   const [plans, setPlans] = useState<PlanOption[]>([]);
   const [loadingPlans, setLoadingPlans] = useState(true);
   const [navigatingPlanId, setNavigatingPlanId] = useState<string | null>(null);
   const [startingTrialId, setStartingTrialId] = useState<string | null>(null);
   const [trialError, setTrialError] = useState<string | null>(null);
+
+  const currentPlanName = (planData?.plan || "free").toLowerCase();
+  const isCurrentPaid = currentPlanName !== "free";
+  const currentPlanObj = plans.find((pl) => {
+    const pName = (pl.name || "").toLowerCase();
+    const pLabel = (pl.label || "").toLowerCase();
+    const cName = currentPlanName.toLowerCase();
+    const cLabel = (planData?.label || "").toLowerCase();
+    return (
+      pName === cName ||
+      pLabel === cLabel ||
+      (cName && pName.includes(cName)) ||
+      (cLabel && pLabel.includes(cLabel))
+    );
+  });
+  const currentPrice = currentPlanObj?.price ?? 0;
+  const currentIsYearly =
+    currentPlanObj?.interval?.toLowerCase() === "year" ||
+    (planData?.label || "").toLowerCase().includes("year");
 
   // Fetch plans only after the modal opens for the first time.
   useEffect(() => {
@@ -223,28 +256,32 @@ export default function ManagePlanModal({ open, onClose, planData }: Props) {
                     <Sparkles className="w-5 h-5 text-amber-300" />
                     <h2 className="text-lg font-bold">Manage Your Plan</h2>
                   </div>
-                  <p className="text-sm text-slate-300">
-                    You&apos;re currently on the{" "}
-                    <strong className="text-white">
-                      {planData?.label || "Free"}
-                    </strong>{" "}
-                    plan.
-                    {planData?.documentsUsed !== undefined && (
-                      <>
-                        {" "}You&apos;ve used{" "}
-                        <strong className="text-amber-300">
-                          {planData.documentsUsed}
-                        </strong>{" "}
-                        of{" "}
-                        <strong className="text-white">
-                          {typeof planData?.documentsPerMonth === "number"
-                            ? planData.documentsPerMonth
-                            : planData?.documentsPerMonth || 5}
-                        </strong>{" "}
-                        documents this month.
-                      </>
-                    )}
-                  </p>
+                  {(() => {
+                    const label = (planData?.label || "Free").trim();
+                    const hasPlanWord = label.toLowerCase().endsWith("plan");
+                    return (
+                      <p className="text-sm text-slate-300">
+                        You&apos;re currently on the{" "}
+                        <strong className="text-white">{label}</strong>
+                        {!hasPlanWord && " plan"}.
+                        {planData?.documentsUsed !== undefined && (
+                          <>
+                            {" "}You&apos;ve used{" "}
+                            <strong className="text-amber-300">
+                              {planData.documentsUsed}
+                            </strong>{" "}
+                            of{" "}
+                            <strong className="text-white">
+                              {typeof planData?.documentsPerMonth === "number"
+                                ? planData.documentsPerMonth
+                                : planData?.documentsPerMonth || 5}
+                            </strong>{" "}
+                            documents this month.
+                          </>
+                        )}
+                      </p>
+                    );
+                  })()}
                 </div>
                 <button
                   onClick={onClose}
@@ -286,23 +323,29 @@ export default function ManagePlanModal({ open, onClose, planData }: Props) {
                 </div>
               ) : (
                 plans.map((p) => {
-                  const currentPlan = planData?.plan || "free";
-                  const isCurrent = p.name === currentPlan;
+                  const isCurrent = (p.name || "").toLowerCase() === currentPlanName;
                   const price = p.price ?? 0;
                   const isPaid = price > 0;
                   const planKey = String(p._id || p.id);
                   
+                  // Target plan comparison:
+                  // - Free tier: all paid plans are "Upgrade"
+                  // - Paid tier: plans more expensive than current are "Upgrade", equal or less expensive are "Switch"
+                  const targetIsYearly = p.interval?.toLowerCase() === "year" || (p.label || "").toLowerCase().includes("year");
+                  const isMoreExpensive = !isCurrentPaid || (currentIsYearly ? (targetIsYearly && price > currentPrice) : price > currentPrice);
+
                   // Check if campaign discount exists
                   const hasCampaignDiscount = p.campaignDiscount !== null && p.discountApplied === true;
 
-                  // IMPORTANT: Fix the trial eligibility logic
+                  // R3-22 / B-01: Paid users are never offered a free trial
                   const hasNotUsedTrial = !p.hasUsedTrial;
                   const planSupportsTrial = p.isTrial === true;
                   const hasTrialDays = (p.trialDays ?? 0) > 0;
                   const isNotCurrentPlan = !isCurrent;
 
-                  // Only show trial if ALL conditions are met
-                  const showTrialButton = isPaid &&
+                  // Only show trial if user is on Free tier and eligible
+                  const showTrialButton = !isCurrentPaid &&
+                    isPaid &&
                     planSupportsTrial &&
                     hasTrialDays &&
                     hasNotUsedTrial &&
@@ -324,17 +367,35 @@ export default function ManagePlanModal({ open, onClose, planData }: Props) {
                     });
                   }
 
+                  const isTarget = Boolean(
+                    targetPlanId &&
+                      !isCurrent &&
+                      (String(p._id) === targetPlanId ||
+                        String(p.id) === targetPlanId ||
+                        (p.name && p.name.toLowerCase() === targetPlanId.toLowerCase()) ||
+                        (p.label && p.label.toLowerCase() === targetPlanId.toLowerCase()))
+                  );
+
                   return (
                     <div
                       key={planKey}
-                      className={`relative flex flex-col p-5 rounded-xl border-2 bg-gradient-to-b transition-all ${isCurrent
-                        ? "border-primary shadow-lg shadow-primary/10 ring-1 ring-primary/20"
-                        : "border-slate-200 hover:shadow-md"
-                        }`}
+                      className={`relative flex flex-col p-5 rounded-xl border-2 bg-gradient-to-b transition-all ${
+                        isCurrent
+                          ? "border-primary shadow-lg shadow-primary/10 ring-1 ring-primary/20"
+                          : isTarget
+                          ? "border-primary/80 ring-2 ring-primary/20 shadow-md bg-primary/[0.02]"
+                          : "border-slate-200 hover:shadow-md"
+                      }`}
                     >
                       {isCurrent && (
                         <span className="absolute -top-2.5 left-4 px-3 py-0.5 text-[10px] font-bold text-white bg-gradient-to-r from-primary to-secondary rounded-full shadow-sm">
                           CURRENT PLAN
+                        </span>
+                      )}
+
+                      {isTarget && !isCurrent && (
+                        <span className="absolute -top-2.5 right-4 px-2.5 py-0.5 text-[10px] font-bold bg-primary text-white rounded-full shadow-sm">
+                          CHOSEN PLAN
                         </span>
                       )}
 
@@ -469,7 +530,7 @@ export default function ManagePlanModal({ open, onClose, planData }: Props) {
                               </button>
                             )}
 
-                            {/* Upgrade Button - Keep original color */}
+                            {/* Upgrade / Switch Button */}
                             <button
                               onClick={() => handlePlanSelect(p)}
                               disabled={navigatingPlanId === planKey}
@@ -481,7 +542,9 @@ export default function ManagePlanModal({ open, onClose, planData }: Props) {
                                   ? "Upgrade (Skip Trial)"
                                   : hasCampaignDiscount
                                   ? "Claim Campaign Offer"
-                                  : "Upgrade Now"}
+                                  : isMoreExpensive
+                                  ? "Upgrade"
+                                  : "Switch"}
                             </button>
 
                             {/* Message for users who already used trial */}
@@ -512,7 +575,9 @@ export default function ManagePlanModal({ open, onClose, planData }: Props) {
             {/* Footer */}
             <div className="flex items-center justify-between px-6 py-4 bg-slate-50 border-t border-slate-100 sticky bottom-0 z-50">
               <p className="text-[10px] text-muted">
-                Start a free trial to test premium features. No payment required until trial ends.
+                {isCurrentPaid
+                  ? "Manage your subscription or change tiers. Billing adjustments are applied automatically at checkout."
+                  : "Start a free trial to test premium features. No payment required until trial ends."}
               </p>
               <button
                 onClick={onClose}

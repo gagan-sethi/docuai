@@ -36,11 +36,11 @@ const cookies = [
     category: "Strictly necessary",
   },
   {
-    name: "docuai_auth_token",
-    type: "Browser local storage",
+    name: "token",
+    type: "Cookie (httpOnly, Secure, SameSite=None) / Tab session",
     purpose:
-      "A copy of your session token, used only as a fallback when your browser blocks third-party cookies (Safari and private browsing modes). Without it those browsers would sign you out on every request.",
-    duration: "Until you sign out or clear site data.",
+      "Encrypted authentication credential used to authenticate requests securely without exposing raw session secrets to persistent browser storage.",
+    duration: "Active session or until sign out.",
     category: "Strictly necessary",
   },
   {

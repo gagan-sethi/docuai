@@ -251,7 +251,7 @@ function ReviewPageContent() {
     }
   }, [filterParam]);
 
-  const addToast = useCallback((message: string, type: Toast["type"] = "success") => { const id = ++toastCounter; setToasts((p) => [...p, { id, message, type }]); setTimeout(() => setToasts((p) => p.filter((t) => t.id !== id)), 3500); }, []);
+  const addToast = useCallback((message: string, type: Toast["type"] = "success") => { const id = ++toastCounter; setToasts((p) => [...p, { id, message, type }]); setTimeout(() => setToasts((p) => p.filter((t) => t.id !== id)), type === "error" ? 6000 : 3500); }, []);
   const dismissToast = useCallback((id: number) => setToasts((p) => p.filter((t) => t.id !== id)), []);
   const currentDoc = useMemo(() => documents.find((d) => d.id === selectedDocId) ?? null, [documents, selectedDocId]);
 

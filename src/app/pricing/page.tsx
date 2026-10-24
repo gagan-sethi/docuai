@@ -44,7 +44,7 @@ export default function PricingPage() {
             </p>
             <div className="mt-10 flex flex-col items-center justify-center gap-4 sm:flex-row">
               <Link
-                href={isLoggedIn ? "/dashboard/billing" : "/signup"}
+                href={isLoggedIn ? "/dashboard/billing?managePlan=true" : "/signup"}
                 className="btn-shine group inline-flex w-full items-center justify-center gap-2 rounded-2xl bg-white px-10 py-4 text-base font-semibold text-slate-900 shadow-xl transition-all hover:scale-105 sm:w-auto"
               >
                 {PRIMARY_CTA_LABEL}

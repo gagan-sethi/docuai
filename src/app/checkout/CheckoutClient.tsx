@@ -6,6 +6,7 @@ import StripeWrapper from "./StripeWrapper";
 import CheckoutForm from "./CheckoutForm";
 import { apiFetch, apiUrl } from "@/lib/api";
 import BrandLogo from "@/components/BrandLogo";
+import { toast } from "react-toastify";
 
 type PaymentInit = {
   clientSecret: string;
@@ -50,7 +51,12 @@ function getPaymentInit(planId: string, inviteToken: string | null) {
     .then(async (res) => {
       if (!res.ok) {
         const errorBody = await res.text();
-        console.error("Backend error response:", errorBody);
+        const isOwnerErr =
+          errorBody.includes("NOT_WORKSPACE_OWNER") ||
+          errorBody.includes("Only the workspace owner can change the plan");
+        if (!isOwnerErr) {
+          console.error("Backend error response:", errorBody);
+        }
         throw new Error(parsePaymentError(errorBody));
       }
 
@@ -98,25 +104,86 @@ export default function CheckoutClient() {
       return;
     }
 
-    getPaymentInit(planId, inviteToken)
-      .then((data) => {
+    // Check if the current user is a team member who cannot checkout
+    apiFetch(apiUrl("/api/plan"), { credentials: "include" })
+      .then(async (res) => (res.ok ? res.json() : null))
+      .then((planData) => {
         if (cancelled) return;
-
-        setClientSecret(data.clientSecret);
-        setAmount(data.amount);
-        setInterval(data.interval || "month");
-      })
-      .catch((err: Error) => {
-        if (cancelled) return;
-
-        console.error("Payment init error:", err.message);
-        sessionStorage.setItem("checkoutError", err.message);
-        router.replace("/checkout/failed");
-      })
-      .finally(() => {
-        if (!cancelled) {
-          setLoadingInit(false);
+        if (planData && (planData.viewerIsOwner === false || planData.isManagedByTeam === true)) {
+          toast.error("Only the workspace owner can change the plan.", {
+            toastId: "not-owner-checkout",
+            autoClose: 5000,
+          });
+          router.replace("/dashboard/billing?teamNotice=1");
+          return;
         }
+
+        getPaymentInit(planId, inviteToken)
+          .then((data) => {
+            if (cancelled) return;
+
+            setClientSecret(data.clientSecret);
+            setAmount(data.amount);
+            setInterval(data.interval || "month");
+          })
+          .catch((err: Error) => {
+            if (cancelled) return;
+
+            if (
+              err.message?.includes("Only the workspace owner can change the plan") ||
+              err.message?.includes("NOT_WORKSPACE_OWNER")
+            ) {
+              toast.error("Only the workspace owner can change the plan.", {
+                toastId: "not-owner-checkout",
+                autoClose: 5000,
+              });
+              router.replace("/dashboard/billing?teamNotice=1");
+              return;
+            }
+
+            console.error("Payment init error:", err.message);
+            sessionStorage.setItem("checkoutError", err.message);
+            router.replace("/checkout/failed");
+          })
+          .finally(() => {
+            if (!cancelled) {
+              setLoadingInit(false);
+            }
+          });
+      })
+      .catch(() => {
+        getPaymentInit(planId, inviteToken)
+          .then((data) => {
+            if (cancelled) return;
+
+            setClientSecret(data.clientSecret);
+            setAmount(data.amount);
+            setInterval(data.interval || "month");
+          })
+          .catch((err: Error) => {
+            if (cancelled) return;
+
+            if (
+              err.message?.includes("Only the workspace owner can change the plan") ||
+              err.message?.includes("NOT_WORKSPACE_OWNER")
+            ) {
+              toast.error("Only the workspace owner can change the plan.", {
+                toastId: "not-owner-checkout",
+                autoClose: 5000,
+              });
+              router.replace("/dashboard/billing?teamNotice=1");
+              return;
+            }
+
+            console.error("Payment init error:", err.message);
+            sessionStorage.setItem("checkoutError", err.message);
+            router.replace("/checkout/failed");
+          })
+          .finally(() => {
+            if (!cancelled) {
+              setLoadingInit(false);
+            }
+          });
       });
 
     return () => {

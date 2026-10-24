@@ -27,6 +27,9 @@ import {
   X,
   Eye,
   RefreshCw,
+  Building2,
+  Edit3,
+  AlertTriangle,
   type LucideProps,
 } from "lucide-react";
 import Sidebar from "@/components/dashboard/Sidebar";
@@ -107,6 +110,12 @@ const actionConfig: Record<
     bg: "bg-purple-50",
     label: "Document Reviewed",
   },
+  doc_edited: {
+    icon: Edit3,
+    color: "text-amber-600",
+    bg: "bg-amber-50",
+    label: "Document Edited",
+  },
   doc_approved: {
     icon: CheckCircle2,
     color: "text-green-500",
@@ -118,6 +127,30 @@ const actionConfig: Record<
     color: "text-red-500",
     bg: "bg-red-50",
     label: "Document Rejected",
+  },
+  doc_failed: {
+    icon: AlertTriangle,
+    color: "text-rose-600",
+    bg: "bg-rose-50",
+    label: "Processing Failed",
+  },
+  company_created: {
+    icon: Building2,
+    color: "text-emerald-600",
+    bg: "bg-emerald-50",
+    label: "Company Created",
+  },
+  company_updated: {
+    icon: Building2,
+    color: "text-blue-600",
+    bg: "bg-blue-50",
+    label: "Company Updated",
+  },
+  company_deleted: {
+    icon: Building2,
+    color: "text-rose-600",
+    bg: "bg-rose-50",
+    label: "Company Deleted",
   },
   doc_exported: {
     icon: Download,

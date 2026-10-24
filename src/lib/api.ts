@@ -37,45 +37,66 @@ export function apiUrl(path: string): string {
 }
 
 /**
- * Bearer-token persistence.
+ * Bearer-token session management.
  *
- * The API authenticates with an httpOnly cookie set on the API's own domain
- * (SameSite=None). Because the app and the API live on different sites,
- * browsers that block third-party cookies (Safari ITP, Chrome Incognito,
- * privacy modes) silently drop that cookie and every request returns 401
- * even though the user just logged in. The login/signup responses already
- * include the same JWT in their JSON body, and the API accepts it via the
- * Authorization header — so we persist it and send it on every call as a
- * cookie-independent fallback.
+ * R3-25: Never persist raw session JWT in permanent localStorage.
+ * Tokens are kept in memory and tab-scoped sessionStorage (which terminates
+ * when the tab/window is closed). The server sets an HttpOnly cookie
+ * for secure credentialed calls across requests.
  */
-const AUTH_TOKEN_KEY = "docuai_auth_token";
+const AUTH_TOKEN_KEY = "docuai_auth_token"; // legacy key purged on load
+const AUTH_SESSION_KEY = "docuai_session_token";
+
+let inMemoryAuthToken: string | null = null;
 
 export function setAuthToken(token: string | undefined | null): void {
-  if (typeof window === "undefined" || !token) return;
+  inMemoryAuthToken = token || null;
+  if (typeof window === "undefined") return;
   try {
-    window.localStorage.setItem(AUTH_TOKEN_KEY, token);
-    document.cookie = `docuai_token=${encodeURIComponent(token)}; path=/; max-age=2592000; SameSite=Lax`;
-  } catch { /* storage unavailable (private mode quota) — cookie auth still applies */ }
+    // Purge legacy persistent localStorage token to prevent script exfiltration
+    window.localStorage.removeItem(AUTH_TOKEN_KEY);
+    if (token) {
+      window.sessionStorage.setItem(AUTH_SESSION_KEY, token);
+    } else {
+      window.sessionStorage.removeItem(AUTH_SESSION_KEY);
+    }
+  } catch {
+    /* storage unavailable in private mode quota — in-memory and cookie auth still applies */
+  }
 }
 
 export function getAuthToken(): string | null {
-  if (typeof window === "undefined") return null;
+  if (typeof window === "undefined") return inMemoryAuthToken;
   try {
-    // If an impersonate_token is in the URL, pick it up synchronously before any component fetch fires!
+    // 1. If an impersonate_token is in the URL, pick it up synchronously
     const params = new URLSearchParams(window.location.search);
     const urlToken = params.get("impersonate_token");
     if (urlToken) {
-      window.localStorage.setItem(AUTH_TOKEN_KEY, urlToken);
-      document.cookie = `docuai_token=${encodeURIComponent(urlToken)}; path=/; max-age=2592000; SameSite=Lax`;
+      inMemoryAuthToken = urlToken;
+      try {
+        window.sessionStorage.setItem(AUTH_SESSION_KEY, urlToken);
+        window.localStorage.removeItem(AUTH_TOKEN_KEY);
+      } catch {}
       return urlToken;
     }
-    const token = window.localStorage.getItem(AUTH_TOKEN_KEY);
-    if (token && typeof document !== "undefined" && !document.cookie.includes("docuai_token=")) {
-      document.cookie = `docuai_token=${encodeURIComponent(token)}; path=/; max-age=2592000; SameSite=Lax`;
+
+    // 2. Return in-memory token if active
+    if (inMemoryAuthToken) return inMemoryAuthToken;
+
+    // 3. Fallback to tab-scoped sessionStorage
+    const sessionToken = window.sessionStorage.getItem(AUTH_SESSION_KEY);
+    if (sessionToken) {
+      inMemoryAuthToken = sessionToken;
+      return sessionToken;
     }
-    return token;
-  } catch {
+
+    // 4. Ensure legacy plain localStorage key is purged
+    if (window.localStorage.getItem(AUTH_TOKEN_KEY)) {
+      window.localStorage.removeItem(AUTH_TOKEN_KEY);
+    }
     return null;
+  } catch {
+    return inMemoryAuthToken;
   }
 }
 
@@ -99,8 +120,10 @@ export function getAuthenticatedUserId(): string | null {
 }
 
 export function clearAuthToken(): void {
+  inMemoryAuthToken = null;
   if (typeof window === "undefined") return;
   try {
+    window.sessionStorage.removeItem(AUTH_SESSION_KEY);
     window.localStorage.removeItem(AUTH_TOKEN_KEY);
     document.cookie = "docuai_token=; path=/; max-age=0; SameSite=Lax";
     // Purge any upload batch keys and cached items so they do not leak across users

@@ -14,7 +14,6 @@ export async function GET(
 ) {
   const { id } = await context.params;
   const token =
-    req.cookies.get("docuai_token")?.value ||
     req.cookies.get("token")?.value ||
     req.headers.get("authorization")?.replace(/^Bearer\s+/i, "") ||
     "";

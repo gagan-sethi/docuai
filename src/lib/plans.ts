@@ -10,6 +10,7 @@
  */
 
 import { API_BASE_URL, apiFetch, apiUrl, getAuthToken } from "./api";
+import { WHATSAPP_LIVE } from "./siteConfig";
 
 export type CampaignDiscount = {
   type?: "fixed" | "percentage" | "percent";
@@ -244,7 +245,8 @@ export function getAllFeatures(plan: PlanOption): string[] {
   const cleaned = rawFeatures
     .map((feature) => cleanFeature(String(feature)))
     .filter(Boolean)
-    .filter((feature) => !quotaFeaturePattern.test(feature));
+    .filter((feature) => !quotaFeaturePattern.test(feature))
+    .filter((feature) => WHATSAPP_LIVE || !/\bwhatsapp\b/i.test(feature));
 
   return Array.from(new Set(cleaned));
 }
@@ -380,18 +382,23 @@ export function sortPlans(plans: DisplayPlan[]): DisplayPlan[] {
 }
 
 /**
- * B-02 / N-04: a plan button must carry the chosen plan through signup for visitors,
- * but for ALREADY SIGNED-IN users, it must take them straight to checkout or billing,
- * NEVER bouncing an authenticated user to /signup.
+ * B-02 / N-04 / R3-23: a plan button must carry the chosen plan through signup for visitors.
+ * For ALREADY SIGNED-IN users, it redirects to the billing section (/dashboard/billing).
+ * If the user is the workspace owner, Billing opens Manage Plan with the selected plan;
+ * if the user is an invited team member, Billing informs them that billing is managed by the owner.
  */
-export function planSignupHref(plan: DisplayPlan): string {
+export function planSignupHref(plan: DisplayPlan, isAuthenticated?: boolean): string {
   if (plan.isEnterprise) return "/contact";
-  const isAuthenticated = typeof window !== "undefined" && Boolean(getAuthToken());
+  const authed =
+    typeof isAuthenticated === "boolean"
+      ? isAuthenticated
+      : typeof window !== "undefined" && Boolean(getAuthToken());
+
   if (!plan.planId) {
-    return isAuthenticated ? "/dashboard/billing" : "/signup";
+    return authed ? "/dashboard/billing?managePlan=true" : "/signup";
   }
-  return isAuthenticated
-    ? `/checkout?planId=${encodeURIComponent(plan.planId)}`
+  return authed
+    ? `/dashboard/billing?managePlan=true&planId=${encodeURIComponent(plan.planId)}`
     : `/signup?plan=${encodeURIComponent(plan.planId)}`;
 }
 
